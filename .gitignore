@@ -1,6 +1,7 @@
 # Rust
 /target/
 **/target/
+*.rs.bk
 # Cargo.lock is committed (this is an application, not a library)
 
 # Node / frontend
@@ -9,6 +10,8 @@ dist/
 dist-ssr/
 .vite/
 *.local
+*.tsbuildinfo
+coverage/
 
 # Tauri build output
 /src-tauri/target/

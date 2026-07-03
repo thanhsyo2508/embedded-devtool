@@ -1,0 +1,7 @@
+.agents/
+docs/
+src-tauri/
+package-lock.json
+CLAUDE.md
+README.md
+*.md
