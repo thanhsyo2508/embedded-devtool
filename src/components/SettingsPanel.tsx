@@ -119,6 +119,28 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             ))}
           </div>
         </div>
+
+        <hr className="settings-divider" />
+
+        <div className="shortcuts-list">
+          <div className="shortcuts-title">Keyboard shortcuts</div>
+          {[
+            ['Ctrl+N', 'New connection'],
+            ['Ctrl+W', 'Close current tab'],
+            ['Ctrl+1–9', 'Switch to tab N'],
+            ['Ctrl+L', 'Clear current tab'],
+            ['Space', 'Pause / resume monitor'],
+            ['Ctrl+Shift+P', 'Toggle plotter'],
+            ['Ctrl+Shift+F', 'Toggle flash panel'],
+            ['Ctrl+,', 'Toggle settings'],
+            ['Esc', 'Close settings / flash panel'],
+          ].map(([keys, label]) => (
+            <div key={keys} className="shortcut-row">
+              <kbd>{keys}</kbd>
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

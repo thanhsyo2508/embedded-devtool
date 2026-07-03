@@ -22,6 +22,10 @@ function App() {
   const wireStm32EventsOnce = useStm32Store((s) => s.wireEventsOnce)
   const tabs = useTabsStore((s) => s.tabs)
   const activeTabId = useTabsStore((s) => s.activeTabId)
+  const setActiveTab = useTabsStore((s) => s.setActiveTab)
+  const closeTab = useTabsStore((s) => s.closeTab)
+  const clearLines = useTabsStore((s) => s.clearLines)
+  const togglePause = useTabsStore((s) => s.togglePause)
   const [showConnect, setShowConnect] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
@@ -56,6 +60,86 @@ function App() {
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
 
+  // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey
+      const target = e.target as HTMLElement | null
+      const isTyping = !!target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+
+      if (e.key === 'Escape') {
+        if (showSettings) setShowSettings(false)
+        else if (showFlash) setShowFlash(false)
+        return
+      }
+
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault()
+        setShowFlash((v) => !v)
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault()
+        setPlotVisible(!plotVisible)
+        return
+      }
+      if (mod && e.key === ',') {
+        e.preventDefault()
+        setShowSettings((v) => !v)
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        setShowConnect(true)
+        return
+      }
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'w') {
+        if (activeTab) {
+          e.preventDefault()
+          void closeTab(activeTab.id)
+        }
+        return
+      }
+      if (mod && e.key.toLowerCase() === 'l') {
+        if (activeTab && !showConnect) {
+          e.preventDefault()
+          clearLines(activeTab.id)
+        }
+        return
+      }
+      if (mod && e.key >= '1' && e.key <= '9') {
+        const index = Number(e.key) - 1
+        if (tabs[index]) {
+          e.preventDefault()
+          setActiveTab(tabs[index].id)
+          setShowConnect(false)
+        }
+        return
+      }
+      if (!mod && e.key === ' ' && !isTyping) {
+        if (activeTab && !showConnect) {
+          e.preventDefault()
+          togglePause(activeTab.id)
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    activeTab,
+    tabs,
+    showConnect,
+    showSettings,
+    showFlash,
+    plotVisible,
+    closeTab,
+    clearLines,
+    togglePause,
+    setActiveTab,
+    setPlotVisible,
+  ])
+
   return (
     <div className="app">
       <div className="app-topbar">
@@ -64,7 +148,7 @@ function App() {
           type="button"
           className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}
           aria-label="Plotter"
-          title="Plotter"
+          title="Plotter (Ctrl+Shift+P)"
           onClick={() => setPlotVisible(!plotVisible)}
         >
           <ChartIcon />
@@ -73,7 +157,7 @@ function App() {
           type="button"
           className="icon-button settings-trigger"
           aria-label="Flash ESP32"
-          title="Flash ESP32"
+          title="Flash ESP32 (Ctrl+Shift+F)"
           onClick={() => setShowFlash(true)}
         >
           <ZapIcon />
@@ -82,7 +166,7 @@ function App() {
           type="button"
           className="icon-button settings-trigger"
           aria-label="Settings"
-          title="Settings"
+          title="Settings (Ctrl+,)"
           onClick={() => setShowSettings(true)}
         >
           <GearIcon />
