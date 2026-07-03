@@ -1,0 +1,503 @@
+<title>EDT — Wireframe layout (G0-T12)</title>
+<style>
+  :root {
+    --wf-bg: #f2f1ec;
+    --wf-panel: #ffffff;
+    --wf-border: #9a9d93;
+    --wf-border-strong: #4d5148;
+    --wf-text: #23261f;
+    --wf-text-muted: #6c7066;
+    --wf-accent: #c4472b;
+    --wf-hatch: rgba(77, 81, 72, 0.08);
+    --wf-hatch-line: rgba(77, 81, 72, 0.28);
+    --wf-chip-bg: #eceae2;
+    --wf-shadow: rgba(30, 32, 26, 0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --wf-bg: #161813;
+      --wf-panel: #1e211a;
+      --wf-border: #565b4d;
+      --wf-border-strong: #b9bdae;
+      --wf-text: #eceae0;
+      --wf-text-muted: #a2a695;
+      --wf-accent: #e8734f;
+      --wf-hatch: rgba(236, 234, 224, 0.06);
+      --wf-hatch-line: rgba(236, 234, 224, 0.16);
+      --wf-chip-bg: #262a20;
+      --wf-shadow: rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --wf-bg: #161813;
+    --wf-panel: #1e211a;
+    --wf-border: #565b4d;
+    --wf-border-strong: #b9bdae;
+    --wf-text: #eceae0;
+    --wf-text-muted: #a2a695;
+    --wf-accent: #e8734f;
+    --wf-hatch: rgba(236, 234, 224, 0.06);
+    --wf-hatch-line: rgba(236, 234, 224, 0.16);
+    --wf-chip-bg: #262a20;
+    --wf-shadow: rgba(0, 0, 0, 0.4);
+  }
+  :root[data-theme="light"] {
+    --wf-bg: #f2f1ec;
+    --wf-panel: #ffffff;
+    --wf-border: #9a9d93;
+    --wf-border-strong: #4d5148;
+    --wf-text: #23261f;
+    --wf-text-muted: #6c7066;
+    --wf-accent: #c4472b;
+    --wf-hatch: rgba(77, 81, 72, 0.08);
+    --wf-hatch-line: rgba(77, 81, 72, 0.28);
+    --wf-chip-bg: #eceae2;
+    --wf-shadow: rgba(30, 32, 26, 0.10);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--wf-bg);
+    color: var(--wf-text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 40px 24px 80px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .page-head { margin-bottom: 32px; }
+  .eyebrow {
+    font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--wf-accent);
+    display: block;
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 26px;
+    margin: 0 0 6px;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  .page-head p {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--wf-text-muted);
+    font-size: 14.5px;
+    line-height: 1.6;
+  }
+
+  .frame-label {
+    font-family: ui-monospace, "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--wf-text-muted);
+    margin: 0 0 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .frame-label .n {
+    color: var(--wf-panel);
+    background: var(--wf-border-strong);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 10.5px;
+  }
+
+  /* ---- window chrome shell ---- */
+  .window {
+    background: var(--wf-panel);
+    border: 1.5px solid var(--wf-border-strong);
+    border-radius: 8px;
+    box-shadow: 0 8px 28px var(--wf-shadow);
+    overflow: hidden;
+  }
+  .titlebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--wf-border);
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    color: var(--wf-text-muted);
+  }
+  .dots { display: flex; gap: 5px; }
+  .dots span { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--wf-border); }
+  .titlebar .proj { margin-left: 4px; color: var(--wf-text); }
+  .titlebar .actions { margin-left: auto; display: flex; gap: 8px; }
+  .chip {
+    font-family: ui-monospace, monospace;
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border: 1px dashed var(--wf-border);
+    border-radius: 999px;
+    color: var(--wf-text-muted);
+    background: var(--wf-chip-bg);
+  }
+  .chip.on { border-style: solid; border-color: var(--wf-accent); color: var(--wf-accent); }
+
+  /* ---- app grid ---- */
+  .app-grid {
+    display: grid;
+    grid-template-columns: 200px 1fr 240px;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "tabs   tabs    tabs"
+      "side   main    plot"
+      "side   send    plot";
+    height: 560px;
+  }
+  .region {
+    border: 1px dashed var(--wf-border);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .region > .rlabel {
+    font-family: ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--wf-text-muted);
+    padding: 6px 10px 4px;
+    flex: none;
+  }
+
+  /* tab strip */
+  .tabstrip { grid-area: tabs; flex-direction: row; align-items: center; padding: 0 8px; border-top: none; }
+  .tabstrip .rlabel { display:none; }
+  .tab {
+    font-family: ui-monospace, monospace;
+    font-size: 11.5px;
+    padding: 9px 14px;
+    border-right: 1px dashed var(--wf-border);
+    color: var(--wf-text-muted);
+    white-space: nowrap;
+  }
+  .tab.active { color: var(--wf-text); background: var(--wf-hatch); border-bottom: 2px solid var(--wf-accent); }
+  .tab .dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#5c8a52; margin-right:6px; }
+  .tab-add { margin-left: 4px; color: var(--wf-text-muted); font-family: ui-monospace, monospace; font-size: 13px; padding: 4px 8px; }
+
+  /* sidebar */
+  .sidebar { grid-area: side; border-left: none; }
+  .side-group { padding: 2px 10px 10px; }
+  .side-group .glabel {
+    font-family: ui-monospace, monospace;
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    color: var(--wf-text-muted);
+    margin: 8px 0 4px;
+  }
+  .side-item {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; padding: 5px 6px; border-radius: 4px;
+    border: 1px dashed transparent;
+  }
+  .side-item.selected { border-color: var(--wf-border); background: var(--wf-hatch); }
+  .side-item .sw { width:6px; height:6px; border-radius:50%; flex: none; }
+  .sw.green { background:#5c8a52; }
+  .sw.grey { background: var(--wf-border); }
+  .side-item .lbl { color: var(--wf-text); }
+  .side-item .sub { color: var(--wf-text-muted); font-size: 10.5px; margin-left: auto; font-family: ui-monospace, monospace; }
+  .side-cta {
+    margin: 10px 10px 0;
+    border: 1px dashed var(--wf-border);
+    border-radius: 5px;
+    text-align: center;
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: var(--wf-text-muted);
+    padding: 7px;
+  }
+
+  /* main log area */
+  .main { grid-area: main; border-top: none; border-left: none; }
+  .toolrow {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 10px; border-bottom: 1px dashed var(--wf-border);
+    flex: none;
+  }
+  .toolrow .grow { flex: 1; }
+  .seg { display:flex; border: 1px solid var(--wf-border); border-radius: 4px; overflow: hidden; }
+  .seg span { font-family: ui-monospace, monospace; font-size: 10px; padding: 3px 8px; color: var(--wf-text-muted); border-right: 1px solid var(--wf-border); }
+  .seg span:last-child { border-right: none; }
+  .seg span.on { background: var(--wf-hatch); color: var(--wf-text); }
+
+  .loglist { flex: 1; overflow: hidden; padding: 4px 0; position: relative; }
+  .logline {
+    display: flex; gap: 10px;
+    font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+    font-size: 11px;
+    padding: 3px 12px;
+    color: var(--wf-text);
+    border-bottom: 1px solid transparent;
+  }
+  .logline .t { color: var(--wf-text-muted); flex: none; width: 68px; }
+  .logline .lvl { flex: none; width: 14px; text-align:center; border-radius: 3px; font-weight: 600; }
+  .lvl.E { color: #b23b3b; }
+  .lvl.W { color: #a67a1e; }
+  .lvl.I { color: #3f7ac9; }
+  .logline .msg { color: var(--wf-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .logline.hi .msg { color: var(--wf-text); }
+  .viewport-fade {
+    position: absolute; left:0; right:0; bottom:0; height: 46px;
+    background: linear-gradient(to bottom, transparent, var(--wf-panel));
+    display:flex; align-items:flex-end; justify-content:center; padding-bottom:6px;
+  }
+  .jumpchip { font-family: ui-monospace, monospace; font-size: 10px; border:1px solid var(--wf-border); border-radius:999px; padding: 3px 10px; background: var(--wf-panel); color: var(--wf-text-muted); }
+
+  /* send panel */
+  .send { grid-area: send; flex-direction: row; align-items: center; border-top: 1px dashed var(--wf-border); border-left: none; gap: 8px; padding: 8px 10px; }
+  .send .rlabel { display: none; }
+  .send-input { flex: 1; height: 26px; border: 1px solid var(--wf-border); border-radius: 4px; background: var(--wf-hatch); }
+  .btn { font-family: ui-monospace, monospace; font-size: 10.5px; border: 1px solid var(--wf-border); border-radius: 4px; padding: 5px 10px; color: var(--wf-text-muted); }
+  .btn.primary { border-color: var(--wf-accent); color: var(--wf-accent); }
+
+  /* plotter dock */
+  .plot { grid-area: plot; border-top: none; }
+  .plot-chart {
+    flex: 1; margin: 8px 10px 0; border: 1px solid var(--wf-border); border-radius: 4px;
+    background-image: repeating-linear-gradient(0deg, var(--wf-hatch-line) 0 1px, transparent 1px 28px),
+                       repeating-linear-gradient(90deg, var(--wf-hatch-line) 0 1px, transparent 1px 28px);
+    position: relative; overflow: hidden;
+  }
+  .plot-chart svg { position:absolute; inset:0; width:100%; height:100%; }
+  .legend { padding: 8px 10px; display:flex; flex-direction:column; gap:5px; }
+  .legend-item { display:flex; align-items:center; gap:6px; font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--wf-text-muted); }
+  .legend-item .sw { width:10px; height:2.5px; border-radius:2px; }
+
+  /* footer status */
+  .statusbar {
+    display:flex; gap: 16px; align-items:center;
+    padding: 5px 12px; border-top: 1px solid var(--wf-border);
+    font-family: ui-monospace, monospace; font-size: 10px; color: var(--wf-text-muted);
+  }
+  .statusbar b { color: var(--wf-text); font-weight: 600; }
+  .statusbar .grow { flex: 1; }
+
+  /* annotation callouts under each frame */
+  .callouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 10px 22px;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--wf-border);
+  }
+  .callout { display: flex; gap: 9px; font-size: 12.5px; line-height: 1.5; color: var(--wf-text-muted); }
+  .callout .num {
+    flex: none; width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid var(--wf-accent); color: var(--wf-accent);
+    font-family: ui-monospace, monospace; font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .callout b { color: var(--wf-text); font-weight: 600; }
+
+  section.block { margin-top: 44px; }
+
+  footer.note {
+    margin-top: 48px;
+    padding-top: 18px;
+    border-top: 1px solid var(--wf-border);
+    font-size: 12.5px;
+    color: var(--wf-text-muted);
+    line-height: 1.7;
+    max-width: 68ch;
+  }
+  footer.note b { color: var(--wf-text); }
+
+  @media (max-width: 760px) {
+    .app-grid { grid-template-columns: 1fr; grid-template-areas: "tabs" "main" "send" "side" "plot"; height: auto; }
+    .region { min-height: 160px; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="page-head">
+    <span class="eyebrow">G0-T12 · Wireframe thay thế Figma</span>
+    <h1>EDT — Layout tổng thể &amp; panel system</h1>
+    <p>
+      Bản wireframe độ trung thực thấp (không phải Figma — xem ghi chú cuối trang) dựng lại
+      layout chính mô tả ở docs/ke-hoach-phat-trien-embedded-devtool.md §2.3 và
+      docs/ke-hoach-chi-tiet-giai-doan-0-1.md (G0-T12): multi-tab monitor, panel plotter,
+      send panel, và điểm neo cho flash panel.
+    </p>
+  </div>
+
+  <section class="block">
+    <p class="frame-label"><span class="n">A</span> Màn hình chính — Monitor + Plotter</p>
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="proj">edt — my-esp32-project.edtproj</span>
+        <div class="actions">
+          <span class="chip on">● COM5 · 921600</span>
+          <span class="chip">+ New</span>
+        </div>
+      </div>
+      <div class="app-grid">
+        <div class="region tabstrip">
+          <span class="tab active"><span class="dot"></span>COM5 (ESP32-S3)</span>
+          <span class="tab"><span class="dot"></span>COM7 (STM32)</span>
+          <span class="tab">TCP :8080</span>
+          <span class="tab-add">+</span>
+        </div>
+
+        <div class="region sidebar">
+          <div class="side-group">
+            <div class="glabel">SERIAL</div>
+            <div class="side-item selected"><span class="sw green"></span><span class="lbl">COM5 · ESP32-S3</span><span class="sub">921600</span></div>
+            <div class="side-item"><span class="sw green"></span><span class="lbl">COM7 · STM32G0</span><span class="sub">115200</span></div>
+          </div>
+          <div class="side-group">
+            <div class="glabel">NETWORK</div>
+            <div class="side-item"><span class="sw grey"></span><span class="lbl">TCP :8080</span><span class="sub">idle</span></div>
+          </div>
+          <div class="side-group">
+            <div class="glabel">PROJECT</div>
+            <div class="side-item"><span class="sw grey"></span><span class="lbl">Flash profile</span></div>
+            <div class="side-item"><span class="sw grey"></span><span class="lbl">Script editor</span></div>
+          </div>
+          <div class="side-cta">+ New connection</div>
+        </div>
+
+        <div class="region main">
+          <div class="toolrow">
+            <div class="seg"><span class="on">Mixed</span><span>Hex</span><span>ASCII</span></div>
+            <div class="seg"><span class="on">Δt</span><span>abs</span><span>off</span></div>
+            <div class="grow"></div>
+            <span class="chip">🔍 filter</span>
+            <span class="chip">1,204 lines</span>
+          </div>
+          <div class="loglist">
+            <div class="logline"><span class="t">+0.012</span><span class="lvl I">I</span><span class="msg">wifi: connected, ip=192.168.1.42</span></div>
+            <div class="logline hi"><span class="t">+0.014</span><span class="lvl W">W</span><span class="msg">battery: voltage low (3.31V)</span></div>
+            <div class="logline"><span class="t">+0.031</span><span class="lvl I">I</span><span class="msg">temp=24.8 hum=51.2 lux=812</span></div>
+            <div class="logline"><span class="t">+0.031</span><span class="lvl I">I</span><span class="msg">temp=24.9 hum=51.1 lux=809</span></div>
+            <div class="logline"><span class="t">+0.032</span><span class="lvl E">E</span><span class="msg">sensor: i2c timeout on bus 1</span></div>
+            <div class="logline"><span class="t">+0.048</span><span class="lvl I">I</span><span class="msg">temp=24.9 hum=51.0 lux=805</span></div>
+            <div class="logline"><span class="t">+0.049</span><span class="lvl I">I</span><span class="msg">temp=25.0 hum=51.0 lux=801</span></div>
+            <div class="logline"><span class="t">+0.061</span><span class="lvl I">I</span><span class="msg">heap: free=182300 min=179884</span></div>
+            <div class="viewport-fade"><span class="jumpchip">↓ jump to bottom</span></div>
+          </div>
+        </div>
+
+        <div class="region send">
+          <span class="chip">CRLF</span>
+          <div class="send-input"></div>
+          <span class="btn primary">Send</span>
+        </div>
+
+        <div class="region plot">
+          <div class="rlabel">plotter · nguồn: COM5</div>
+          <div class="plot-chart">
+            <svg viewBox="0 0 220 120" preserveAspectRatio="none">
+              <polyline points="0,80 20,74 40,78 60,60 80,64 100,50 120,54 140,40 160,44 180,30 200,34 220,22"
+                fill="none" stroke="#3f7ac9" stroke-width="1.6" opacity="0.9"/>
+              <polyline points="0,100 20,96 40,98 60,90 80,92 100,86 120,88 140,80 160,82 180,76 200,78 220,70"
+                fill="none" stroke="#5c8a52" stroke-width="1.6" opacity="0.9"/>
+            </svg>
+          </div>
+          <div class="legend">
+            <div class="legend-item"><span class="sw" style="background:#3f7ac9"></span>temp (°C)</div>
+            <div class="legend-item"><span class="sw" style="background:#5c8a52"></span>hum (%)</div>
+          </div>
+        </div>
+      </div>
+      <div class="statusbar">
+        <span><b>4.2</b> KB/s</span>
+        <span><b>118</b> lines/s</span>
+        <span>uptime <b>00:14:22</b></span>
+        <div class="grow"></div>
+        <span>auto-reconnect: <b>on</b></span>
+      </div>
+    </div>
+
+    <div class="callouts">
+      <div class="callout"><span class="num">1</span><span><b>Tab strip</b> — mỗi tab gắn 1 DataStream (serial/TCP/UDP); chấm màu = trạng thái kết nối.</span></div>
+      <div class="callout"><span class="num">2</span><span><b>Sidebar</b> — liệt kê theo nhóm nguồn (Serial/Network/Project), click để mở tab tương ứng.</span></div>
+      <div class="callout"><span class="num">3</span><span><b>Log viewport</b> — virtualized, chỉ render dòng hiển thị; auto-scroll dừng khi cuộn lên tay.</span></div>
+      <div class="callout"><span class="num">4</span><span><b>Send panel</b> — line-ending selector cố định trái, input giữa, nút gửi phải.</span></div>
+      <div class="callout"><span class="num">5</span><span><b>Plotter dock</b> — nhận dữ liệu từ tab đang chọn ở sidebar, không phụ thuộc loại transport.</span></div>
+      <div class="callout"><span class="num">6</span><span><b>Status bar</b> — số liệu thống kê realtime cho tab đang active (M2.4.1 tháng 4).</span></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="frame-label"><span class="n">B</span> Flash panel — mở như một tab riêng (không phải modal, để so log song song lúc flash)</p>
+    <div class="window">
+      <div class="titlebar">
+        <div class="dots"><span></span><span></span><span></span></div>
+        <span class="proj">edt — my-esp32-project.edtproj</span>
+        <div class="actions"><span class="chip">ESP32-S3 detected</span></div>
+      </div>
+      <div class="app-grid" style="grid-template-columns: 200px 1fr 240px; grid-template-areas: 'tabs tabs tabs' 'side main main' 'side main main'; height: 300px;">
+        <div class="region tabstrip">
+          <span class="tab">COM5 (ESP32-S3)</span>
+          <span class="tab active">⚡ Flash — ESP32</span>
+          <span class="tab-add">+</span>
+        </div>
+        <div class="region sidebar">
+          <div class="side-group">
+            <div class="glabel">FLASH PROFILE</div>
+            <div class="side-item selected"><span class="sw grey"></span><span class="lbl">default.json</span></div>
+            <div class="side-item"><span class="sw grey"></span><span class="lbl">+ Save as profile</span></div>
+          </div>
+        </div>
+        <div class="region main" style="padding: 12px 16px; gap:10px;">
+          <div class="toolrow" style="border:none; padding:0;">
+            <span class="chip on">chip: ESP32-S3</span>
+            <span class="chip">MAC: 7C:9E:BD:..</span>
+            <span class="chip">flash: 8MB</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="chip">0x1000</span>
+              <div class="send-input" style="flex:1"></div>
+              <span class="btn">bootloader.bin</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="chip">0x8000</span>
+              <div class="send-input" style="flex:1"></div>
+              <span class="btn">partitions.bin</span>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="chip">0x10000</span>
+              <div class="send-input" style="flex:1"></div>
+              <span class="btn">app.bin</span>
+            </div>
+          </div>
+          <div style="margin-top:14px;">
+            <div style="height:8px; border:1px solid var(--wf-border); border-radius:5px; overflow:hidden;">
+              <div style="width:62%; height:100%; background: var(--wf-accent);"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:6px; font-family: ui-monospace, monospace; font-size:10.5px; color: var(--wf-text-muted);">
+              <span>Writing at 0x0f200… (62%)</span>
+              <span class="btn primary">Flash</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="callouts">
+      <div class="callout"><span class="num">1</span><span><b>Flash mở dạng tab</b>, không phải modal — có thể xem log monitor tab khác song song trong lúc flash chạy.</span></div>
+      <div class="callout"><span class="num">2</span><span><b>Offset rows</b> lấy từ flash profile đã lưu; edit trực tiếp hoặc load lại từ sidebar.</span></div>
+      <div class="callout"><span class="num">3</span><span><b>Progress + Flash button</b> luôn neo cuối panel, không cuộn khỏi tầm nhìn.</span></div>
+    </div>
+  </section>
+
+  <footer class="note">
+    <b>Về bản wireframe này:</b> đây là mockup HTML độ trung thực thấp, dùng để chốt cấu trúc
+    layout nhanh (không cần công cụ thiết kế) — không thay thế hoàn toàn cho DoD gốc của G0-T12
+    ("Figma wireframe, review với ít nhất 1 người dùng mục tiêu"). Đề xuất: dùng bản này làm
+    điểm khởi đầu để trao đổi/chỉnh nhanh cấu trúc, sau đó nếu cần bản Figma chính thức để review
+    với người ngoài nhóm, dựng lại trong Figma dựa trên cấu trúc đã chốt ở đây.
+  </footer>
+</div>
