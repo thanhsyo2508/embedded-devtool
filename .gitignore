@@ -1,0 +1,43 @@
+# Rust
+/target/
+**/target/
+# Cargo.lock is committed (this is an application, not a library)
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# Tauri build output
+/src-tauri/target/
+/src-tauri/gen/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# Project-local scratch (flash dumps, captured logs, etc.)
+*.bin.dump
+/tmp/
