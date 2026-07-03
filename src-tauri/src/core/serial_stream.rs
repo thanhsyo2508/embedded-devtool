@@ -171,6 +171,51 @@ impl DataStream for SerialStream {
     }
 }
 
+/// Live state of the RS-232 control lines. `cts`/`dsr`/`ri`/`cd` are inputs
+/// read from the device; DTR/RTS are outputs this side drives (see
+/// `SerialStream::set_dtr`/`set_rts`) — surfaced separately from `DataStream`
+/// since they're serial-specific, not part of the transport-agnostic trait.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SignalState {
+    pub cts: bool,
+    pub dsr: bool,
+    pub ri: bool,
+    pub cd: bool,
+}
+
+impl SerialStream {
+    /// Sets the Data Terminal Ready line. Commonly toggled together with RTS
+    /// to trigger an auto-reset-into-bootloader sequence on ESP32/Arduino
+    /// boards wired with the classic DTR/RTS reset circuit.
+    pub fn set_dtr(&mut self, level: bool) -> io::Result<()> {
+        match self.port.as_mut() {
+            Some(port) => port
+                .write_data_terminal_ready(level)
+                .map_err(io::Error::other),
+            None => Err(io::Error::new(io::ErrorKind::NotConnected, "port not open")),
+        }
+    }
+
+    pub fn set_rts(&mut self, level: bool) -> io::Result<()> {
+        match self.port.as_mut() {
+            Some(port) => port.write_request_to_send(level).map_err(io::Error::other),
+            None => Err(io::Error::new(io::ErrorKind::NotConnected, "port not open")),
+        }
+    }
+
+    pub fn read_signals(&mut self) -> io::Result<SignalState> {
+        match self.port.as_mut() {
+            Some(port) => Ok(SignalState {
+                cts: port.read_clear_to_send().map_err(io::Error::other)?,
+                dsr: port.read_data_set_ready().map_err(io::Error::other)?,
+                ri: port.read_ring_indicator().map_err(io::Error::other)?,
+                cd: port.read_carrier_detect().map_err(io::Error::other)?,
+            }),
+            None => Err(io::Error::new(io::ErrorKind::NotConnected, "port not open")),
+        }
+    }
+}
+
 /// Enumerates available serial ports with USB metadata (VID/PID, product
 /// name, serial number) where the OS provides it — feeds M1-T1.1 (port
 /// manager) and M1-T1.5 (auto-reconnect matching).
