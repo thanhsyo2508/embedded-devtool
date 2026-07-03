@@ -143,3 +143,62 @@ export function ChipIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   )
 }
+
+export function MessageIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M21 12a8 8 0 0 1-8 8H5l-2 2v-2.5A8 8 0 1 1 21 12z" />
+    </Icon>
+  )
+}
+
+export function FilterIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 5h16l-6 8v6l-4 2v-8z" />
+    </Icon>
+  )
+}
+
+export function BookmarkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 3h12v18l-6-4-6 4z" />
+    </Icon>
+  )
+}
+
+export function SearchIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </Icon>
+  )
+}
+
+export function CircleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8" fill="currentColor" stroke="none" />
+    </Icon>
+  )
+}
+
+export function PlayIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none" />
+    </Icon>
+  )
+}
+
+export function TargetIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </Icon>
+  )
+}

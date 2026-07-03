@@ -1,9 +1,9 @@
-import { useLayoutEffect, useEffect, useRef } from 'react'
+import { useLayoutEffect, useEffect, useRef, useState } from 'react'
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { usePlotStore, type ChartType } from '../state/plotStore'
 import { useTabsStore } from '../state/tabsStore'
-import { XIcon } from './icons'
+import { FilterIcon, PlusIcon, TrashIcon, XIcon } from './icons'
 
 const PALETTE = [
   '#c4472b',
@@ -70,6 +70,7 @@ export function PlotDock() {
     dockHeight,
     hiddenChannels,
     chartType,
+    extractors,
     setSourceTabId,
     setFrozen,
     reset,
@@ -77,8 +78,13 @@ export function PlotDock() {
     setVisible,
     toggleChannelVisibility,
     setChartType,
+    addExtractor,
+    removeExtractor,
+    updateExtractor,
+    toggleExtractorEnabled,
   } = usePlotStore()
   const sourceTab = tabs.find((t) => t.id === sourceTabId) ?? null
+  const [extractorsOpen, setExtractorsOpen] = useState(false)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot | null>(null)
@@ -235,6 +241,13 @@ export function PlotDock() {
         <button type="button" onClick={reset} disabled={!sourceTabId}>
           Clear
         </button>
+        <button
+          type="button"
+          className={extractorsOpen || extractors.length > 0 ? 'on' : ''}
+          onClick={() => setExtractorsOpen((v) => !v)}
+        >
+          <FilterIcon /> Extractors{extractors.length > 0 ? ` (${extractors.length})` : ''}
+        </button>
         <span className="line-count">{timestamps.length.toLocaleString()} pts</span>
         <button
           type="button"
@@ -245,6 +258,49 @@ export function PlotDock() {
           <XIcon />
         </button>
       </div>
+
+      {extractorsOpen && (
+        <div className="filter-bar">
+          {extractors.map((extractor) => (
+            <div className="filter-row" key={extractor.id}>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={extractor.enabled}
+                  onChange={() => toggleExtractorEnabled(extractor.id)}
+                />
+              </label>
+              <input
+                type="text"
+                placeholder="regex with one capture group, e.g. temp=(\d+\.\d+)"
+                value={extractor.pattern}
+                onChange={(e) => updateExtractor(extractor.id, { pattern: e.target.value })}
+              />
+              <span>→</span>
+              <input
+                type="text"
+                className="extractor-channel"
+                placeholder="channel name"
+                value={extractor.channel}
+                onChange={(e) => updateExtractor(extractor.id, { channel: e.target.value })}
+              />
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Remove extractor"
+                onClick={() => removeExtractor(extractor.id)}
+              >
+                <TrashIcon />
+              </button>
+            </div>
+          ))}
+          <div className="filter-actions">
+            <button type="button" onClick={addExtractor}>
+              <PlusIcon /> Add extractor
+            </button>
+          </div>
+        </div>
+      )}
 
       {channelOrder.length > 0 && (
         <div className="plot-channels">

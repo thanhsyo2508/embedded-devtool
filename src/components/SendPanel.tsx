@@ -1,26 +1,22 @@
 import { useState, type KeyboardEvent } from 'react'
 import { useTabsStore, type LineEnding, type TabState } from '../state/tabsStore'
+import { parseHex } from '../lib/hex'
+import { MacroPanel } from './MacroPanel'
+import { CircleIcon, PlayIcon } from './icons'
 
 type SendMode = 'text' | 'hex'
-
-function parseHex(input: string): number[] | null {
-  const cleaned = input.replace(/[\s,]+/g, '')
-  if (cleaned.length === 0) return []
-  if (cleaned.length % 2 !== 0 || !/^[0-9a-fA-F]+$/.test(cleaned)) return null
-  const bytes: number[] = []
-  for (let i = 0; i < cleaned.length; i += 2) {
-    bytes.push(parseInt(cleaned.slice(i, i + 2), 16))
-  }
-  return bytes
-}
 
 export function SendPanel({ tab }: { tab: TabState }) {
   const send = useTabsStore((s) => s.send)
   const sendBytes = useTabsStore((s) => s.sendBytes)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
+  const startMacroRecording = useTabsStore((s) => s.startMacroRecording)
+  const stopMacroRecording = useTabsStore((s) => s.stopMacroRecording)
+  const playMacro = useTabsStore((s) => s.playMacro)
   const [mode, setMode] = useState<SendMode>('text')
   const [text, setText] = useState('')
   const [historyIndex, setHistoryIndex] = useState(-1)
+  const [macroPanelOpen, setMacroPanelOpen] = useState(false)
 
   const hexBytes = mode === 'hex' ? parseHex(text) : null
   const hexInvalid = mode === 'hex' && hexBytes === null
@@ -29,7 +25,7 @@ export function SendPanel({ tab }: { tab: TabState }) {
     if (text.length === 0) return
     if (mode === 'hex') {
       if (hexBytes === null) return
-      void sendBytes(tab.id, hexBytes, text)
+      void sendBytes(tab.id, hexBytes, text, true)
     } else {
       void send(tab.id, text)
     }
@@ -56,40 +52,67 @@ export function SendPanel({ tab }: { tab: TabState }) {
   }
 
   return (
-    <div className="send-panel">
-      <div className="seg">
-        <span className={mode === 'text' ? 'on' : ''} onClick={() => setMode('text')}>
-          text
-        </span>
-        <span className={mode === 'hex' ? 'on' : ''} onClick={() => setMode('hex')}>
-          hex
-        </span>
+    <>
+      <div className="send-panel">
+        <div className="seg">
+          <span className={mode === 'text' ? 'on' : ''} onClick={() => setMode('text')}>
+            text
+          </span>
+          <span className={mode === 'hex' ? 'on' : ''} onClick={() => setMode('hex')}>
+            hex
+          </span>
+        </div>
+        <select
+          value={tab.lineEnding}
+          onChange={(e) => setLineEnding(tab.id, e.target.value as LineEnding)}
+        >
+          <option value="none">None</option>
+          <option value="cr">CR</option>
+          <option value="lf">LF</option>
+          <option value="crlf">CRLF</option>
+        </select>
+        <input
+          type="text"
+          className={hexInvalid ? 'invalid' : ''}
+          value={text}
+          placeholder={mode === 'hex' ? 'e.g. 01 02 FF' : 'Type a command and press Enter'}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={tab.status !== 'open'}
+        />
+        <button
+          type="button"
+          onClick={doSend}
+          disabled={tab.status !== 'open' || text.length === 0 || hexInvalid}
+        >
+          Send
+        </button>
+        <button
+          type="button"
+          className={`macro-record ${tab.macroRecording ? 'on' : ''}`}
+          title={tab.macroRecording ? 'Stop recording macro' : 'Record macro'}
+          onClick={() =>
+            tab.macroRecording ? stopMacroRecording(tab.id) : startMacroRecording(tab.id)
+          }
+        >
+          <CircleIcon /> {tab.macroRecording ? 'Recording…' : 'Record'}
+        </button>
+        <button
+          type="button"
+          className={macroPanelOpen || tab.macroSteps.length > 0 ? 'on' : ''}
+          onClick={() => setMacroPanelOpen((v) => !v)}
+        >
+          Macro{tab.macroSteps.length > 0 ? ` (${tab.macroSteps.length})` : ''}
+        </button>
+        <button
+          type="button"
+          disabled={tab.macroSteps.length === 0 || tab.macroPlaying || tab.macroRecording}
+          onClick={() => void playMacro(tab.id)}
+        >
+          <PlayIcon /> {tab.macroPlaying ? 'Playing…' : 'Play'}
+        </button>
       </div>
-      <select
-        value={tab.lineEnding}
-        onChange={(e) => setLineEnding(tab.id, e.target.value as LineEnding)}
-      >
-        <option value="none">None</option>
-        <option value="cr">CR</option>
-        <option value="lf">LF</option>
-        <option value="crlf">CRLF</option>
-      </select>
-      <input
-        type="text"
-        className={hexInvalid ? 'invalid' : ''}
-        value={text}
-        placeholder={mode === 'hex' ? 'e.g. 01 02 FF' : 'Type a command and press Enter'}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        disabled={tab.status !== 'open'}
-      />
-      <button
-        type="button"
-        onClick={doSend}
-        disabled={tab.status !== 'open' || text.length === 0 || hexInvalid}
-      >
-        Send
-      </button>
-    </div>
+      {macroPanelOpen && <MacroPanel tab={tab} />}
+    </>
   )
 }

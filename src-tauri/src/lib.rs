@@ -48,6 +48,19 @@ fn write_serial_port(
     manager.write(&id, &data)
 }
 
+/// Backs the trigger/action "write to file" action: appends one matched
+/// line to a user-chosen file, creating it on first write.
+#[tauri::command]
+fn append_trigger_log(path: String, line: String) -> Result<(), String> {
+    use std::io::Write;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+    writeln!(file, "{line}").map_err(|e| e.to_string())
+}
+
 const LOG_ROTATION_BYTES: u64 = 50 * 1024 * 1024;
 
 /// M1-T2.7: starts writing this port's data to a raw + timestamped log file
@@ -535,6 +548,7 @@ pub fn run() {
             open_serial_port,
             close_serial_port,
             write_serial_port,
+            append_trigger_log,
             serial_port_states,
             start_serial_logging,
             stop_serial_logging,

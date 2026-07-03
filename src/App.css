@@ -256,7 +256,7 @@ body,
   color: var(--text);
 }
 
-.port-details-text .mono {
+.mono {
   font-family: ui-monospace, Consolas, monospace;
 }
 
@@ -446,6 +446,7 @@ body,
 
 .logline {
   display: flex;
+  align-items: center;
   gap: 10px;
   font-family: ui-monospace, Consolas, monospace;
   font-size: var(--log-font-size);
@@ -471,6 +472,209 @@ body,
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.logline .msg mark {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: inherit;
+  border-radius: 2px;
+}
+
+.logline.current-match .msg mark {
+  background: var(--accent);
+  color: var(--panel);
+}
+
+.logline.level-error .msg {
+  color: var(--err);
+}
+
+.logline.level-warn .msg {
+  color: #b8860b;
+}
+
+.logline.level-debug .msg,
+.logline.level-verbose .msg {
+  color: var(--text-muted);
+}
+
+.bookmark-toggle {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  width: 14px;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+.logline:hover .bookmark-toggle,
+.bookmark-toggle.on {
+  opacity: 1;
+}
+
+.bookmark-toggle.on {
+  color: var(--accent);
+}
+
+.bookmark-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.bookmark-nav button {
+  padding: 3px 6px;
+}
+
+/* ---- stats bar ---- */
+.stats-bar {
+  display: flex;
+  gap: 16px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  flex: none;
+}
+
+.stat-error {
+  color: var(--err);
+}
+
+/* ---- filter bar ---- */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-row input[type='text'] {
+  flex: 1;
+}
+
+.filter-row input.extractor-channel {
+  flex: 0 0 120px;
+}
+
+.trigger-row select {
+  flex: none;
+}
+
+.trigger-row input.trigger-file-path {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+/* ---- macro recorder ---- */
+.macro-record.on {
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.macro-panel {
+  border-top: 1px solid var(--border);
+}
+
+.macro-step-index {
+  flex: none;
+  color: var(--text-muted);
+  width: 18px;
+  text-align: right;
+}
+
+.macro-step-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.macro-delay {
+  flex: none;
+  width: 70px;
+}
+
+.filter-row input.invalid {
+  border-color: var(--err);
+}
+
+.mode-tag {
+  flex: none;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.mode-tag.include {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+}
+
+.mode-tag.exclude {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 15%, transparent);
+}
+
+.filter-count {
+  flex: none;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 20px;
+  text-align: right;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-actions button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+}
+
+/* ---- search overlay ---- */
+.search-overlay {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.search-overlay input {
+  width: 180px;
+}
+
+.search-overlay button {
+  padding: 3px 7px;
 }
 
 .jump-bottom {
@@ -588,6 +792,12 @@ button:disabled {
   border: none;
   border-top: 1px solid var(--border);
   margin: 0;
+}
+
+.feedback-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .switch {

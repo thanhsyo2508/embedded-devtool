@@ -35,6 +35,33 @@ function parseLine(text: string): Record<string, number> | null {
 
 export type ChartType = 'line' | 'area' | 'step' | 'bars' | 'points'
 
+// M4.1: user-defined "temp=(\d+\.\d+)" -> channel "temp" style mappings,
+// applied on top of parseLine's generic auto-detect so values buried in
+// otherwise-plain log text can still reach the plotter.
+export interface Extractor {
+  id: string
+  pattern: string
+  channel: string
+  enabled: boolean
+}
+
+function applyExtractors(text: string, extractors: Extractor[]): Record<string, number> {
+  const result: Record<string, number> = {}
+  for (const extractor of extractors) {
+    if (!extractor.enabled || extractor.channel.length === 0) continue
+    let match: RegExpExecArray | null
+    try {
+      match = new RegExp(extractor.pattern).exec(text)
+    } catch {
+      continue
+    }
+    if (!match || match[1] === undefined) continue
+    const value = Number.parseFloat(match[1])
+    if (!Number.isNaN(value)) result[extractor.channel] = value
+  }
+  return result
+}
+
 interface PlotState {
   visible: boolean
   sourceTabId: string | null
@@ -46,6 +73,7 @@ interface PlotState {
   dockHeight: number
   hiddenChannels: string[]
   chartType: ChartType
+  extractors: Extractor[]
 
   setVisible: (v: boolean) => void
   setSourceTabId: (id: string | null) => void
@@ -55,6 +83,10 @@ interface PlotState {
   setChartType: (t: ChartType) => void
   reset: () => void
   ingest: (tab: TabState) => void
+  addExtractor: () => void
+  removeExtractor: (id: string) => void
+  updateExtractor: (id: string, patch: Partial<Pick<Extractor, 'pattern' | 'channel'>>) => void
+  toggleExtractorEnabled: (id: string) => void
 }
 
 const emptyData = { channelOrder: [], channelData: {}, timestamps: [], lastProcessedLineSeq: -1 }
@@ -66,6 +98,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   dockHeight: 280,
   hiddenChannels: [],
   chartType: 'line',
+  extractors: [],
   ...emptyData,
 
   setVisible: (visible) => set({ visible }),
@@ -80,6 +113,32 @@ export const usePlotStore = create<PlotState>((set, get) => ({
     })),
   setChartType: (chartType) => set({ chartType }),
   reset: () => set({ ...emptyData }),
+
+  addExtractor: () =>
+    set((state) => ({
+      extractors: [
+        ...state.extractors,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          pattern: '',
+          channel: '',
+          enabled: true,
+        },
+      ],
+    })),
+
+  removeExtractor: (id) =>
+    set((state) => ({ extractors: state.extractors.filter((e) => e.id !== id) })),
+
+  updateExtractor: (id, patch) =>
+    set((state) => ({
+      extractors: state.extractors.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    })),
+
+  toggleExtractorEnabled: (id) =>
+    set((state) => ({
+      extractors: state.extractors.map((e) => (e.id === id ? { ...e, enabled: !e.enabled } : e)),
+    })),
 
   ingest: (tab) => {
     const state = get()
@@ -98,7 +157,10 @@ export const usePlotStore = create<PlotState>((set, get) => ({
     }
 
     for (const line of newLines) {
-      const parsed = parseLine(line.text)
+      const autoParsed = parseLine(line.text)
+      const extracted = applyExtractors(line.text, state.extractors)
+      const parsed =
+        autoParsed || Object.keys(extracted).length > 0 ? { ...autoParsed, ...extracted } : null
       if (!parsed) continue
 
       for (const key of Object.keys(parsed)) {

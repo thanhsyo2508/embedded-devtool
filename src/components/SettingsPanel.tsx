@@ -1,4 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   MAX_LINES_OPTIONS,
   useSettingsStore,
@@ -7,7 +9,9 @@ import {
   type NewlineMode,
   type Theme,
 } from '../state/settingsStore'
-import { GearIcon, XIcon } from './icons'
+import { GearIcon, MessageIcon, XIcon } from './icons'
+
+const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const settings = useSettingsStore()
@@ -17,6 +21,19 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     void invoke('set_keep_awake', { enabled: checked }).catch(() => {
       // best-effort — not every OS/build supports every inhibition mode
     })
+  }
+
+  // M3-T2.8: prefills the GitHub issue form's `version`/`os` fields (matched
+  // by their form field ids) via query params, so a report already carries
+  // the info a maintainer would otherwise have to ask for.
+  const handleSendFeedback = async () => {
+    const version = await getVersion().catch(() => 'unknown')
+    const params = new URLSearchParams({
+      template: 'bug_report.yml',
+      version,
+      os: navigator.userAgent,
+    })
+    void openUrl(`${REPO_URL}/issues/new?${params.toString()}`)
   }
 
   return (
@@ -122,6 +139,19 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <hr className="settings-divider" />
 
+        <div className="settings-row">
+          <span>Feedback</span>
+          <button
+            type="button"
+            className="feedback-button"
+            onClick={() => void handleSendFeedback()}
+          >
+            <MessageIcon /> Send feedback
+          </button>
+        </div>
+
+        <hr className="settings-divider" />
+
         <div className="shortcuts-list">
           <div className="shortcuts-title">Keyboard shortcuts</div>
           {[
@@ -129,6 +159,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             ['Ctrl+W', 'Close current tab'],
             ['Ctrl+1–9', 'Switch to tab N'],
             ['Ctrl+L', 'Clear current tab'],
+            ['Ctrl+F', 'Search buffer'],
             ['Space', 'Pause / resume monitor'],
             ['Ctrl+Shift+P', 'Toggle plotter'],
             ['Ctrl+Shift+F', 'Toggle flash panel'],
