@@ -46,6 +46,7 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
   const [stopBits, setStopBits] = useState<StopBits>('one')
   const [flowControl, setFlowControl] = useState<FlowControl>('none')
   const [autoReconnect, setAutoReconnect] = useState(true)
+  const [rs485AutoRts, setRs485AutoRts] = useState(false)
   const [host, setHost] = useState('192.168.1.1')
   const [tcpPort, setTcpPort] = useState(23)
   const [udpLocalPort, setUdpLocalPort] = useState(5005)
@@ -76,6 +77,7 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
       setStopBits(p.stopBits ?? 'one')
       setFlowControl(p.flowControl ?? 'none')
       setAutoReconnect(p.autoReconnect ?? true)
+      setRs485AutoRts(p.rs485AutoRts ?? false)
     } else if (p.kind === 'tcp-client') {
       setHost(p.host ?? '')
       setTcpPort(p.port ?? 0)
@@ -127,6 +129,7 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
           stopBits,
           flowControl,
           autoReconnect,
+          rs485AutoRts,
         })
       } else if (target === 'tcp-client') {
         await openTab({
@@ -217,6 +220,7 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
                   stopBits,
                   flowControl,
                   autoReconnect,
+                  rs485AutoRts,
                 }
               : target === 'tcp-client'
                 ? { kind: 'tcp-client', host, port: tcpPort }
@@ -344,6 +348,19 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
             />
             <RepeatIcon />
             <span>Auto-reconnect</span>
+          </label>
+
+          <label
+            className="checkbox-field"
+            title="Toggles RTS around each write for RS485 transceivers whose DE/RE pin has no auto-direction circuitry"
+          >
+            <input
+              type="checkbox"
+              checked={rs485AutoRts}
+              onChange={(e) => setRs485AutoRts(e.target.checked)}
+            />
+            <RepeatIcon />
+            <span>RS485 half-duplex (auto RTS toggle)</span>
           </label>
         </>
       )}

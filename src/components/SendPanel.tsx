@@ -1,6 +1,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import { useTabsStore, type LineEnding, type TabState } from '../state/tabsStore'
 import { parseHex } from '../lib/hex'
+import { CHECKSUM_MODES, type ChecksumMode } from '../lib/crc'
 
 type SendMode = 'text' | 'hex'
 
@@ -8,6 +9,7 @@ export function SendPanel({ tab }: { tab: TabState }) {
   const send = useTabsStore((s) => s.send)
   const sendBytes = useTabsStore((s) => s.sendBytes)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
+  const setChecksumMode = useTabsStore((s) => s.setChecksumMode)
   const [mode, setMode] = useState<SendMode>('text')
   const [text, setText] = useState('')
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -63,6 +65,17 @@ export function SendPanel({ tab }: { tab: TabState }) {
         <option value="cr">CR</option>
         <option value="lf">LF</option>
         <option value="crlf">CRLF</option>
+      </select>
+      <select
+        value={tab.checksumMode}
+        title="Appends a checksum to every sent message (suppresses the line ending above when active)"
+        onChange={(e) => setChecksumMode(tab.id, e.target.value as ChecksumMode)}
+      >
+        {CHECKSUM_MODES.map((c) => (
+          <option key={c.value} value={c.value}>
+            {c.label}
+          </option>
+        ))}
       </select>
       <input
         type="text"

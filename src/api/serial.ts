@@ -24,6 +24,9 @@ export interface OpenPortRequest {
   stopBits?: StopBits
   flowControl?: FlowControl
   autoReconnect?: boolean
+  /** RS485 half-duplex: toggle RTS around each write for transceivers whose
+   * DE/RE pin has no auto-direction circuitry. */
+  rs485AutoRts?: boolean
 }
 
 export type PortStatus = { status: 'open' } | { status: 'error'; message: string }

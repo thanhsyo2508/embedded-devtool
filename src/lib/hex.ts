@@ -9,3 +9,8 @@ export function parseHex(input: string): number[] | null {
   }
   return bytes
 }
+
+/** Formats bytes as space-separated uppercase hex, e.g. [1,2,255] -> "01 02 FF". */
+export function formatHex(bytes: number[]): string {
+  return bytes.map((b) => b.toString(16).padStart(2, '0').toUpperCase()).join(' ')
+}

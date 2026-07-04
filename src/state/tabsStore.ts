@@ -22,7 +22,20 @@ import {
 import { useSettingsStore, type Encoding, type NewlineMode } from './settingsStore'
 import { detectLogLevel, type LogLevel } from '../lib/logLevel'
 import { matchTriggers } from '../lib/triggers'
-import { parseHex } from '../lib/hex'
+import { parseHex, formatHex } from '../lib/hex'
+import { applyChecksum, type ChecksumMode } from '../lib/crc'
+import {
+  buildExceptionResponse,
+  buildRequest,
+  buildResponseFrame,
+  parseRequestFrame,
+  parseResponseFrame,
+  READ_FUNCTION_CODES,
+  type ModbusFunctionCode,
+  type ModbusRequestFrame,
+  type ModbusResponseFrame,
+} from '../lib/modbus'
+import { ModbusFrameAssembler } from '../lib/modbusFrameAssembler'
 import { playBeep } from '../lib/beep'
 import { invoke } from '@tauri-apps/api/core'
 import {
@@ -81,6 +94,42 @@ export interface ScriptConsoleEntry {
   atMs: number
 }
 
+export interface ModbusLogEntry {
+  kind: 'sent' | 'received' | 'timeout' | 'error'
+  message: string
+  atMs: number
+}
+
+export type ModbusRegisterKind = 'coils' | 'discreteInputs' | 'holdingRegisters' | 'inputRegisters'
+
+export interface ModbusSlaveState {
+  enabled: boolean
+  slaveAddr: number
+  // Stored as plain numbers (0/1 for coils/discreteInputs) rather than
+  // booleans so every kind shares one Record<number, number> shape — a
+  // mixed boolean/number value type would make the single generic
+  // setModbusRegister/removeModbusRegister actions below type-unsafe.
+  coils: Record<number, number>
+  discreteInputs: Record<number, number>
+  holdingRegisters: Record<number, number>
+  inputRegisters: Record<number, number>
+  log: ModbusLogEntry[]
+}
+
+/** A repeating master-side read, run by the sequential scheduler in
+ * `tickModbusPolls` — write function codes aren't valid here since polling
+ * a write doesn't make sense. */
+export interface ModbusPollRule {
+  id: string
+  enabled: boolean
+  label: string
+  slaveAddr: number
+  functionCode: ModbusFunctionCode
+  startAddr: number
+  quantity: number
+  intervalMs: number
+}
+
 export type ViewMode = 'mixed' | 'hex' | 'ascii'
 export type TimestampMode = 'delta' | 'abs' | 'off'
 export type LineEnding = 'none' | 'cr' | 'lf' | 'crlf'
@@ -133,6 +182,10 @@ export interface TabState {
   viewMode: ViewMode
   timestampMode: TimestampMode
   lineEnding: LineEnding
+  /** When not 'none', `sendBytes` appends the checksum for this mode and
+   * suppresses the line-ending append (a trailing CR/LF after a CRC would
+   * corrupt a binary frame like Modbus RTU). */
+  checksumMode: ChecksumMode
   sendHistory: string[]
   isLogging: boolean
   logDir?: string
@@ -156,6 +209,9 @@ export interface TabState {
   scriptCode: string
   scriptRunning: boolean
   scriptConsole: ScriptConsoleEntry[]
+  modbusMasterLog: ModbusLogEntry[]
+  modbusMasterPolls: ModbusPollRule[]
+  modbusSlave: ModbusSlaveState
 }
 
 interface TabsStore {
@@ -172,6 +228,7 @@ interface TabsStore {
   setViewMode: (id: string, mode: ViewMode) => void
   setTimestampMode: (id: string, mode: TimestampMode) => void
   setLineEnding: (id: string, ending: LineEnding) => void
+  setChecksumMode: (id: string, mode: ChecksumMode) => void
   send: (id: string, text: string) => Promise<void>
   sendBytes: (id: string, bytes: number[], historyEntry: string, isHex?: boolean) => Promise<void>
   toggleLogging: (id: string) => Promise<void>
@@ -204,6 +261,32 @@ interface TabsStore {
   runScript: (id: string) => Promise<void>
   stopScript: (id: string) => Promise<void>
   clearScriptConsole: (id: string) => void
+  appendModbusMasterLog: (id: string, kind: ModbusLogEntry['kind'], message: string) => void
+  clearModbusMasterLog: (id: string) => void
+  /** Shared by the manual request builder and the poll scheduler so the two
+   * can never talk over each other on the same (half-duplex) bus — see
+   * module-level `modbusRuntimes`. Returns null on timeout, on a write
+   * error, or if the bus is already busy with another request. */
+  sendModbusRequest: (
+    id: string,
+    slaveAddr: number,
+    functionCode: ModbusFunctionCode,
+    startAddr: number,
+    quantityOrValue: number,
+    values: number[] | undefined,
+    timeoutMs: number,
+  ) => Promise<ModbusResponseFrame | null>
+  tickModbusPolls: () => void
+  addModbusPoll: (id: string) => void
+  removeModbusPoll: (id: string, pollId: string) => void
+  updateModbusPoll: (id: string, pollId: string, patch: Partial<Omit<ModbusPollRule, 'id'>>) => void
+  toggleModbusPollEnabled: (id: string, pollId: string) => void
+  setModbusSlaveEnabled: (id: string, enabled: boolean) => void
+  setModbusSlaveAddress: (id: string, slaveAddr: number) => void
+  setModbusRegister: (id: string, kind: ModbusRegisterKind, addr: number, value: number) => void
+  removeModbusRegister: (id: string, kind: ModbusRegisterKind, addr: number) => void
+  appendModbusSlaveLog: (id: string, kind: ModbusLogEntry['kind'], message: string) => void
+  clearModbusSlaveLog: (id: string) => void
 }
 
 const LINE_ENDING_BYTES: Record<LineEnding, number[]> = {
@@ -420,6 +503,168 @@ async function runTriggers(tab: TabState, lines: LogLine[], get: () => TabsStore
   }
 }
 
+// Modbus request/response bookkeeping deliberately lives outside zustand's
+// reactive state, keyed by tab id — it's ephemeral wiring (in-flight
+// promises, byte assemblers), not user-facing data, and must survive the
+// Master/Slave panels being unmounted (their sidebar flyout closed, or the
+// user switched to a different one) exactly like triggers/filters already
+// keep matching in the background regardless of which panel is open, since
+// that logic also lives in this same always-running event pipeline rather
+// than inside a component.
+interface ModbusRuntime {
+  assembler: ModbusFrameAssembler<ModbusResponseFrame> | null
+  slaveAssembler: ModbusFrameAssembler<ModbusRequestFrame> | null
+  pending: {
+    functionCode: ModbusFunctionCode
+    resolve: (frame: ModbusResponseFrame | null) => void
+  } | null
+  pollBusy: boolean
+  lastPolledAtMs: Map<string, number>
+}
+
+const modbusRuntimes = new Map<string, ModbusRuntime>()
+
+function getModbusRuntime(tabId: string): ModbusRuntime {
+  let runtime = modbusRuntimes.get(tabId)
+  if (!runtime) {
+    runtime = {
+      assembler: null,
+      slaveAssembler: null,
+      pending: null,
+      pollBusy: false,
+      lastPolledAtMs: new Map(),
+    }
+    modbusRuntimes.set(tabId, runtime)
+  }
+  return runtime
+}
+
+/** Which register map a given function code reads/writes. Discrete inputs
+ * (0x02) and input registers (0x04) have no write function code in the
+ * spec — they only ever appear here via a read. */
+function kindForModbusFunctionCode(functionCode: ModbusFunctionCode): ModbusRegisterKind {
+  switch (functionCode) {
+    case 0x01:
+    case 0x05:
+    case 0x0f:
+      return 'coils'
+    case 0x02:
+      return 'discreteInputs'
+    case 0x04:
+      return 'inputRegisters'
+    case 0x03:
+    case 0x06:
+    case 0x10:
+      return 'holdingRegisters'
+  }
+}
+
+const MODBUS_ILLEGAL_DATA_ADDRESS = 0x02
+
+/** Applies an incoming request against `slave`'s register maps and returns
+ * the response bytes to send back, plus a short log line — pure logic, no
+ * store/IPC access, so the central pipeline and any future caller can reuse
+ * it identically. */
+function respondToModbusRequest(
+  slave: ModbusSlaveState,
+  frame: ModbusRequestFrame,
+  setRegister: (kind: ModbusRegisterKind, addr: number, value: number) => void,
+): { response: number[]; log: string; isException: boolean } {
+  const kind = kindForModbusFunctionCode(frame.functionCode)
+  const map = slave[kind]
+
+  if (READ_FUNCTION_CODES.includes(frame.functionCode)) {
+    const values: number[] = []
+    for (let i = 0; i < frame.quantity; i++) {
+      const value = map[frame.startAddr + i]
+      if (value === undefined) {
+        return {
+          response: buildExceptionResponse(
+            slave.slaveAddr,
+            frame.functionCode,
+            MODBUS_ILLEGAL_DATA_ADDRESS,
+          ),
+          log: `Sent exception 0x02 (illegal data address ${frame.startAddr + i})`,
+          isException: true,
+        }
+      }
+      values.push(value)
+    }
+    return {
+      response: buildResponseFrame(
+        slave.slaveAddr,
+        frame.functionCode,
+        frame.startAddr,
+        frame.quantity,
+        values,
+      ),
+      log: `Sent values: ${values.join(', ')}`,
+      isException: false,
+    }
+  }
+
+  // Writes (0x05/0x06/0x0F/0x10): apply then echo, per spec.
+  frame.values.forEach((v, i) => setRegister(kind, frame.startAddr + i, v))
+  return {
+    response: buildResponseFrame(
+      slave.slaveAddr,
+      frame.functionCode,
+      frame.startAddr,
+      frame.quantity,
+      frame.values,
+    ),
+    log: `Wrote ${frame.values.length} value(s) at ${frame.startAddr}`,
+    isException: false,
+  }
+}
+
+/** Feeds one raw byte batch into whichever Modbus role is active for this
+ * tab — resolving an in-flight master request's response, and/or acting as
+ * the slave emulator if `modbusSlave.enabled`. Called from
+ * `handleIncomingData` unconditionally (not gated on whether any text
+ * "line" completed), since Modbus RTU frames are binary and have no
+ * newline framing to key off. */
+function handleModbusBytes(tab: TabState, data: number[], get: () => TabsStore): void {
+  const runtime = getModbusRuntime(tab.id)
+
+  if (runtime.pending && runtime.assembler) {
+    const frames = runtime.assembler.push(data)
+    if (frames.length > 0 && runtime.pending) {
+      runtime.pending.resolve(frames[0])
+      runtime.pending = null
+    }
+  }
+
+  if (!tab.modbusSlave.enabled) return
+  if (!runtime.slaveAssembler) {
+    runtime.slaveAssembler = new ModbusFrameAssembler<ModbusRequestFrame>(parseRequestFrame)
+  }
+  const requests = runtime.slaveAssembler.push(data)
+  for (const request of requests) {
+    if (request.slaveAddr !== tab.modbusSlave.slaveAddr) {
+      get().appendModbusSlaveLog(
+        tab.id,
+        'received',
+        `Ignored request for slave ${request.slaveAddr} (not us)`,
+      )
+      continue
+    }
+    const { response, log, isException } = respondToModbusRequest(
+      tab.modbusSlave,
+      request,
+      (kind, addr, value) => get().setModbusRegister(tab.id, kind, addr, value),
+    )
+    get().appendModbusSlaveLog(
+      tab.id,
+      'received',
+      `RX fn=0x${request.functionCode.toString(16).padStart(2, '0')} addr=${request.startAddr} qty=${request.quantity}`,
+    )
+    const write = tab.connectionKind === 'serial' ? writeSerialPort : writeNetworkStream
+    void write(tab.id, response)
+    get().appendModbusSlaveLog(tab.id, isException ? 'error' : 'sent', log)
+  }
+}
+
 export const useTabsStore = create<TabsStore>((set, get) => ({
   tabs: [],
   activeTabId: null,
@@ -430,6 +675,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     set({ eventsWired: true })
 
     setInterval(() => get().flushStaleTabs(), 200)
+    setInterval(() => get().tickModbusPolls(), 200)
 
     // Shared by onSerialData/onNetworkData below — a tab's id is all either
     // event source is keyed by, so incoming bytes are handled identically
@@ -445,8 +691,11 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
             : tab,
         ),
       }))
-      if (newLines.length === 0) return
+
       const tab = get().tabs.find((t) => t.id === batch.id)
+      if (tab) handleModbusBytes(tab, batch.data, get)
+
+      if (newLines.length === 0) return
       if (tab && tab.triggers.length > 0) void runTriggers(tab, newLines, get)
     }
 
@@ -534,6 +783,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       viewMode: 'ascii',
       timestampMode: 'off',
       lineEnding: 'crlf',
+      checksumMode: 'none',
       sendHistory: [],
       isLogging: false,
       pausedAtSeq: null,
@@ -551,6 +801,17 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       scriptCode: '',
       scriptRunning: false,
       scriptConsole: [],
+      modbusMasterLog: [],
+      modbusMasterPolls: [],
+      modbusSlave: {
+        enabled: false,
+        slaveAddr: 1,
+        coils: {},
+        discreteInputs: {},
+        holdingRegisters: {},
+        inputRegisters: {},
+        log: [],
+      },
     }
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
     try {
@@ -639,6 +900,11 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, lineEnding: ending } : tab)),
     })),
 
+  setChecksumMode: (id, mode) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, checksumMode: mode } : tab)),
+    })),
+
   send: async (id, text) => {
     await get().sendBytes(id, Array.from(new TextEncoder().encode(text)), text)
   },
@@ -646,9 +912,17 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
   sendBytes: async (id, bytes, historyEntry, isHex = false) => {
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab) return
-    const withLineEnding = [...bytes, ...LINE_ENDING_BYTES[tab.lineEnding]]
-    if (tab.connectionKind === 'serial') await writeSerialPort(id, withLineEnding)
-    else await writeNetworkStream(id, withLineEnding)
+    // A checksummed frame (e.g. Modbus RTU) must not get a trailing CR/LF
+    // appended after its checksum, so line ending is suppressed whenever a
+    // checksum is active rather than relying on the user to remember to set
+    // Line Ending to "None" themselves.
+    const withChecksum = applyChecksum(bytes, tab.checksumMode)
+    const outgoing =
+      tab.checksumMode === 'none'
+        ? [...withChecksum, ...LINE_ENDING_BYTES[tab.lineEnding]]
+        : withChecksum
+    if (tab.connectionKind === 'serial') await writeSerialPort(id, outgoing)
+    else await writeNetworkStream(id, outgoing)
     const now = Date.now()
     set((state) => ({
       tabs: state.tabs.map((t) => {
@@ -989,5 +1263,250 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
   clearScriptConsole: (id) =>
     set((state) => ({
       tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, scriptConsole: [] } : tab)),
+    })),
+
+  appendModbusMasterLog: (id, kind, message) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              modbusMasterLog: [...tab.modbusMasterLog, { kind, message, atMs: Date.now() }].slice(
+                -200,
+              ),
+            }
+          : tab,
+      ),
+    })),
+
+  clearModbusMasterLog: (id) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, modbusMasterLog: [] } : tab)),
+    })),
+
+  sendModbusRequest: async (
+    id,
+    slaveAddr,
+    functionCode,
+    startAddr,
+    quantityOrValue,
+    values,
+    timeoutMs,
+  ) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab) return null
+    const runtime = getModbusRuntime(id)
+    if (runtime.pending) {
+      get().appendModbusMasterLog(id, 'error', 'Bus busy with another Modbus request — try again')
+      return null
+    }
+    if (!runtime.assembler) {
+      runtime.assembler = new ModbusFrameAssembler<ModbusResponseFrame>((bytes) =>
+        runtime.pending
+          ? parseResponseFrame(runtime.pending.functionCode, bytes)
+          : { status: 'incomplete' },
+      )
+    }
+    runtime.assembler.reset()
+
+    const request = buildRequest(slaveAddr, functionCode, startAddr, quantityOrValue, values)
+    get().appendModbusMasterLog(id, 'sent', `TX ${formatHex(request)}`)
+
+    const responsePromise = new Promise<ModbusResponseFrame | null>((resolve) => {
+      runtime.pending = { functionCode, resolve }
+    })
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), timeoutMs)
+    })
+
+    try {
+      if (tab.connectionKind === 'serial') await writeSerialPort(id, request)
+      else await writeNetworkStream(id, request)
+    } catch (err) {
+      runtime.pending = null
+      get().appendModbusMasterLog(id, 'error', String(err))
+      return null
+    }
+
+    const result = await Promise.race([responsePromise, timeoutPromise])
+    runtime.pending = null
+
+    if (result === null) {
+      get().appendModbusMasterLog(
+        id,
+        'timeout',
+        `Timed out after ${timeoutMs}ms waiting for a response`,
+      )
+    } else if (result.isException) {
+      get().appendModbusMasterLog(
+        id,
+        'error',
+        `Slave returned exception 0x${result.exceptionCode.toString(16).padStart(2, '0')}`,
+      )
+    } else {
+      get().appendModbusMasterLog(id, 'received', `RX values: ${result.values.join(', ')}`)
+    }
+    return result
+  },
+
+  // Runs on the same ~200ms tick as flushStaleTabs. RS485 only allows one
+  // transaction in flight on the bus at a time, so this finds at most one
+  // due rule per tab per tick and shares sendModbusRequest's own `pending`
+  // gate with the manual request builder — the two can never overlap.
+  tickModbusPolls: () => {
+    const now = Date.now()
+    for (const tab of get().tabs) {
+      if (tab.status !== 'open' || tab.modbusSlave.enabled) continue
+      const runtime = getModbusRuntime(tab.id)
+      if (runtime.pending || runtime.pollBusy) continue
+      const due = tab.modbusMasterPolls.find((rule) => {
+        if (!rule.enabled) return false
+        const last = runtime.lastPolledAtMs.get(rule.id) ?? 0
+        return now - last >= rule.intervalMs
+      })
+      if (!due) continue
+      runtime.lastPolledAtMs.set(due.id, now)
+      runtime.pollBusy = true
+      void get()
+        .sendModbusRequest(
+          tab.id,
+          due.slaveAddr,
+          due.functionCode,
+          due.startAddr,
+          due.quantity,
+          undefined,
+          1000,
+        )
+        .then((result) => {
+          if (result && !result.isException && result.values.length > 0) {
+            usePlotStore.getState().ingestScriptPoint(tab.id, due.label, result.values[0])
+          }
+        })
+        .finally(() => {
+          runtime.pollBusy = false
+        })
+    }
+  },
+
+  addModbusPoll: (id) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              modbusMasterPolls: [
+                ...tab.modbusMasterPolls,
+                {
+                  id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  enabled: true,
+                  label: `poll${tab.modbusMasterPolls.length + 1}`,
+                  slaveAddr: 1,
+                  functionCode: 0x03 as ModbusFunctionCode,
+                  startAddr: 0,
+                  quantity: 1,
+                  intervalMs: 1000,
+                },
+              ],
+            }
+          : tab,
+      ),
+    })),
+
+  removeModbusPoll: (id, pollId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? { ...tab, modbusMasterPolls: tab.modbusMasterPolls.filter((p) => p.id !== pollId) }
+          : tab,
+      ),
+    })),
+
+  updateModbusPoll: (id, pollId, patch) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              modbusMasterPolls: tab.modbusMasterPolls.map((p) =>
+                p.id === pollId ? { ...p, ...patch } : p,
+              ),
+            }
+          : tab,
+      ),
+    })),
+
+  toggleModbusPollEnabled: (id, pollId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              modbusMasterPolls: tab.modbusMasterPolls.map((p) =>
+                p.id === pollId ? { ...p, enabled: !p.enabled } : p,
+              ),
+            }
+          : tab,
+      ),
+    })),
+
+  setModbusSlaveEnabled: (id, enabled) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, modbusSlave: { ...tab.modbusSlave, enabled } } : tab,
+      ),
+    })),
+
+  setModbusSlaveAddress: (id, slaveAddr) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, modbusSlave: { ...tab.modbusSlave, slaveAddr } } : tab,
+      ),
+    })),
+
+  setModbusRegister: (id, kind, addr, value) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              modbusSlave: {
+                ...tab.modbusSlave,
+                [kind]: { ...tab.modbusSlave[kind], [addr]: value },
+              },
+            }
+          : tab,
+      ),
+    })),
+
+  removeModbusRegister: (id, kind, addr) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) => {
+        if (tab.id !== id) return tab
+        const rest = { ...tab.modbusSlave[kind] }
+        delete rest[addr]
+        return { ...tab, modbusSlave: { ...tab.modbusSlave, [kind]: rest } }
+      }),
+    })),
+
+  appendModbusSlaveLog: (id, kind, message) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              modbusSlave: {
+                ...tab.modbusSlave,
+                log: [...tab.modbusSlave.log, { kind, message, atMs: Date.now() }].slice(-200),
+              },
+            }
+          : tab,
+      ),
+    })),
+
+  clearModbusSlaveLog: (id) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, modbusSlave: { ...tab.modbusSlave, log: [] } } : tab,
+      ),
     })),
 }))

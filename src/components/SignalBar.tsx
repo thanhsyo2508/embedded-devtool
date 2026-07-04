@@ -49,6 +49,12 @@ export function SignalBar({ tab }: { tab: TabState }) {
     void reconnectTab(tab.id).finally(() => setReconnecting(false))
   }
 
+  // When RS485 half-duplex is on, RTS is toggled automatically around every
+  // write — a manual toggle here would fight that and leave the line in an
+  // unpredictable state.
+  const rs485Active =
+    tab.connectionConfig.kind === 'serial' && Boolean(tab.connectionConfig.req.rs485AutoRts)
+
   return (
     <div className="signal-bar">
       {tab.connectionKind === 'serial' && (
@@ -64,7 +70,12 @@ export function SignalBar({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={`signal-toggle ${rts ? 'on' : ''}`}
-            title="Request To Send (writable — click to toggle)"
+            title={
+              rs485Active
+                ? 'Controlled automatically by RS485 half-duplex mode'
+                : 'Request To Send (writable — click to toggle)'
+            }
+            disabled={rs485Active}
             onClick={toggleRts}
           >
             RTS

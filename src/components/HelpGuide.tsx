@@ -124,6 +124,53 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
+            <h3>RS485 &amp; Modbus RTU</h3>
+            <p>
+              For RS485 transceivers whose DE/RE direction pin has no auto-direction circuitry
+              (common on bare MAX485-style breakout boards, unlike most all-in-one USB-RS485
+              dongles), check <b>RS485 half-duplex (auto RTS toggle)</b> when connecting over
+              Serial. RTS is then asserted right before every write and held until the bytes have
+              actually finished shifting out at the configured baud rate, then released — timed from
+              the baud rate and frame size, not a fixed guess, so the last byte doesn't get clipped.
+              The manual RTS button in the signal bar is disabled while this is on, since toggling
+              it by hand would fight the automatic control.
+            </p>
+            <p>Two sidebar tools (serial tabs only) speak Modbus RTU on top of that connection:</p>
+            <ul>
+              <li>
+                <b>Modbus Master</b> (gauge icon) — build a one-shot request (slave address,
+                function code, start address, quantity or value, timeout) against a real Modbus RTU
+                device and see the parsed response, or set up <b>poll rules</b> to read a register
+                repeatedly on an interval — each rule's value also feeds the Plotter automatically,
+                using the rule's label as the channel name. Only one request is ever in flight on
+                the bus at a time, whether it came from a manual click or a poll rule, since RS485
+                is half-duplex.
+              </li>
+              <li>
+                <b>Modbus Slave</b> (chip icon) — emulate a Modbus RTU device to test a real master
+                against. Set a slave address, fill in whichever coils/discrete inputs/holding
+                registers/input registers you want it to answer for, click <b>Start listening</b>,
+                and it responds to matching requests automatically — including a spec-correct
+                exception response if the master asks for a register you haven't added. It keeps
+                listening in the background even if you switch to a different sidebar panel or tab.
+                A tab can't run both Master polling and Slave listening at once — enabling one
+                disables the other, since one RS485 bus can't sensibly be both roles at the same
+                time.
+              </li>
+            </ul>
+            <p>
+              <b>Example — read holding register 0 from slave address 1:</b> in Modbus Master, set
+              slave address <code>1</code>, function <code>03 Read Holding Registers</code>, start
+              address <code>0</code>, quantity <code>1</code>, then Send. On the wire this is the
+              request <code>01 03 00 00 00 01 84 0A</code> (the trailing two bytes are the CRC16).
+              You can see this exact codec in action without any hardware at all: open Modbus Slave
+              on a second tab connected to the other end of a loopback/null-modem pair, add holding
+              register <code>0</code> with some value, enable <b>Start listening</b>, and send the
+              request from the first tab's Master panel to watch the round trip end to end.
+            </p>
+          </section>
+
+          <section className="guide-section">
             <h3>Saved Profiles, Scripts &amp; Presets</h3>
             <p>
               Four places share the same small save/load control — a dropdown plus a disk icon
@@ -165,6 +212,14 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               Type in the send box and press Enter, or switch to <b>hex</b> mode to send raw bytes
               like <code>01 02 FF</code>. Pick the line ending (None/CR/LF/CRLF) once per tab. Arrow
               up/down recalls previous sends.
+            </p>
+            <p>
+              The second dropdown next to Line Ending is <b>Checksum</b> — pick CRC16 (Modbus),
+              CRC16 (CCITT), CRC8, XOR, or Sum, and it's appended to every message you send from
+              this tab, in both text and hex mode (a Modbus RTU frame typed as hex, for instance,
+              gets the correct CRC16 tacked on automatically). Turning a checksum on also suppresses
+              the line ending for that send — a trailing CR/LF after a binary checksum would corrupt
+              the frame — so there's nothing else to configure for binary protocols.
             </p>
             <p>
               The macro recorder lives in the sidebar next to Filters/Triggers/Script — click the

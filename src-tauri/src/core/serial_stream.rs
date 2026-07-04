@@ -33,6 +33,11 @@ pub struct SerialConfig {
     /// Bytes retained for pull-style `read()` / display. Ingestion is never
     /// blocked by this — see module docs.
     pub buffer_capacity: usize,
+    /// RS485 half-duplex direction control: toggle RTS (wired to a
+    /// transceiver's DE/RE pin on hardware that has no auto-direction
+    /// circuitry) around each write. See `write()` for the guard-delay
+    /// rationale.
+    pub rs485_auto_rts: bool,
 }
 
 impl SerialConfig {
@@ -46,8 +51,40 @@ impl SerialConfig {
             flow_control: FlowControl::None,
             read_timeout: Duration::from_millis(10),
             buffer_capacity: 1 << 20, // 1 MiB
+            rs485_auto_rts: false,
         }
     }
+}
+
+/// How many bit-times one byte occupies on the wire (start + data + parity +
+/// stop bits) — needed to compute how long to hold RTS asserted after a
+/// write so the last byte(s) finish shifting out before switching the
+/// transceiver back to receive.
+fn bits_per_byte(data_bits: DataBits, parity: Parity, stop_bits: StopBits) -> u32 {
+    let data = match data_bits {
+        DataBits::Five => 5,
+        DataBits::Six => 6,
+        DataBits::Seven => 7,
+        DataBits::Eight => 8,
+    };
+    let parity_bit = match parity {
+        Parity::None => 0,
+        Parity::Odd | Parity::Even => 1,
+    };
+    let stop = match stop_bits {
+        StopBits::One => 1,
+        StopBits::Two => 2,
+    };
+    1 + data + parity_bit + stop
+}
+
+/// `write_all` on a USB-serial adapter returns once bytes are handed to the
+/// OS/driver, not once they've physically finished shifting out — dropping
+/// RTS immediately after would clip the last byte(s) on real RS485
+/// hardware. This computes that transmit time from the actual baud
+/// rate/framing instead of guessing a fixed delay.
+fn tx_duration(byte_count: usize, baud_rate: u32, bits_per_byte: u32) -> Duration {
+    Duration::from_secs_f64(byte_count as f64 * bits_per_byte as f64 / baud_rate as f64)
 }
 
 pub struct SerialStream {
@@ -154,7 +191,26 @@ impl DataStream for SerialStream {
 
     fn write(&mut self, data: &[u8]) -> io::Result<()> {
         match self.port.as_mut() {
-            Some(port) => port.write_all(data),
+            Some(port) => {
+                if !self.config.rs485_auto_rts {
+                    return port.write_all(data);
+                }
+                port.write_request_to_send(true).map_err(io::Error::other)?;
+                let result = port.write_all(data);
+                let guard = tx_duration(
+                    data.len(),
+                    self.config.baud_rate,
+                    bits_per_byte(
+                        self.config.data_bits,
+                        self.config.parity,
+                        self.config.stop_bits,
+                    ),
+                );
+                thread::sleep(guard);
+                port.write_request_to_send(false)
+                    .map_err(io::Error::other)?;
+                result
+            }
             None => Err(io::Error::new(io::ErrorKind::NotConnected, "port not open")),
         }
     }
@@ -218,4 +274,32 @@ impl SerialStream {
 /// manager) and M1-T1.5 (auto-reconnect matching).
 pub fn list_ports() -> io::Result<Vec<serialport::SerialPortInfo>> {
     serialport::available_ports().map_err(io::Error::other)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bits_per_byte_counts_start_data_parity_stop() {
+        assert_eq!(
+            bits_per_byte(DataBits::Eight, Parity::None, StopBits::One),
+            10
+        );
+        assert_eq!(
+            bits_per_byte(DataBits::Eight, Parity::Even, StopBits::Two),
+            12
+        );
+        assert_eq!(
+            bits_per_byte(DataBits::Seven, Parity::Odd, StopBits::One),
+            10
+        );
+    }
+
+    #[test]
+    fn tx_duration_matches_known_baud_rate() {
+        // 8 bytes @ 9600 baud, 10 bits/byte (8N1) ~= 8.33ms.
+        let d = tx_duration(8, 9600, 10);
+        assert!((d.as_secs_f64() - 0.008_333_333_333_333_333).abs() < 1e-9);
+    }
 }

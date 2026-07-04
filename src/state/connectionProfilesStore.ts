@@ -15,6 +15,7 @@ export interface ConnectionProfile extends LibraryItem {
   stopBits?: StopBits
   flowControl?: FlowControl
   autoReconnect?: boolean
+  rs485AutoRts?: boolean
   host?: string
   port?: number
   localPort?: number

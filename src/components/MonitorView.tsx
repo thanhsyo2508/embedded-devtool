@@ -5,9 +5,11 @@ import { applyFilters, compileFilter } from '../lib/filterLines'
 import { highlightMatches } from '../lib/highlight'
 import {
   BookmarkIcon,
+  ChipIcon,
   CodeIcon,
   DiskIcon,
   FilterIcon,
+  GaugeIcon,
   RepeatIcon,
   SearchIcon,
   TargetIcon,
@@ -19,6 +21,8 @@ import { FilterBar } from './FilterBar'
 import { TriggerBar } from './TriggerBar'
 import { ScriptPanel } from './ScriptPanel'
 import { MacroPanel } from './MacroPanel'
+import { ModbusMasterPanel } from './ModbusMasterPanel'
+import { ModbusSlavePanel } from './ModbusSlavePanel'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
@@ -44,9 +48,9 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [logBusy, setLogBusy] = useState(false)
-  const [openPanel, setOpenPanel] = useState<'filters' | 'triggers' | 'script' | 'macro' | null>(
-    null,
-  )
+  const [openPanel, setOpenPanel] = useState<
+    'filters' | 'triggers' | 'script' | 'macro' | 'modbus-master' | 'modbus-slave' | null
+  >(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchIndex, setSearchIndex] = useState(0)
@@ -117,8 +121,9 @@ export function MonitorView({ tab }: { tab: TabState }) {
     }
   }
 
-  const togglePanel = (panel: 'filters' | 'triggers' | 'script' | 'macro') =>
-    setOpenPanel((current) => (current === panel ? null : panel))
+  const togglePanel = (
+    panel: 'filters' | 'triggers' | 'script' | 'macro' | 'modbus-master' | 'modbus-slave',
+  ) => setOpenPanel((current) => (current === panel ? null : panel))
 
   const virtualizer = useVirtualizer({
     count: filteredLines.length,
@@ -331,6 +336,16 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <MacroPanel tab={tab} />
             </div>
           )}
+          {openPanel === 'modbus-master' && (
+            <div className="feature-flyout feature-flyout-wide">
+              <ModbusMasterPanel tab={tab} />
+            </div>
+          )}
+          {openPanel === 'modbus-slave' && (
+            <div className="feature-flyout feature-flyout-wide">
+              <ModbusSlavePanel tab={tab} />
+            </div>
+          )}
 
           {!autoScroll && !paused && (
             <button type="button" className="jump-bottom" onClick={() => setAutoScroll(true)}>
@@ -385,6 +400,33 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <span className="feature-rail-badge">{tab.macroSteps.length}</span>
             )}
           </button>
+          {tab.connectionKind === 'serial' && (
+            <>
+              <button
+                type="button"
+                className={
+                  openPanel === 'modbus-master' || tab.modbusMasterPolls.length > 0 ? 'on' : ''
+                }
+                title="Modbus Master"
+                aria-label="Modbus Master"
+                onClick={() => togglePanel('modbus-master')}
+              >
+                <GaugeIcon />
+                {tab.modbusMasterPolls.length > 0 && (
+                  <span className="feature-rail-badge">{tab.modbusMasterPolls.length}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                className={openPanel === 'modbus-slave' || tab.modbusSlave.enabled ? 'on' : ''}
+                title={tab.modbusSlave.enabled ? 'Modbus Slave (listening)' : 'Modbus Slave'}
+                aria-label="Modbus Slave"
+                onClick={() => togglePanel('modbus-slave')}
+              >
+                <ChipIcon />
+              </button>
+            </>
+          )}
           <div className="feature-rail-spacer" />
           {tab.connectionKind === 'serial' && (
             <button

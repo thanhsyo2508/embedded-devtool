@@ -117,6 +117,9 @@ pub struct OpenPortRequest {
     /// number match after it's unplugged and replugged (M1-T1.5).
     #[serde(default)]
     pub auto_reconnect: bool,
+    /// RS485 half-duplex direction control — see `SerialConfig::rs485_auto_rts`.
+    #[serde(default)]
+    pub rs485_auto_rts: bool,
 }
 
 fn default_data_bits() -> DataBitsDto {
@@ -256,6 +259,7 @@ impl PortManager {
         config.parity = req.parity.into();
         config.stop_bits = req.stop_bits.into();
         config.flow_control = req.flow_control.into();
+        config.rs485_auto_rts = req.rs485_auto_rts;
 
         let mut stream = SerialStream::new(config.clone());
         match stream.open() {
