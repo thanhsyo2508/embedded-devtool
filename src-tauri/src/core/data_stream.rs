@@ -28,4 +28,14 @@ pub trait DataStream: Send {
     fn on_data(&mut self, callback: DataCallback);
 
     fn is_open(&self) -> bool;
+
+    /// True if the transport observed itself go from open to broken (e.g. a
+    /// TCP peer closing the connection) without an explicit `close()` call.
+    /// Lets a manager notice and clean up without a transport-specific poll
+    /// like serial's USB reconnect watcher. Default false: most
+    /// implementations either can't detect this (serial) or don't consider
+    /// it an error (a TCP server between clients).
+    fn connection_lost(&self) -> bool {
+        false
+    }
 }

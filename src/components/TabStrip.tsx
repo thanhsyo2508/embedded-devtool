@@ -15,9 +15,7 @@ export function TabStrip({ onAddClick }: { onAddClick: () => void }) {
           onClick={() => setActiveTab(tab.id)}
         >
           <span className={`status-dot ${tab.status}`} />
-          <span className="tab-label">
-            {tab.portName} · {tab.baudRate}
-          </span>
+          <span className="tab-label">{tab.connectionLabel}</span>
           <button
             type="button"
             className="tab-close"

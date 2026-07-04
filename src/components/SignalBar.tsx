@@ -15,7 +15,7 @@ export function SignalBar({ tab }: { tab: TabState }) {
   const [signals, setSignals] = useState<SignalState | null>(null)
 
   useEffect(() => {
-    if (tab.status !== 'open') return
+    if (tab.status !== 'open' || tab.connectionKind !== 'serial') return
     let cancelled = false
     const poll = () => {
       readSerialSignals(tab.id)
@@ -30,7 +30,7 @@ export function SignalBar({ tab }: { tab: TabState }) {
       cancelled = true
       clearInterval(interval)
     }
-  }, [tab.id, tab.status])
+  }, [tab.id, tab.status, tab.connectionKind])
 
   const toggleDtr = () => {
     const next = !dtr
@@ -51,35 +51,39 @@ export function SignalBar({ tab }: { tab: TabState }) {
 
   return (
     <div className="signal-bar">
-      <button
-        type="button"
-        className={`signal-toggle ${dtr ? 'on' : ''}`}
-        title="Data Terminal Ready (writable — click to toggle)"
-        onClick={toggleDtr}
-      >
-        DTR
-      </button>
-      <button
-        type="button"
-        className={`signal-toggle ${rts ? 'on' : ''}`}
-        title="Request To Send (writable — click to toggle)"
-        onClick={toggleRts}
-      >
-        RTS
-      </button>
-      <span className="signal-divider" />
-      <span className={`signal-light ${signals?.cts ? 'on' : ''}`} title="Clear To Send">
-        CTS
-      </span>
-      <span className={`signal-light ${signals?.dsr ? 'on' : ''}`} title="Data Set Ready">
-        DSR
-      </span>
-      <span className={`signal-light ${signals?.ri ? 'on' : ''}`} title="Ring Indicator">
-        RI
-      </span>
-      <span className={`signal-light ${signals?.cd ? 'on' : ''}`} title="Carrier Detect">
-        CD
-      </span>
+      {tab.connectionKind === 'serial' && (
+        <>
+          <button
+            type="button"
+            className={`signal-toggle ${dtr ? 'on' : ''}`}
+            title="Data Terminal Ready (writable — click to toggle)"
+            onClick={toggleDtr}
+          >
+            DTR
+          </button>
+          <button
+            type="button"
+            className={`signal-toggle ${rts ? 'on' : ''}`}
+            title="Request To Send (writable — click to toggle)"
+            onClick={toggleRts}
+          >
+            RTS
+          </button>
+          <span className="signal-divider" />
+          <span className={`signal-light ${signals?.cts ? 'on' : ''}`} title="Clear To Send">
+            CTS
+          </span>
+          <span className={`signal-light ${signals?.dsr ? 'on' : ''}`} title="Data Set Ready">
+            DSR
+          </span>
+          <span className={`signal-light ${signals?.ri ? 'on' : ''}`} title="Ring Indicator">
+            RI
+          </span>
+          <span className={`signal-light ${signals?.cd ? 'on' : ''}`} title="Carrier Detect">
+            CD
+          </span>
+        </>
+      )}
       <div className="signal-bar-grow" />
       {tab.status === 'open' ? (
         <button

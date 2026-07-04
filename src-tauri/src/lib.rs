@@ -1,5 +1,6 @@
 pub mod core;
 pub mod flash;
+pub mod net;
 pub mod script;
 pub mod serial;
 
@@ -14,6 +15,7 @@ use crate::core::event_bus::{Event, EventBus};
 use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
 use crate::flash::profile::{self, FlashProfile};
 use crate::flash::stm32::{self, Interface as StmInterface, McuInfo as StmMcuInfo};
+use crate::net::NetworkManager;
 use crate::script::{ScriptCallbacks, ScriptManager};
 use crate::serial::{OpenPortRequest, PortInfo, PortManager, PortState, SignalStateDto};
 
@@ -166,14 +168,38 @@ struct SerialDataBatch {
     data: Vec<u8>,
 }
 
+/// Publishes each drained batch onto the shared `EventBus` (so the script
+/// engine's `on_data`/`wait_for` see it — this was previously missing
+/// entirely, silently leaving those two dead for every transport) and
+/// forwards it to the frontend under `tauri_event`. Shared by the serial and
+/// network batch emitters below since draining is the only transport-
+/// specific part.
+fn emit_batches(
+    app: &AppHandle,
+    event_bus: &EventBus,
+    tauri_event: &'static str,
+    batches: Vec<(String, Vec<u8>)>,
+) {
+    for (id, data) in batches {
+        event_bus.publish(Event::DataReceived {
+            stream_id: id.clone(),
+            data: Arc::from(data.as_slice()),
+        });
+        let _ = app.emit(tauri_event, SerialDataBatch { id, data });
+    }
+}
+
 /// M1-T1.6: drains every open port's ring buffer on a ~60fps tick and emits
 /// one batched event per port with data — never per byte/line.
-fn spawn_batch_emitter(app: AppHandle, manager: Arc<PortManager>) {
+fn spawn_batch_emitter(app: AppHandle, manager: Arc<PortManager>, event_bus: EventBus) {
     thread::spawn(move || loop {
         thread::sleep(Duration::from_millis(16));
-        for (id, data) in manager.drain_open_ports() {
-            let _ = app.emit("serial://data", SerialDataBatch { id, data });
-        }
+        emit_batches(
+            &app,
+            &event_bus,
+            "serial://data",
+            manager.drain_open_ports(),
+        );
     });
 }
 
@@ -192,6 +218,9 @@ enum PortLifecycleEvent {
 /// Forwards port lifecycle events (open/close/error) from the internal
 /// EventBus to the frontend. Raw data does not travel this path — see
 /// `spawn_batch_emitter` — so this stays cheap even under high throughput.
+/// Despite the "serial" event name, this is transport-agnostic: it forwards
+/// lifecycle events from *any* publisher on the shared bus, so `NetworkManager`
+/// (Tháng 6, TCP) rides along for free.
 fn spawn_lifecycle_forwarder(app: AppHandle, event_bus: EventBus) {
     let rx = event_bus.subscribe();
     thread::spawn(move || {
@@ -627,27 +656,125 @@ fn stop_script(scripts: tauri::State<Arc<ScriptManager>>, id: String) -> Result<
     scripts.stop(&id)
 }
 
+// ---- TCP client/server (Tháng 6) ----
+//
+// Mirrors the serial commands in shape: open/close/write plus a batch
+// emitter, all driving the same `Event::PortOpened`/`Closed`/`Error`/
+// `DataReceived` events on the shared EventBus so every frontend feature
+// that reads from a tab by id (filters, triggers, macro, script, plotter)
+// works unmodified for a TCP tab.
+
+#[tauri::command]
+fn open_tcp_client(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    host: String,
+    port: u16,
+) -> Result<(), String> {
+    network.open_tcp_client(id, host, port)
+}
+
+#[tauri::command]
+fn open_tcp_server(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    port: u16,
+) -> Result<(), String> {
+    network.open_tcp_server(id, port)
+}
+
+#[tauri::command]
+fn open_udp(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    local_port: u16,
+    remote_host: Option<String>,
+    remote_port: Option<u16>,
+) -> Result<(), String> {
+    network.open_udp(id, local_port, remote_host, remote_port)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn open_mqtt(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    broker_host: String,
+    broker_port: u16,
+    client_id: String,
+    username: Option<String>,
+    password: Option<String>,
+    subscribe_topic: String,
+    publish_topic: String,
+) -> Result<(), String> {
+    network.open_mqtt(
+        id,
+        broker_host,
+        broker_port,
+        client_id,
+        username,
+        password,
+        subscribe_topic,
+        publish_topic,
+    )
+}
+
+#[tauri::command]
+fn close_network_stream(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+) -> Result<(), String> {
+    network.close(&id)
+}
+
+#[tauri::command]
+fn write_network_stream(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    data: Vec<u8>,
+) -> Result<(), String> {
+    network.write(&id, &data)
+}
+
+/// Same ~60fps drain shape as `spawn_batch_emitter`, over `NetworkManager`
+/// instead of `PortManager` — see `emit_batches`.
+fn spawn_network_batch_emitter(app: AppHandle, network: Arc<NetworkManager>, event_bus: EventBus) {
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_millis(16));
+        emit_batches(
+            &app,
+            &event_bus,
+            "network://data",
+            network.drain_open_streams(),
+        );
+    });
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let event_bus = EventBus::new();
     let manager = Arc::new(PortManager::new(event_bus.clone()));
+    let network = Arc::new(NetworkManager::new(event_bus.clone()));
 
     serial::manager::spawn_reconnect_watcher(manager.clone());
 
     let scripts = Arc::new(ScriptManager::new());
 
     let manager_for_state = manager.clone();
+    let network_for_state = network.clone();
     let event_bus_for_state = event_bus.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(manager_for_state)
+        .manage(network_for_state)
         .manage(event_bus_for_state)
         .manage(scripts)
         .manage(KeepAwakeState(Mutex::new(None)))
         .setup(move |app| {
             let handle = app.handle().clone();
-            spawn_batch_emitter(handle.clone(), manager.clone());
+            spawn_batch_emitter(handle.clone(), manager.clone(), event_bus.clone());
+            spawn_network_batch_emitter(handle.clone(), network.clone(), event_bus.clone());
             spawn_lifecycle_forwarder(handle, event_bus.clone());
             Ok(())
         })
@@ -681,17 +808,26 @@ pub fn run() {
             write_stm32_option_byte,
             run_script,
             stop_script,
+            open_tcp_client,
+            open_tcp_server,
+            open_udp,
+            open_mqtt,
+            close_network_stream,
+            write_network_stream,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
         .run(|app_handle, event| {
-            // Releases serial handles deterministically on shutdown rather
-            // than leaving it to the OS to clean up whenever the process
-            // actually terminates (some USB-UART drivers are slow to free
-            // the port after a non-graceful exit).
+            // Releases serial/TCP handles deterministically on shutdown
+            // rather than leaving it to the OS to clean up whenever the
+            // process actually terminates (some USB-UART drivers are slow
+            // to free the port after a non-graceful exit).
             if let tauri::RunEvent::ExitRequested { .. } = event {
                 if let Some(manager) = app_handle.try_state::<Arc<PortManager>>() {
                     manager.close_all();
+                }
+                if let Some(network) = app_handle.try_state::<Arc<NetworkManager>>() {
+                    network.close_all();
                 }
             }
         });

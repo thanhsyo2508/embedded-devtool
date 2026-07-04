@@ -9,6 +9,16 @@ import {
   writeSerialPort,
   type OpenPortRequest,
 } from '../api/serial'
+import {
+  closeNetworkStream,
+  onNetworkData,
+  openMqtt,
+  openTcpClient,
+  openTcpServer,
+  openUdp,
+  writeNetworkStream,
+  type MqttParams,
+} from '../api/network'
 import { useSettingsStore, type Encoding, type NewlineMode } from './settingsStore'
 import { detectLogLevel, type LogLevel } from '../lib/logLevel'
 import { matchTriggers } from '../lib/triggers'
@@ -75,17 +85,46 @@ export type ViewMode = 'mixed' | 'hex' | 'ascii'
 export type TimestampMode = 'delta' | 'abs' | 'off'
 export type LineEnding = 'none' | 'cr' | 'lf' | 'crlf'
 export type TabStatus = 'open' | 'closed' | 'error'
+export type ConnectionKind = 'serial' | 'tcp-client' | 'tcp-server' | 'udp' | 'mqtt'
+
+/** What a tab connects over — serial keeps the full `OpenPortRequest` (data
+ * bits/parity/etc.), TCP only needs host/port. Kept around so Reconnect can
+ * reopen with the exact same settings instead of making the user re-enter
+ * everything. */
+export type ConnectionConfig =
+  | { kind: 'serial'; req: OpenPortRequest }
+  | { kind: 'tcp-client'; host: string; port: number }
+  | { kind: 'tcp-server'; port: number }
+  | { kind: 'udp'; localPort: number; remoteHost?: string; remotePort?: number }
+  | ({ kind: 'mqtt' } & MqttParams)
+
+/** What `openTab` accepts to start a new connection of any kind. `id` is
+ * always the caller-assigned tab id (also used as the underlying stream id). */
+export type OpenTabRequest =
+  | ({ kind: 'serial' } & OpenPortRequest)
+  | { kind: 'tcp-client'; id: string; host: string; port: number }
+  | { kind: 'tcp-server'; id: string; port: number }
+  | {
+      kind: 'udp'
+      id: string
+      localPort: number
+      remoteHost?: string
+      remotePort?: number
+    }
+  | ({ kind: 'mqtt'; id: string } & MqttParams)
 
 export interface TabState {
   id: string
+  connectionKind: ConnectionKind
+  /** Human-readable "COM3 · 115200" / "192.168.1.5:8080" / ":8080 (server)",
+   * used anywhere a tab needs a one-line label (tab strip, plotter source
+   * picker) instead of each display spot re-deriving it per connection kind. */
+  connectionLabel: string
   portName: string
   baudRate: number
   status: TabStatus
   errorMessage?: string
-  /** The request last used to open this port — kept around so Reconnect can
-   * reopen with the exact same port/baud/framing instead of making the user
-   * re-enter everything. */
-  connectionConfig: OpenPortRequest
+  connectionConfig: ConnectionConfig
   lines: LogLine[]
   pendingBytes: number[]
   pendingAtMs: number | null
@@ -125,7 +164,7 @@ interface TabsStore {
   eventsWired: boolean
 
   wireEventsOnce: () => void
-  openTab: (req: OpenPortRequest) => Promise<void>
+  openTab: (req: OpenTabRequest) => Promise<void>
   closeTab: (id: string) => Promise<void>
   disconnectTab: (id: string) => Promise<void>
   reconnectTab: (id: string) => Promise<void>
@@ -320,6 +359,23 @@ function bytesToText(bytes: number[], encoding: Encoding): string {
   return new TextDecoder('utf-8', { fatal: false }).decode(new Uint8Array(bytes))
 }
 
+function connectionLabelFor(config: ConnectionConfig): string {
+  switch (config.kind) {
+    case 'serial':
+      return `${config.req.portName} · ${config.req.baudRate}`
+    case 'tcp-client':
+      return `${config.host}:${config.port}`
+    case 'tcp-server':
+      return `:${config.port} (server)`
+    case 'udp':
+      return config.remoteHost
+        ? `UDP :${config.localPort} → ${config.remoteHost}:${config.remotePort}`
+        : `UDP :${config.localPort}`
+    case 'mqtt':
+      return `mqtt://${config.brokerHost}:${config.brokerPort}`
+  }
+}
+
 // Trigger sends/bookmarks go through the same store actions a user would
 // trigger by hand, but with historyEntry '' so they don't pollute send
 // history or get captured into an in-progress macro recording (see
@@ -375,7 +431,10 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
 
     setInterval(() => get().flushStaleTabs(), 200)
 
-    void onSerialData((batch) => {
+    // Shared by onSerialData/onNetworkData below — a tab's id is all either
+    // event source is keyed by, so incoming bytes are handled identically
+    // regardless of transport.
+    const handleIncomingData = (batch: { id: string; data: number[] }) => {
       let newLines: LogLine[] = []
       set((state) => ({
         tabs: state.tabs.map((tab) =>
@@ -389,7 +448,10 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       if (newLines.length === 0) return
       const tab = get().tabs.find((t) => t.id === batch.id)
       if (tab && tab.triggers.length > 0) void runTriggers(tab, newLines, get)
-    })
+    }
+
+    void onSerialData(handleIncomingData)
+    void onNetworkData(handleIncomingData)
 
     void onSerialLifecycle((event) => {
       set((state) => ({
@@ -431,12 +493,39 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
   },
 
   openTab: async (req) => {
+    const connectionConfig: ConnectionConfig =
+      req.kind === 'serial'
+        ? { kind: 'serial', req }
+        : req.kind === 'tcp-client'
+          ? { kind: 'tcp-client', host: req.host, port: req.port }
+          : req.kind === 'tcp-server'
+            ? { kind: 'tcp-server', port: req.port }
+            : req.kind === 'udp'
+              ? {
+                  kind: 'udp',
+                  localPort: req.localPort,
+                  remoteHost: req.remoteHost,
+                  remotePort: req.remotePort,
+                }
+              : {
+                  kind: 'mqtt',
+                  brokerHost: req.brokerHost,
+                  brokerPort: req.brokerPort,
+                  clientId: req.clientId,
+                  username: req.username,
+                  password: req.password,
+                  subscribeTopic: req.subscribeTopic,
+                  publishTopic: req.publishTopic,
+                }
+
     const newTab: TabState = {
       id: req.id,
-      portName: req.portName,
-      baudRate: req.baudRate,
+      connectionKind: req.kind,
+      connectionLabel: connectionLabelFor(connectionConfig),
+      portName: req.kind === 'serial' ? req.portName : '',
+      baudRate: req.kind === 'serial' ? req.baudRate : 0,
       status: 'open',
-      connectionConfig: req,
+      connectionConfig,
       lines: [],
       pendingBytes: [],
       pendingAtMs: null,
@@ -465,7 +554,12 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     }
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
     try {
-      await openSerialPort(req)
+      if (req.kind === 'serial') await openSerialPort(req)
+      else if (req.kind === 'tcp-client') await openTcpClient(req.id, req.host, req.port)
+      else if (req.kind === 'tcp-server') await openTcpServer(req.id, req.port)
+      else if (req.kind === 'udp')
+        await openUdp(req.id, req.localPort, req.remoteHost, req.remotePort)
+      else await openMqtt(req.id, req)
     } catch (err) {
       set((state) => ({
         tabs: state.tabs.map((tab) =>
@@ -476,10 +570,12 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
   },
 
   closeTab: async (id) => {
-    if (get().tabs.find((t) => t.id === id)?.scriptRunning) {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (tab?.scriptRunning) {
       await stopScriptApi(id).catch(() => {})
     }
-    await closeSerialPort(id).catch(() => {})
+    if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
+    else await closeNetworkStream(id).catch(() => {})
     set((state) => {
       const tabs = state.tabs.filter((tab) => tab.id !== id)
       const activeTabId = state.activeTabId === id ? (tabs[0]?.id ?? null) : state.activeTabId
@@ -487,14 +583,16 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     })
   },
 
-  // Stops the underlying port but keeps the tab (and its buffered log,
-  // filters, triggers, script) around — unlike closeTab, which removes the
-  // tab entirely. Lets Reconnect below bring the same tab back to life.
+  // Stops the underlying connection but keeps the tab (and its buffered
+  // log, filters, triggers, script) around — unlike closeTab, which removes
+  // the tab entirely. Lets Reconnect below bring the same tab back to life.
   disconnectTab: async (id) => {
-    if (get().tabs.find((t) => t.id === id)?.scriptRunning) {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (tab?.scriptRunning) {
       await stopScriptApi(id).catch(() => {})
     }
-    await closeSerialPort(id).catch(() => {})
+    if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
+    else await closeNetworkStream(id).catch(() => {})
     set((state) => ({
       tabs: state.tabs.map((tab) =>
         tab.id === id ? { ...tab, status: 'closed', errorMessage: undefined } : tab,
@@ -508,7 +606,13 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab) return
     try {
-      await openSerialPort(tab.connectionConfig)
+      const config = tab.connectionConfig
+      if (config.kind === 'serial') await openSerialPort(config.req)
+      else if (config.kind === 'tcp-client') await openTcpClient(id, config.host, config.port)
+      else if (config.kind === 'tcp-server') await openTcpServer(id, config.port)
+      else if (config.kind === 'udp')
+        await openUdp(id, config.localPort, config.remoteHost, config.remotePort)
+      else await openMqtt(id, config)
     } catch (err) {
       set((state) => ({
         tabs: state.tabs.map((t) =>
@@ -543,7 +647,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab) return
     const withLineEnding = [...bytes, ...LINE_ENDING_BYTES[tab.lineEnding]]
-    await writeSerialPort(id, withLineEnding)
+    if (tab.connectionKind === 'serial') await writeSerialPort(id, withLineEnding)
+    else await writeNetworkStream(id, withLineEnding)
     const now = Date.now()
     set((state) => ({
       tabs: state.tabs.map((t) => {

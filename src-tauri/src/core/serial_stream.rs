@@ -15,6 +15,7 @@ use serialport::{DataBits, FlowControl, Parity, StopBits};
 
 use super::data_stream::{DataCallback, DataStream};
 use super::ring_buffer::RingBuffer;
+use super::stream_pump::spawn_pump_thread;
 
 #[derive(Debug, Clone)]
 pub struct SerialConfig {
@@ -122,19 +123,15 @@ impl DataStream for SerialStream {
             }
         }));
 
-        // Pump thread: drains the channel into the ring buffer and fans out
-        // to callbacks. Exits automatically once the reader thread drops
-        // `tx` (i.e. after close()).
-        let buffer = self.buffer.clone();
-        let callbacks = self.callbacks.clone();
-        self.pump_thread = Some(thread::spawn(move || {
-            for chunk in rx {
-                buffer.lock().unwrap().push_slice(&chunk);
-                for cb in callbacks.lock().unwrap().iter_mut() {
-                    cb(&chunk);
-                }
-            }
-        }));
+        // Pump thread (shared shape, see core::stream_pump): drains the
+        // channel into the ring buffer and fans out to callbacks. Exits
+        // automatically once the reader thread drops `tx` (i.e. after
+        // close()).
+        self.pump_thread = Some(spawn_pump_thread(
+            rx,
+            self.buffer.clone(),
+            self.callbacks.clone(),
+        ));
 
         Ok(())
     }

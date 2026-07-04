@@ -386,16 +386,18 @@ export function MonitorView({ tab }: { tab: TabState }) {
             )}
           </button>
           <div className="feature-rail-spacer" />
-          <button
-            type="button"
-            className={`log-toggle ${tab.isLogging ? 'on' : ''}`}
-            disabled={logBusy}
-            title={tab.isLogging ? `Logging to ${tab.logDir ?? '…'}` : 'Log to file'}
-            aria-label="Log to file"
-            onClick={handleToggleLogging}
-          >
-            <DiskIcon />
-          </button>
+          {tab.connectionKind === 'serial' && (
+            <button
+              type="button"
+              className={`log-toggle ${tab.isLogging ? 'on' : ''}`}
+              disabled={logBusy}
+              title={tab.isLogging ? `Logging to ${tab.logDir ?? '…'}` : 'Log to file'}
+              aria-label="Log to file"
+              onClick={handleToggleLogging}
+            >
+              <DiskIcon />
+            </button>
+          )}
         </div>
       </div>
     </div>

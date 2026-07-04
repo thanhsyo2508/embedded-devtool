@@ -59,13 +59,103 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
                 Resume shows how many lines arrived while paused.
               </li>
               <li>
-                The disk icon starts logging raw + timestamped output to a file, rotated at 50 MB.
+                The disk icon starts logging raw + timestamped output to a file, rotated at 50 MB
+                (serial connections only).
+              </li>
+              <li>
+                Lines matching common log formats (ESP-IDF's <code>E (328) wifi: ...</code>,{' '}
+                <code>[ERROR]</code>, or a plain <code>WARN:</code> prefix) are auto-colored by
+                level — no setup needed, this runs alongside filters/search.
+              </li>
+              <li>
+                The bar at the bottom of the monitor shows live bytes/s, lines/s, error count, and
+                uptime for the tab.
               </li>
             </ul>
             <p>
-              Enable <b>Auto-reconnect</b> when connecting to have the tab reopen automatically if
-              the device is unplugged and replugged (matched by USB vendor/product id + serial
-              number, not the OS port name, which can change).
+              Enable <b>Auto-reconnect</b> when connecting over serial to have the tab reopen
+              automatically if the device is unplugged and replugged (matched by USB vendor/product
+              id + serial number, not the OS port name, which can change). If the connection drops,
+              use <b>Disconnect</b>/<b>Reconnect</b> in the tab — your COM port, baud rate, and
+              other settings stay filled in.
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>TCP / UDP / MQTT Connections</h3>
+            <p>
+              The <b>New connection</b> panel's segmented control isn't limited to Serial — pick{' '}
+              <b>TCP Client</b>, <b>TCP Server</b>, <b>UDP</b>, or <b>MQTT</b> instead, and the tab
+              that opens behaves exactly like a serial one: filters, triggers, macros, the script
+              engine, and the plotter all work unmodified since they only ever see a stream of
+              bytes, not the transport underneath.
+            </p>
+            <ul>
+              <li>
+                <b>TCP Client</b> — connect out to a device's IP/port, e.g. a Wi-Fi module exposing
+                a raw TCP console on <code>192.168.1.50:23</code>.
+              </li>
+              <li>
+                <b>TCP Server</b> — listen on a local port and wait for the device to connect in
+                instead (useful when the device only supports outbound connections). Handles one
+                client at a time.
+              </li>
+              <li>
+                <b>UDP</b> — bind a local port to receive on, and optionally set a remote host/port
+                to send to. Broadcast addresses (e.g. <code>192.168.1.255</code>) work too.
+              </li>
+              <li>
+                <b>MQTT</b> — connect to a broker (host/port, optional username/password), subscribe
+                to a topic filter (e.g. <code>#</code> for everything, or{' '}
+                <code>devices/+/telemetry</code> for one level of wildcard), and set a publish topic
+                for the Send panel. Each incoming message appears as a <code>topic: payload</code>{' '}
+                line; the client reconnects to the broker on its own if the connection drops, so
+                brief network blips don't need any action from you.
+              </li>
+            </ul>
+            <p>
+              <b>Example — watch and command an MQTT device:</b> broker{' '}
+              <code>broker.hivemq.com:1883</code>, subscribe topic{' '}
+              <code>devices/kitchen-sensor/#</code>, publish topic{' '}
+              <code>devices/kitchen-sensor/cmd</code>. Incoming readings show up as{' '}
+              <code>devices/kitchen-sensor/temp: 24.5</code>; typing <code>reboot</code> in the send
+              box publishes it straight to the cmd topic.
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>Saved Profiles, Scripts &amp; Presets</h3>
+            <p>
+              Four places share the same small save/load control — a dropdown plus a disk icon
+              (save) and trash icon (delete): the <b>Profile</b> picker in the New connection panel,
+              <b> Script</b> in the script panel, and <b>Preset</b> in both Filters and Triggers.
+              Picking an item from the dropdown loads it immediately; the disk icon prompts for a
+              name and saves whatever is currently filled in (overwriting if you reuse a name); the
+              trash icon deletes whichever item is selected. Everything is stored locally in the
+              app, so it's there next time you open EDT — nothing to export/import manually.
+            </p>
+            <p>
+              <b>Example:</b> set up a TCP Client profile for your dev board once, save it as{' '}
+              <code>dev-board</code>, and pick it from the Profile dropdown on any future connection
+              instead of retyping the host/port. Same idea for a Lua script you use across multiple
+              tabs, or a filter preset like <code>ERROR|WARN</code> + exclude <code>heartbeat</code>{' '}
+              that you'd otherwise rebuild by hand each time.
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>Search &amp; Bookmarks</h3>
+            <p>
+              Press <kbd>Ctrl+F</kbd> to open an in-buffer regex search bar. <kbd>Enter</kbd> /{' '}
+              <kbd>Shift+Enter</kbd> jump to the next/previous match; <kbd>Escape</kbd> closes it.
+              Search runs over whatever filters currently have applied, so you can narrow down with
+              a filter first and search within that subset.
+            </p>
+            <p>
+              Click the bookmark icon on any line (or use a <b>Bookmark line</b> trigger action, see
+              Triggers below) to mark it. The bookmark arrows in the toolbar jump between marked
+              lines in order — handy for flagging a handful of interesting moments in a long capture
+              and revisiting them without re-reading everything in between.
             </p>
           </section>
 

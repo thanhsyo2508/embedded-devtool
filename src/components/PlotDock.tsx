@@ -216,7 +216,7 @@ export function PlotDock() {
           <option value="">Select source tab…</option>
           {tabs.map((tab) => (
             <option key={tab.id} value={tab.id}>
-              {tab.portName} · {tab.baudRate}
+              {tab.connectionLabel}
             </option>
           ))}
         </select>
