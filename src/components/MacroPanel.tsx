@@ -1,13 +1,40 @@
 import { useTabsStore, type TabState } from '../state/tabsStore'
-import { TrashIcon } from './icons'
+import { CircleIcon, PlayIcon, TrashIcon } from './icons'
 
 export function MacroPanel({ tab }: { tab: TabState }) {
+  const startMacroRecording = useTabsStore((s) => s.startMacroRecording)
+  const stopMacroRecording = useTabsStore((s) => s.stopMacroRecording)
+  const playMacro = useTabsStore((s) => s.playMacro)
   const removeMacroStep = useTabsStore((s) => s.removeMacroStep)
   const updateMacroStepDelay = useTabsStore((s) => s.updateMacroStepDelay)
   const clearMacro = useTabsStore((s) => s.clearMacro)
 
+  const handleClearMacro = () => {
+    if (window.confirm(`Clear all ${tab.macroSteps.length} recorded step(s)?`)) {
+      clearMacro(tab.id)
+    }
+  }
+
   return (
-    <div className="filter-bar macro-panel">
+    <div className="filter-bar">
+      <div className="filter-actions">
+        <button
+          type="button"
+          className={`macro-record ${tab.macroRecording ? 'on' : ''}`}
+          onClick={() =>
+            tab.macroRecording ? stopMacroRecording(tab.id) : startMacroRecording(tab.id)
+          }
+        >
+          <CircleIcon /> {tab.macroRecording ? 'Recording…' : 'Record'}
+        </button>
+        <button
+          type="button"
+          disabled={tab.macroSteps.length === 0 || tab.macroPlaying || tab.macroRecording}
+          onClick={() => void playMacro(tab.id)}
+        >
+          <PlayIcon /> {tab.macroPlaying ? 'Playing…' : 'Play'}
+        </button>
+      </div>
       {tab.macroSteps.length === 0 && (
         <div className="flash-log-empty">
           No steps recorded yet — click Record, then send commands normally.
@@ -40,7 +67,7 @@ export function MacroPanel({ tab }: { tab: TabState }) {
       ))}
       {tab.macroSteps.length > 0 && (
         <div className="filter-actions">
-          <button type="button" onClick={() => clearMacro(tab.id)}>
+          <button type="button" onClick={handleClearMacro}>
             Clear macro
           </button>
         </div>

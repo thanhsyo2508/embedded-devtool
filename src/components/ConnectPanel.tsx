@@ -8,7 +8,12 @@ import {
   type StopBits,
 } from '../api/serial'
 import { useTabsStore } from '../state/tabsStore'
+import {
+  useConnectionProfilesStore,
+  type ConnectionProfile,
+} from '../state/connectionProfilesStore'
 import { ChipIcon, GaugeIcon, PlugIcon, RefreshIcon, RepeatIcon, UsbIcon } from './icons'
+import { LibraryRow } from './LibraryRow'
 
 function formatHexId(id: number | null): string | null {
   return id === null ? null : `0x${id.toString(16).padStart(4, '0').toUpperCase()}`
@@ -27,6 +32,19 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const openTab = useTabsStore((s) => s.openTab)
+  const profiles = useConnectionProfilesStore((s) => s.items)
+  const saveProfile = useConnectionProfilesStore((s) => s.save)
+  const deleteProfile = useConnectionProfilesStore((s) => s.remove)
+
+  const applyProfile = (p: ConnectionProfile) => {
+    setPortName(p.portName)
+    setBaudRate(p.baudRate)
+    setDataBits(p.dataBits)
+    setParity(p.parity)
+    setStopBits(p.stopBits)
+    setFlowControl(p.flowControl)
+    setAutoReconnect(p.autoReconnect)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -77,6 +95,24 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
       <h2>
         <PlugIcon /> New connection
       </h2>
+
+      <LibraryRow
+        label="Profile"
+        items={profiles}
+        onLoad={applyProfile}
+        onSave={(name) =>
+          saveProfile(name, {
+            portName,
+            baudRate,
+            dataBits,
+            parity,
+            stopBits,
+            flowControl,
+            autoReconnect,
+          })
+        }
+        onDelete={deleteProfile}
+      />
 
       <label className="field-group">
         <span className="field-caption">

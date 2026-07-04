@@ -7,9 +7,11 @@ import { useTabsStore, type TabState } from '../state/tabsStore'
 // not a live readout (unlike CTS/DSR/RI/CD, which are real inputs polled
 // from the device below).
 export function SignalBar({ tab }: { tab: TabState }) {
-  const closeTab = useTabsStore((s) => s.closeTab)
+  const disconnectTab = useTabsStore((s) => s.disconnectTab)
+  const reconnectTab = useTabsStore((s) => s.reconnectTab)
   const [dtr, setDtr] = useState(false)
   const [rts, setRts] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
   const [signals, setSignals] = useState<SignalState | null>(null)
 
   useEffect(() => {
@@ -40,6 +42,11 @@ export function SignalBar({ tab }: { tab: TabState }) {
     const next = !rts
     setRts(next)
     void setSerialRts(tab.id, next)
+  }
+
+  const handleReconnect = () => {
+    setReconnecting(true)
+    void reconnectTab(tab.id).finally(() => setReconnecting(false))
   }
 
   return (
@@ -74,9 +81,24 @@ export function SignalBar({ tab }: { tab: TabState }) {
         CD
       </span>
       <div className="signal-bar-grow" />
-      <button type="button" className="disconnect-button" onClick={() => void closeTab(tab.id)}>
-        Disconnect
-      </button>
+      {tab.status === 'open' ? (
+        <button
+          type="button"
+          className="disconnect-button"
+          onClick={() => void disconnectTab(tab.id)}
+        >
+          Disconnect
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="reconnect-button"
+          disabled={reconnecting}
+          onClick={handleReconnect}
+        >
+          {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+        </button>
+      )}
     </div>
   )
 }

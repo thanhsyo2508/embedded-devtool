@@ -300,6 +300,17 @@ impl PortManager {
         }
     }
 
+    /// Closes every currently tracked port — called on app shutdown so
+    /// serial handles are released deterministically instead of leaving it
+    /// to the OS to clean up whenever the process actually terminates.
+    pub fn close_all(&self) {
+        let mut ports = self.ports.lock().unwrap();
+        for (id, mut mp) in ports.drain() {
+            let _ = mp.stream.close();
+            self.event_bus.publish(Event::PortClosed { stream_id: id });
+        }
+    }
+
     pub fn write(&self, id: &str, data: &[u8]) -> Result<(), String> {
         let mut ports = self.ports.lock().unwrap();
         match ports.get_mut(id) {
@@ -488,6 +499,13 @@ mod tests {
     #[test]
     fn states_empty_when_nothing_open() {
         let manager = PortManager::new(EventBus::new());
+        assert!(manager.states().is_empty());
+    }
+
+    #[test]
+    fn close_all_on_empty_manager_does_nothing() {
+        let manager = PortManager::new(EventBus::new());
+        manager.close_all();
         assert!(manager.states().is_empty());
     }
 

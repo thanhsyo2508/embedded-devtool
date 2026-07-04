@@ -1,5 +1,6 @@
 pub mod core;
 pub mod flash;
+pub mod script;
 pub mod serial;
 
 use std::sync::{Arc, Mutex};
@@ -13,6 +14,7 @@ use crate::core::event_bus::{Event, EventBus};
 use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
 use crate::flash::profile::{self, FlashProfile};
 use crate::flash::stm32::{self, Interface as StmInterface, McuInfo as StmMcuInfo};
+use crate::script::{ScriptCallbacks, ScriptManager};
 use crate::serial::{OpenPortRequest, PortInfo, PortManager, PortState, SignalStateDto};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -523,6 +525,108 @@ fn write_stm32_option_byte(
     });
 }
 
+// ---- Script engine (Tháng 5) ----
+//
+// A script is keyed by the same id as the tab it's attached to (one script
+// slot per tab). All of its output events are tagged with that id so the
+// frontend can route them back to the right tab's console/plot.
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ScriptLogEvent {
+    id: String,
+    message: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ScriptPlotEvent {
+    id: String,
+    stream_id: String,
+    channel: String,
+    value: f64,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct ScriptDoneEvent {
+    id: String,
+}
+
+#[tauri::command]
+fn run_script(
+    app: AppHandle,
+    port_manager: tauri::State<Arc<PortManager>>,
+    scripts: tauri::State<Arc<ScriptManager>>,
+    event_bus: tauri::State<EventBus>,
+    id: String,
+    stream_id: String,
+    code: String,
+) -> Result<(), String> {
+    let make_emitter = {
+        let app = app.clone();
+        let id = id.clone();
+        move |event: &'static str| {
+            let app = app.clone();
+            let id = id.clone();
+            move |message: String| {
+                let _ = app.emit(
+                    event,
+                    ScriptLogEvent {
+                        id: id.clone(),
+                        message,
+                    },
+                );
+            }
+        }
+    };
+
+    let app_for_plot = app.clone();
+    let id_for_plot = id.clone();
+    let stream_for_plot = stream_id.clone();
+    let app_for_done = app.clone();
+    let id_for_done = id.clone();
+
+    let callbacks = ScriptCallbacks {
+        on_log: Arc::new(make_emitter("script://log")),
+        on_alert: Arc::new(make_emitter("script://alert")),
+        on_error: Arc::new(make_emitter("script://error")),
+        on_plot: Arc::new(move |channel, value| {
+            let _ = app_for_plot.emit(
+                "script://plot",
+                ScriptPlotEvent {
+                    id: id_for_plot.clone(),
+                    stream_id: stream_for_plot.clone(),
+                    channel,
+                    value,
+                },
+            );
+        }),
+        on_done: Arc::new(move || {
+            let _ = app_for_done.emit(
+                "script://done",
+                ScriptDoneEvent {
+                    id: id_for_done.clone(),
+                },
+            );
+        }),
+    };
+
+    scripts.run(
+        port_manager.inner().clone(),
+        event_bus.inner().clone(),
+        id,
+        stream_id,
+        code,
+        callbacks,
+    )
+}
+
+#[tauri::command]
+fn stop_script(scripts: tauri::State<Arc<ScriptManager>>, id: String) -> Result<(), String> {
+    scripts.stop(&id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let event_bus = EventBus::new();
@@ -530,11 +634,16 @@ pub fn run() {
 
     serial::manager::spawn_reconnect_watcher(manager.clone());
 
+    let scripts = Arc::new(ScriptManager::new());
+
     let manager_for_state = manager.clone();
+    let event_bus_for_state = event_bus.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(manager_for_state)
+        .manage(event_bus_for_state)
+        .manage(scripts)
         .manage(KeepAwakeState(Mutex::new(None)))
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -570,7 +679,20 @@ pub fn run() {
             mass_erase_stm32,
             read_stm32_option_bytes,
             write_stm32_option_byte,
+            run_script,
+            stop_script,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while running tauri application")
+        .run(|app_handle, event| {
+            // Releases serial handles deterministically on shutdown rather
+            // than leaving it to the OS to clean up whenever the process
+            // actually terminates (some USB-UART drivers are slow to free
+            // the port after a non-graceful exit).
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                if let Some(manager) = app_handle.try_state::<Arc<PortManager>>() {
+                    manager.close_all();
+                }
+            }
+        });
 }

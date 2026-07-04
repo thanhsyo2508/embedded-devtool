@@ -83,6 +83,7 @@ interface PlotState {
   setChartType: (t: ChartType) => void
   reset: () => void
   ingest: (tab: TabState) => void
+  ingestScriptPoint: (streamId: string, channel: string, value: number) => void
   addExtractor: () => void
   removeExtractor: (id: string) => void
   updateExtractor: (id: string, patch: Partial<Pick<Extractor, 'pattern' | 'channel'>>) => void
@@ -194,5 +195,42 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       timestamps: trimmedTimestamps,
       lastProcessedLineSeq: newLines[newLines.length - 1].seq,
     })
+  },
+
+  // A script's plot(channel, value) call feeds into the chart the same way
+  // an auto-parsed log line would, but only when the plotter's selected
+  // source tab is the one the script is attached to — no separate "script"
+  // source needed in the UI.
+  ingestScriptPoint: (streamId, channel, value) => {
+    const state = get()
+    if (state.frozen || state.sourceTabId !== streamId) return
+
+    const channelOrder = [...state.channelOrder]
+    if (!channelOrder.includes(channel)) {
+      if (channelOrder.length >= MAX_CHANNELS) return
+      channelOrder.push(channel)
+    }
+
+    const channelData: Record<string, (number | null)[]> = {}
+    for (const ch of channelOrder) {
+      channelData[ch] = state.channelData[ch]
+        ? [...state.channelData[ch]]
+        : new Array(state.timestamps.length).fill(null)
+    }
+
+    const timestamps = [...state.timestamps, Date.now()]
+    for (const ch of channelOrder) {
+      const arr = channelData[ch]
+      arr.push(ch === channel ? value : (arr[arr.length - 1] ?? null))
+    }
+
+    const overflow = timestamps.length - MAX_POINTS
+    const trimmedTimestamps = overflow > 0 ? timestamps.slice(overflow) : timestamps
+    const trimmedChannelData: Record<string, (number | null)[]> = {}
+    for (const ch of channelOrder) {
+      trimmedChannelData[ch] = overflow > 0 ? channelData[ch].slice(overflow) : channelData[ch]
+    }
+
+    set({ channelOrder, channelData: trimmedChannelData, timestamps: trimmedTimestamps })
   },
 }))

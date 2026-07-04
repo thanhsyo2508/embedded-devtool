@@ -3,11 +3,22 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
 import { applyFilters, compileFilter } from '../lib/filterLines'
 import { highlightMatches } from '../lib/highlight'
-import { BookmarkIcon, DiskIcon, FilterIcon, SearchIcon, TargetIcon, XIcon } from './icons'
+import {
+  BookmarkIcon,
+  CodeIcon,
+  DiskIcon,
+  FilterIcon,
+  RepeatIcon,
+  SearchIcon,
+  TargetIcon,
+  XIcon,
+} from './icons'
 import { SignalBar } from './SignalBar'
 import { StatsBar } from './StatsBar'
 import { FilterBar } from './FilterBar'
 import { TriggerBar } from './TriggerBar'
+import { ScriptPanel } from './ScriptPanel'
+import { MacroPanel } from './MacroPanel'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
@@ -33,8 +44,9 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [logBusy, setLogBusy] = useState(false)
-  const [filterBarOpen, setFilterBarOpen] = useState(false)
-  const [triggerBarOpen, setTriggerBarOpen] = useState(false)
+  const [openPanel, setOpenPanel] = useState<'filters' | 'triggers' | 'script' | 'macro' | null>(
+    null,
+  )
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchIndex, setSearchIndex] = useState(0)
@@ -104,6 +116,9 @@ export function MonitorView({ tab }: { tab: TabState }) {
       clearLines(tab.id)
     }
   }
+
+  const togglePanel = (panel: 'filters' | 'triggers' | 'script' | 'macro') =>
+    setOpenPanel((current) => (current === panel ? null : panel))
 
   const virtualizer = useVirtualizer({
     count: filteredLines.length,
@@ -195,20 +210,6 @@ export function MonitorView({ tab }: { tab: TabState }) {
         <button type="button" onClick={handleClear}>
           Clear
         </button>
-        <button
-          type="button"
-          className={filterBarOpen || tab.filters.length > 0 ? 'on' : ''}
-          onClick={() => setFilterBarOpen((v) => !v)}
-        >
-          <FilterIcon /> Filters{tab.filters.length > 0 ? ` (${tab.filters.length})` : ''}
-        </button>
-        <button
-          type="button"
-          className={triggerBarOpen || tab.triggers.length > 0 ? 'on' : ''}
-          onClick={() => setTriggerBarOpen((v) => !v)}
-        >
-          <TargetIcon /> Triggers{tab.triggers.length > 0 ? ` (${tab.triggers.length})` : ''}
-        </button>
         {bookmarkedIndices.length > 0 && (
           <div className="bookmark-nav">
             <button type="button" onClick={() => gotoBookmark(-1)} aria-label="Previous bookmark">
@@ -223,105 +224,180 @@ export function MonitorView({ tab }: { tab: TabState }) {
           </div>
         )}
         <span className="line-count">{tab.lines.length.toLocaleString()} lines</span>
-        <button
-          type="button"
-          className={`log-toggle ${tab.isLogging ? 'on' : ''}`}
-          disabled={logBusy}
-          title={tab.isLogging ? `Logging to ${tab.logDir ?? '…'}` : 'Log to file'}
-          onClick={handleToggleLogging}
-        >
-          <DiskIcon />
-          {tab.isLogging ? 'Logging' : 'Log'}
-        </button>
+        {tab.status === 'closed' && <span className="tab-disconnected">Disconnected</span>}
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
       </div>
 
       <SignalBar tab={tab} />
       <StatsBar tab={tab} />
-      {filterBarOpen && <FilterBar tab={tab} visibleCount={filteredLines.length} />}
-      {triggerBarOpen && <TriggerBar tab={tab} />}
 
-      <div className="loglist" ref={scrollRef} onScroll={handleScroll}>
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualizer.getVirtualItems().map((item) => {
-            const line = filteredLines[item.index]
-            const isCurrentSearchMatch =
-              searchRegex !== null && searchMatchIndices[searchIndex] === item.index
-            return (
-              <div
-                key={line.seq}
-                className={`logline level-${line.level ?? 'none'}${isCurrentSearchMatch ? ' current-match' : ''}`}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${item.start}px)`,
-                }}
+      <div className="monitor-body">
+        <div className="loglist-wrapper">
+          <div className="loglist" ref={scrollRef} onScroll={handleScroll}>
+            <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+              {virtualizer.getVirtualItems().map((item) => {
+                const line = filteredLines[item.index]
+                const isCurrentSearchMatch =
+                  searchRegex !== null && searchMatchIndices[searchIndex] === item.index
+                return (
+                  <div
+                    key={line.seq}
+                    className={`logline level-${line.level ?? 'none'}${isCurrentSearchMatch ? ' current-match' : ''}`}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${item.start}px)`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className={`bookmark-toggle ${tab.bookmarks.includes(line.seq) ? 'on' : ''}`}
+                      aria-label="Toggle bookmark"
+                      onClick={() => toggleBookmark(tab.id, line.seq)}
+                    >
+                      <BookmarkIcon />
+                    </button>
+                    {tab.timestampMode !== 'off' && (
+                      <span className="t">{formatTimestamp(tab, line.atMs)}</span>
+                    )}
+                    {tab.viewMode !== 'ascii' && (
+                      <span className="hex">{bytesToHex(line.bytes)}</span>
+                    )}
+                    {tab.viewMode !== 'hex' && (
+                      <span className="msg">
+                        {searchRegex
+                          ? highlightMatches(line.text, [searchRegex])
+                          : highlightMatches(line.text, includeHighlights)}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {searchOpen && (
+            <div className="search-overlay">
+              <SearchIcon />
+              <input
+                type="text"
+                autoFocus
+                placeholder="Search buffer…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+              />
+              <span className="mono">
+                {searchMatchIndices.length > 0
+                  ? `${searchIndex + 1}/${searchMatchIndices.length}`
+                  : '0/0'}
+              </span>
+              <button type="button" onClick={() => gotoSearchMatch(-1)} aria-label="Previous match">
+                ‹
+              </button>
+              <button type="button" onClick={() => gotoSearchMatch(1)} aria-label="Next match">
+                ›
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label="Close search"
+                onClick={() => setSearchOpen(false)}
               >
-                <button
-                  type="button"
-                  className={`bookmark-toggle ${tab.bookmarks.includes(line.seq) ? 'on' : ''}`}
-                  aria-label="Toggle bookmark"
-                  onClick={() => toggleBookmark(tab.id, line.seq)}
-                >
-                  <BookmarkIcon />
-                </button>
-                {tab.timestampMode !== 'off' && (
-                  <span className="t">{formatTimestamp(tab, line.atMs)}</span>
-                )}
-                {tab.viewMode !== 'ascii' && <span className="hex">{bytesToHex(line.bytes)}</span>}
-                {tab.viewMode !== 'hex' && (
-                  <span className="msg">
-                    {searchRegex
-                      ? highlightMatches(line.text, [searchRegex])
-                      : highlightMatches(line.text, includeHighlights)}
-                  </span>
-                )}
-              </div>
-            )
-          })}
+                <XIcon />
+              </button>
+            </div>
+          )}
+
+          {openPanel === 'filters' && (
+            <div className="feature-flyout">
+              <FilterBar tab={tab} visibleCount={filteredLines.length} />
+            </div>
+          )}
+          {openPanel === 'triggers' && (
+            <div className="feature-flyout">
+              <TriggerBar tab={tab} />
+            </div>
+          )}
+          {openPanel === 'script' && (
+            <div className="feature-flyout feature-flyout-wide">
+              <ScriptPanel tab={tab} />
+            </div>
+          )}
+          {openPanel === 'macro' && (
+            <div className="feature-flyout">
+              <MacroPanel tab={tab} />
+            </div>
+          )}
+
+          {!autoScroll && !paused && (
+            <button type="button" className="jump-bottom" onClick={() => setAutoScroll(true)}>
+              ↓ jump to bottom
+            </button>
+          )}
         </div>
 
-        {searchOpen && (
-          <div className="search-overlay">
-            <SearchIcon />
-            <input
-              type="text"
-              autoFocus
-              placeholder="Search buffer…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKeyDown}
-            />
-            <span className="mono">
-              {searchMatchIndices.length > 0
-                ? `${searchIndex + 1}/${searchMatchIndices.length}`
-                : '0/0'}
-            </span>
-            <button type="button" onClick={() => gotoSearchMatch(-1)} aria-label="Previous match">
-              ‹
-            </button>
-            <button type="button" onClick={() => gotoSearchMatch(1)} aria-label="Next match">
-              ›
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Close search"
-              onClick={() => setSearchOpen(false)}
-            >
-              <XIcon />
-            </button>
-          </div>
-        )}
+        <div className="feature-rail">
+          <button
+            type="button"
+            className={openPanel === 'filters' || tab.filters.length > 0 ? 'on' : ''}
+            title="Filters"
+            aria-label="Filters"
+            onClick={() => togglePanel('filters')}
+          >
+            <FilterIcon />
+            {tab.filters.length > 0 && (
+              <span className="feature-rail-badge">{tab.filters.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={openPanel === 'triggers' || tab.triggers.length > 0 ? 'on' : ''}
+            title="Triggers"
+            aria-label="Triggers"
+            onClick={() => togglePanel('triggers')}
+          >
+            <TargetIcon />
+            {tab.triggers.length > 0 && (
+              <span className="feature-rail-badge">{tab.triggers.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={openPanel === 'script' || tab.scriptRunning ? 'on' : ''}
+            title={tab.scriptRunning ? 'Script (running)' : 'Script'}
+            aria-label="Script"
+            onClick={() => togglePanel('script')}
+          >
+            <CodeIcon />
+          </button>
+          <button
+            type="button"
+            className={`${openPanel === 'macro' || tab.macroSteps.length > 0 ? 'on' : ''} ${tab.macroRecording ? 'macro-recording' : ''}`}
+            title={tab.macroRecording ? 'Macro (recording)' : 'Macro'}
+            aria-label="Macro"
+            onClick={() => togglePanel('macro')}
+          >
+            <RepeatIcon />
+            {tab.macroSteps.length > 0 && (
+              <span className="feature-rail-badge">{tab.macroSteps.length}</span>
+            )}
+          </button>
+          <div className="feature-rail-spacer" />
+          <button
+            type="button"
+            className={`log-toggle ${tab.isLogging ? 'on' : ''}`}
+            disabled={logBusy}
+            title={tab.isLogging ? `Logging to ${tab.logDir ?? '…'}` : 'Log to file'}
+            aria-label="Log to file"
+            onClick={handleToggleLogging}
+          >
+            <DiskIcon />
+          </button>
+        </div>
       </div>
-
-      {!autoScroll && !paused && (
-        <button type="button" className="jump-bottom" onClick={() => setAutoScroll(true)}>
-          ↓ jump to bottom
-        </button>
-      )}
     </div>
   )
 }

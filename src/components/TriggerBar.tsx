@@ -1,6 +1,8 @@
 import { save } from '@tauri-apps/plugin-dialog'
 import { useTabsStore, type TabState, type TriggerActionType } from '../state/tabsStore'
+import { useTriggerPresetsStore } from '../state/triggerPresetsStore'
 import { FolderIcon, PlusIcon, TrashIcon } from './icons'
+import { LibraryRow } from './LibraryRow'
 
 const ACTION_TYPES: { value: TriggerActionType; label: string }[] = [
   { value: 'bookmark', label: 'Bookmark line' },
@@ -14,6 +16,10 @@ export function TriggerBar({ tab }: { tab: TabState }) {
   const removeTrigger = useTabsStore((s) => s.removeTrigger)
   const updateTrigger = useTabsStore((s) => s.updateTrigger)
   const toggleTriggerEnabled = useTabsStore((s) => s.toggleTriggerEnabled)
+  const setTriggers = useTabsStore((s) => s.setTriggers)
+  const presets = useTriggerPresetsStore((s) => s.items)
+  const savePreset = useTriggerPresetsStore((s) => s.save)
+  const deletePreset = useTriggerPresetsStore((s) => s.remove)
 
   const browseForFile = async (triggerId: string) => {
     const path = await save({ title: 'Trigger log file' })
@@ -22,6 +28,13 @@ export function TriggerBar({ tab }: { tab: TabState }) {
 
   return (
     <div className="filter-bar">
+      <LibraryRow
+        label="Preset"
+        items={presets}
+        onLoad={(p) => setTriggers(tab.id, p.triggers)}
+        onSave={(name) => savePreset(name, { triggers: tab.triggers })}
+        onDelete={deletePreset}
+      />
       {tab.triggers.map((trigger) => (
         <div className="filter-row trigger-row" key={trigger.id}>
           <label className="checkbox-field">

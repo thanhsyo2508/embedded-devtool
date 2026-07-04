@@ -100,7 +100,6 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
             STM32
           </span>
         </div>
-
         {target === 'stm32' && <Stm32Body />}
 
         {target === 'esp32' && (

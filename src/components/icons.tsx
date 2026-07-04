@@ -202,3 +202,28 @@ export function TargetIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   )
 }
+
+export function CodeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M8 6 2 12l6 6M16 6l6 6-6 6" />
+    </Icon>
+  )
+}
+
+export function StopIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" stroke="none" />
+    </Icon>
+  )
+}
+
+export function BookOpenIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M12 6c-2-2-5-2-8-2v14c3 0 6 0 8 2V6z" />
+      <path d="M12 6c2-2 5-2 8-2v14c-3 0-6 0-8 2V6z" />
+    </Icon>
+  )
+}

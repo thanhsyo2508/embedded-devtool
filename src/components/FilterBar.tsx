@@ -1,13 +1,19 @@
 import { useMemo } from 'react'
 import { useTabsStore, type TabState } from '../state/tabsStore'
+import { useFilterPresetsStore } from '../state/filterPresetsStore'
 import { compileFilter } from '../lib/filterLines'
 import { PlusIcon, TrashIcon } from './icons'
+import { LibraryRow } from './LibraryRow'
 
 export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: number }) {
   const addFilter = useTabsStore((s) => s.addFilter)
   const removeFilter = useTabsStore((s) => s.removeFilter)
   const updateFilterPattern = useTabsStore((s) => s.updateFilterPattern)
   const toggleFilterEnabled = useTabsStore((s) => s.toggleFilterEnabled)
+  const setFilters = useTabsStore((s) => s.setFilters)
+  const presets = useFilterPresetsStore((s) => s.items)
+  const savePreset = useFilterPresetsStore((s) => s.save)
+  const deletePreset = useFilterPresetsStore((s) => s.remove)
 
   const matchCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -20,6 +26,13 @@ export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: 
 
   return (
     <div className="filter-bar">
+      <LibraryRow
+        label="Preset"
+        items={presets}
+        onLoad={(p) => setFilters(tab.id, p.filters)}
+        onSave={(name) => savePreset(name, { filters: tab.filters })}
+        onDelete={deletePreset}
+      />
       {tab.filters.map((filter) => {
         const invalid =
           filter.pattern.length > 0 && compileFilter({ ...filter, enabled: true }) === null

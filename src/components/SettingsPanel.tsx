@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -9,12 +10,14 @@ import {
   type NewlineMode,
   type Theme,
 } from '../state/settingsStore'
-import { GearIcon, MessageIcon, XIcon } from './icons'
+import { BookOpenIcon, GearIcon, MessageIcon, XIcon } from './icons'
+import { HelpGuide } from './HelpGuide'
 
 const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const settings = useSettingsStore()
+  const [showGuide, setShowGuide] = useState(false)
 
   const handleKeepAwakeChange = (checked: boolean) => {
     settings.setKeepAwake(checked)
@@ -152,6 +155,15 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <hr className="settings-divider" />
 
+        <div className="settings-row">
+          <span>User guide</span>
+          <button type="button" className="feedback-button" onClick={() => setShowGuide(true)}>
+            <BookOpenIcon /> Open guide
+          </button>
+        </div>
+
+        <hr className="settings-divider" />
+
         <div className="shortcuts-list">
           <div className="shortcuts-title">Keyboard shortcuts</div>
           {[
@@ -173,6 +185,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       </div>
+      {showGuide && <HelpGuide onClose={() => setShowGuide(false)} />}
     </div>
   )
 }

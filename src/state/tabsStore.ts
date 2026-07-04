@@ -15,6 +15,16 @@ import { matchTriggers } from '../lib/triggers'
 import { parseHex } from '../lib/hex'
 import { playBeep } from '../lib/beep'
 import { invoke } from '@tauri-apps/api/core'
+import {
+  onScriptAlert,
+  onScriptDone,
+  onScriptError,
+  onScriptLog,
+  onScriptPlot,
+  runScript as runScriptApi,
+  stopScript as stopScriptApi,
+} from '../api/script'
+import { usePlotStore } from './plotStore'
 
 export interface LogLine {
   seq: number
@@ -55,10 +65,16 @@ export interface MacroStep {
   delayMs: number
 }
 
+export interface ScriptConsoleEntry {
+  kind: 'log' | 'alert' | 'error'
+  message: string
+  atMs: number
+}
+
 export type ViewMode = 'mixed' | 'hex' | 'ascii'
 export type TimestampMode = 'delta' | 'abs' | 'off'
 export type LineEnding = 'none' | 'cr' | 'lf' | 'crlf'
-export type TabStatus = 'open' | 'error'
+export type TabStatus = 'open' | 'closed' | 'error'
 
 export interface TabState {
   id: string
@@ -66,6 +82,10 @@ export interface TabState {
   baudRate: number
   status: TabStatus
   errorMessage?: string
+  /** The request last used to open this port — kept around so Reconnect can
+   * reopen with the exact same port/baud/framing instead of making the user
+   * re-enter everything. */
+  connectionConfig: OpenPortRequest
   lines: LogLine[]
   pendingBytes: number[]
   pendingAtMs: number | null
@@ -94,6 +114,9 @@ export interface TabState {
   macroPlaying: boolean
   macroSteps: MacroStep[]
   macroLastStepAtMs: number | null
+  scriptCode: string
+  scriptRunning: boolean
+  scriptConsole: ScriptConsoleEntry[]
 }
 
 interface TabsStore {
@@ -104,6 +127,8 @@ interface TabsStore {
   wireEventsOnce: () => void
   openTab: (req: OpenPortRequest) => Promise<void>
   closeTab: (id: string) => Promise<void>
+  disconnectTab: (id: string) => Promise<void>
+  reconnectTab: (id: string) => Promise<void>
   setActiveTab: (id: string) => void
   setViewMode: (id: string, mode: ViewMode) => void
   setTimestampMode: (id: string, mode: TimestampMode) => void
@@ -118,6 +143,7 @@ interface TabsStore {
   removeFilter: (id: string, filterId: string) => void
   updateFilterPattern: (id: string, filterId: string, pattern: string) => void
   toggleFilterEnabled: (id: string, filterId: string) => void
+  setFilters: (id: string, filters: FilterRule[]) => void
   toggleBookmark: (id: string, seq: number) => void
   addBookmark: (id: string, seq: number) => void
   addTrigger: (id: string) => void
@@ -128,12 +154,17 @@ interface TabsStore {
     patch: Partial<Pick<TriggerRule, 'pattern' | 'enabled'>> & { action?: Partial<TriggerAction> },
   ) => void
   toggleTriggerEnabled: (id: string, triggerId: string) => void
+  setTriggers: (id: string, triggers: TriggerRule[]) => void
   startMacroRecording: (id: string) => void
   stopMacroRecording: (id: string) => void
   clearMacro: (id: string) => void
   removeMacroStep: (id: string, index: number) => void
   updateMacroStepDelay: (id: string, index: number, delayMs: number) => void
   playMacro: (id: string) => Promise<void>
+  setScriptCode: (id: string, code: string) => void
+  runScript: (id: string) => Promise<void>
+  stopScript: (id: string) => Promise<void>
+  clearScriptConsole: (id: string) => void
 }
 
 const LINE_ENDING_BYTES: Record<LineEnding, number[]> = {
@@ -371,6 +402,32 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         }),
       }))
     })
+
+    const appendConsole = (id: string, kind: ScriptConsoleEntry['kind'], message: string) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) =>
+          tab.id === id
+            ? {
+                ...tab,
+                scriptConsole: [...tab.scriptConsole, { kind, message, atMs: Date.now() }].slice(
+                  -500,
+                ),
+              }
+            : tab,
+        ),
+      }))
+
+    void onScriptLog((e) => appendConsole(e.id, 'log', e.message))
+    void onScriptAlert((e) => appendConsole(e.id, 'alert', e.message))
+    void onScriptError((e) => appendConsole(e.id, 'error', e.message))
+    void onScriptDone((e) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => (tab.id === e.id ? { ...tab, scriptRunning: false } : tab)),
+      })),
+    )
+    void onScriptPlot((e) =>
+      usePlotStore.getState().ingestScriptPoint(e.streamId, e.channel, e.value),
+    )
   },
 
   openTab: async (req) => {
@@ -379,13 +436,14 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       portName: req.portName,
       baudRate: req.baudRate,
       status: 'open',
+      connectionConfig: req,
       lines: [],
       pendingBytes: [],
       pendingAtMs: null,
       firstLineAtMs: null,
       nextSeq: 0,
-      viewMode: 'mixed',
-      timestampMode: 'delta',
+      viewMode: 'ascii',
+      timestampMode: 'off',
       lineEnding: 'crlf',
       sendHistory: [],
       isLogging: false,
@@ -401,6 +459,9 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       macroPlaying: false,
       macroSteps: [],
       macroLastStepAtMs: null,
+      scriptCode: '',
+      scriptRunning: false,
+      scriptConsole: [],
     }
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
     try {
@@ -415,12 +476,46 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
   },
 
   closeTab: async (id) => {
+    if (get().tabs.find((t) => t.id === id)?.scriptRunning) {
+      await stopScriptApi(id).catch(() => {})
+    }
     await closeSerialPort(id).catch(() => {})
     set((state) => {
       const tabs = state.tabs.filter((tab) => tab.id !== id)
       const activeTabId = state.activeTabId === id ? (tabs[0]?.id ?? null) : state.activeTabId
       return { tabs, activeTabId }
     })
+  },
+
+  // Stops the underlying port but keeps the tab (and its buffered log,
+  // filters, triggers, script) around — unlike closeTab, which removes the
+  // tab entirely. Lets Reconnect below bring the same tab back to life.
+  disconnectTab: async (id) => {
+    if (get().tabs.find((t) => t.id === id)?.scriptRunning) {
+      await stopScriptApi(id).catch(() => {})
+    }
+    await closeSerialPort(id).catch(() => {})
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, status: 'closed', errorMessage: undefined } : tab,
+      ),
+    }))
+  },
+
+  // Mirrors openTab: success flips this tab to 'open' via the
+  // serial://lifecycle listener in wireEventsOnce, not here directly.
+  reconnectTab: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab) return
+    try {
+      await openSerialPort(tab.connectionConfig)
+    } catch (err) {
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id ? { ...t, status: 'error', errorMessage: String(err) } : t,
+        ),
+      }))
+    }
   },
 
   setActiveTab: (id) => set({ activeTabId: id }),
@@ -575,6 +670,24 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       ),
     })),
 
+  // Regenerates ids rather than reusing the preset's stored ones — loaded
+  // filters need to be distinct from whatever a saved preset (or another
+  // tab loading the same preset) already carries around.
+  setFilters: (id, filters) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              filters: filters.map((f) => ({
+                ...f,
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              })),
+            }
+          : tab,
+      ),
+    })),
+
   toggleBookmark: (id, seq) =>
     set((state) => ({
       tabs: state.tabs.map((tab) => {
@@ -652,6 +765,21 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       ),
     })),
 
+  setTriggers: (id, triggers) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              triggers: triggers.map((t) => ({
+                ...t,
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              })),
+            }
+          : tab,
+      ),
+    })),
+
   startMacroRecording: (id) =>
     set((state) => ({
       tabs: state.tabs.map((tab) =>
@@ -714,4 +842,47 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       }))
     }
   },
+
+  setScriptCode: (id, code) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, scriptCode: code } : tab)),
+    })),
+
+  runScript: async (id) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab || tab.scriptRunning) return
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === id ? { ...t, scriptRunning: true } : t)),
+    }))
+    try {
+      await runScriptApi(id, id, tab.scriptCode)
+    } catch (err) {
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                scriptRunning: false,
+                scriptConsole: [
+                  ...t.scriptConsole,
+                  { kind: 'error', message: String(err), atMs: Date.now() },
+                ],
+              }
+            : t,
+        ),
+      }))
+    }
+  },
+
+  stopScript: async (id) => {
+    await stopScriptApi(id).catch(() => {})
+    set((state) => ({
+      tabs: state.tabs.map((t) => (t.id === id ? { ...t, scriptRunning: false } : t)),
+    }))
+  },
+
+  clearScriptConsole: (id) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, scriptConsole: [] } : tab)),
+    })),
 }))
