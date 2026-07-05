@@ -82,13 +82,13 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
-            <h3>TCP / UDP / MQTT Connections</h3>
+            <h3>TCP / UDP / WebSocket / MQTT Connections</h3>
             <p>
               The <b>New connection</b> panel's segmented control isn't limited to Serial — pick{' '}
-              <b>TCP Client</b>, <b>TCP Server</b>, <b>UDP</b>, or <b>MQTT</b> instead, and the tab
-              that opens behaves exactly like a serial one: filters, triggers, macros, the script
-              engine, and the plotter all work unmodified since they only ever see a stream of
-              bytes, not the transport underneath.
+              <b>TCP Client</b>, <b>TCP Server</b>, <b>UDP</b>, <b>WS Client</b>, <b>WS Server</b>,
+              or <b>MQTT</b> instead, and the tab that opens behaves exactly like a serial one:
+              filters, triggers, macros, the script engine, and the plotter all work unmodified
+              since they only ever see a stream of bytes, not the transport underneath.
             </p>
             <ul>
               <li>
@@ -103,6 +103,15 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <li>
                 <b>UDP</b> — bind a local port to receive on, and optionally set a remote host/port
                 to send to. Broadcast addresses (e.g. <code>192.168.1.255</code>) work too.
+              </li>
+              <li>
+                <b>WS Client</b> — connect to a WebSocket endpoint by full URL, e.g.{' '}
+                <code>ws://192.168.1.1:81/</code> (an ESP32 running a WebSocket server is a common
+                target). <b>WS Server</b> listens on a local port instead and waits for a client to
+                connect in, handling one at a time like TCP Server. Incoming text messages appear as
+                one monitor line each; binary messages pass through unmodified. Everything you send
+                — text or hex — goes out as a binary WebSocket frame, so raw/binary protocols
+                round-trip correctly; encrypted <code>wss://</code> endpoints aren't supported yet.
               </li>
               <li>
                 <b>MQTT</b> — connect to a broker (host/port, optional username/password), subscribe
@@ -121,6 +130,14 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <code>devices/kitchen-sensor/temp: 24.5</code>; typing <code>reboot</code> in the send
               box publishes it straight to the cmd topic.
             </p>
+            <p>
+              <b>Finding devices:</b> for TCP Client, WS Client, and MQTT targets, the{' '}
+              <b>Scan LAN</b> button below the connection fields browses the local network via
+              mDNS/DNS-SD for a chosen service type (HTTP, MQTT, Arduino OTA, ESPHome, WebSocket)
+              and lists what it finds — click a result to fill in the host and port automatically.
+              Devices must advertise themselves via mDNS (most IoT firmware frameworks do) and be on
+              the same subnet.
+            </p>
           </section>
 
           <section className="guide-section">
@@ -135,7 +152,7 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               The manual RTS button in the signal bar is disabled while this is on, since toggling
               it by hand would fight the automatic control.
             </p>
-            <p>Two sidebar tools (serial tabs only) speak Modbus RTU on top of that connection:</p>
+            <p>Two sidebar tools speak Modbus on top of a connection:</p>
             <ul>
               <li>
                 <b>Modbus Master</b> (gauge icon) — build a one-shot request (slave address,
@@ -144,7 +161,10 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
                 repeatedly on an interval — each rule's value also feeds the Plotter automatically,
                 using the rule's label as the channel name. Only one request is ever in flight on
                 the bus at a time, whether it came from a manual click or a poll rule, since RS485
-                is half-duplex.
+                is half-duplex. The Master also works on a <b>TCP Client</b> tab: connect to a
+                Modbus TCP device or gateway (port <code>502</code> by convention) and the same
+                requests go out MBAP-framed as <b>Modbus TCP</b> — the "Slave address" field becomes
+                the Unit ID. The Slave emulator remains serial-only.
               </li>
               <li>
                 <b>Modbus Slave</b> (chip icon) — emulate a Modbus RTU device to test a real master
@@ -346,6 +366,38 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <code>temp</code> (adjust the pattern to match your actual log text) to pull the
               number out anyway. A script's <code>plot(...)</code> calls land on the same chart too.
             </p>
+            <p>The toolbar also has a set of analysis tools:</p>
+            <ul>
+              <li>
+                <b>Math</b> — derived channels computed from real ones: A+B, A−B, A×B, A÷B, moving
+                average, derivative (units/second), or RMS over a sample window. They show up in the
+                legend prefixed with <code>ƒ</code> and behave like normal channels everywhere —
+                stats, FFT, CSV export.
+              </li>
+              <li>
+                <b>Levels</b> — horizontal alert lines. Pick a channel and a value; a dashed line is
+                drawn at that level and a beep sounds whenever the channel crosses it upward.
+                <b> Example:</b> channel <code>temp</code> &gt; <code>80</code> beeps the moment a
+                temperature reading exceeds 80.
+              </li>
+              <li>
+                <b>Stats</b> — a live strip showing each visible channel's min / max / avg /
+                peak-to-peak and an estimated frequency (blank for flat or non-periodic signals).
+              </li>
+              <li>
+                <b>FFT</b> — switches the chart to the frequency domain: the current buffer is
+                resampled to a uniform rate, a window function (Hann by default, Hamming or
+                rectangular selectable) is applied, and the amplitude spectrum is shown with Hz on
+                the x axis. Needs at least 64 samples. Note: values between real samples are held
+                constant by the plotter's ingest (a zero-order hold), which adds small artificial
+                harmonics — fine for spotting dominant frequencies, not for precision measurement.
+              </li>
+              <li>
+                <b>CSV / PNG</b> — export the whole buffer (timestamps + every channel including
+                math channels) as CSV, or the chart as a PNG image (the HTML legend below the chart
+                isn't part of the image).
+              </li>
+            </ul>
           </section>
 
           <section className="guide-section">

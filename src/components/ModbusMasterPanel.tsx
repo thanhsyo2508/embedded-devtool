@@ -67,7 +67,9 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
     <div className="filter-bar">
       <div className="filter-row">
         <label className="field-group">
-          <span className="field-caption">Slave address</span>
+          <span className="field-caption">
+            {tab.connectionKind === 'tcp-client' ? 'Unit ID' : 'Slave address'}
+          </span>
           <input
             type="number"
             value={slaveAddr}

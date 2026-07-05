@@ -16,6 +16,8 @@ import {
   openTcpClient,
   openTcpServer,
   openUdp,
+  openWsClient,
+  openWsServer,
   writeNetworkStream,
   type MqttParams,
 } from '../api/network'
@@ -36,6 +38,7 @@ import {
   type ModbusResponseFrame,
 } from '../lib/modbus'
 import { ModbusFrameAssembler } from '../lib/modbusFrameAssembler'
+import { parseTcpResponseFrame, rtuToTcp } from '../lib/modbusTcp'
 import { playBeep } from '../lib/beep'
 import { invoke } from '@tauri-apps/api/core'
 import {
@@ -134,7 +137,8 @@ export type ViewMode = 'mixed' | 'hex' | 'ascii'
 export type TimestampMode = 'delta' | 'abs' | 'off'
 export type LineEnding = 'none' | 'cr' | 'lf' | 'crlf'
 export type TabStatus = 'open' | 'closed' | 'error'
-export type ConnectionKind = 'serial' | 'tcp-client' | 'tcp-server' | 'udp' | 'mqtt'
+export type ConnectionKind =
+  'serial' | 'tcp-client' | 'tcp-server' | 'udp' | 'ws-client' | 'ws-server' | 'mqtt'
 
 /** What a tab connects over — serial keeps the full `OpenPortRequest` (data
  * bits/parity/etc.), TCP only needs host/port. Kept around so Reconnect can
@@ -145,6 +149,8 @@ export type ConnectionConfig =
   | { kind: 'tcp-client'; host: string; port: number }
   | { kind: 'tcp-server'; port: number }
   | { kind: 'udp'; localPort: number; remoteHost?: string; remotePort?: number }
+  | { kind: 'ws-client'; url: string }
+  | { kind: 'ws-server'; port: number }
   | ({ kind: 'mqtt' } & MqttParams)
 
 /** What `openTab` accepts to start a new connection of any kind. `id` is
@@ -160,6 +166,8 @@ export type OpenTabRequest =
       remoteHost?: string
       remotePort?: number
     }
+  | { kind: 'ws-client'; id: string; url: string }
+  | { kind: 'ws-server'; id: string; port: number }
   | ({ kind: 'mqtt'; id: string } & MqttParams)
 
 export interface TabState {
@@ -454,6 +462,10 @@ function connectionLabelFor(config: ConnectionConfig): string {
       return config.remoteHost
         ? `UDP :${config.localPort} → ${config.remoteHost}:${config.remotePort}`
         : `UDP :${config.localPort}`
+    case 'ws-client':
+      return config.url
+    case 'ws-server':
+      return `:${config.port} (WS server)`
     case 'mqtt':
       return `mqtt://${config.brokerHost}:${config.brokerPort}`
   }
@@ -520,6 +532,8 @@ interface ModbusRuntime {
   } | null
   pollBusy: boolean
   lastPolledAtMs: Map<string, number>
+  /** Modbus TCP MBAP transaction id counter (unused for serial/RTU tabs). */
+  nextTransactionId: number
 }
 
 const modbusRuntimes = new Map<string, ModbusRuntime>()
@@ -533,6 +547,7 @@ function getModbusRuntime(tabId: string): ModbusRuntime {
       pending: null,
       pollBusy: false,
       lastPolledAtMs: new Map(),
+      nextTransactionId: 1,
     }
     modbusRuntimes.set(tabId, runtime)
   }
@@ -756,16 +771,20 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
                   remoteHost: req.remoteHost,
                   remotePort: req.remotePort,
                 }
-              : {
-                  kind: 'mqtt',
-                  brokerHost: req.brokerHost,
-                  brokerPort: req.brokerPort,
-                  clientId: req.clientId,
-                  username: req.username,
-                  password: req.password,
-                  subscribeTopic: req.subscribeTopic,
-                  publishTopic: req.publishTopic,
-                }
+              : req.kind === 'ws-client'
+                ? { kind: 'ws-client', url: req.url }
+                : req.kind === 'ws-server'
+                  ? { kind: 'ws-server', port: req.port }
+                  : {
+                      kind: 'mqtt',
+                      brokerHost: req.brokerHost,
+                      brokerPort: req.brokerPort,
+                      clientId: req.clientId,
+                      username: req.username,
+                      password: req.password,
+                      subscribeTopic: req.subscribeTopic,
+                      publishTopic: req.publishTopic,
+                    }
 
     const newTab: TabState = {
       id: req.id,
@@ -820,6 +839,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       else if (req.kind === 'tcp-server') await openTcpServer(req.id, req.port)
       else if (req.kind === 'udp')
         await openUdp(req.id, req.localPort, req.remoteHost, req.remotePort)
+      else if (req.kind === 'ws-client') await openWsClient(req.id, req.url)
+      else if (req.kind === 'ws-server') await openWsServer(req.id, req.port)
       else await openMqtt(req.id, req)
     } catch (err) {
       set((state) => ({
@@ -873,6 +894,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       else if (config.kind === 'tcp-server') await openTcpServer(id, config.port)
       else if (config.kind === 'udp')
         await openUdp(id, config.localPort, config.remoteHost, config.remotePort)
+      else if (config.kind === 'ws-client') await openWsClient(id, config.url)
+      else if (config.kind === 'ws-server') await openWsServer(id, config.port)
       else await openMqtt(id, config)
     } catch (err) {
       set((state) => ({
@@ -1300,16 +1323,23 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       get().appendModbusMasterLog(id, 'error', 'Bus busy with another Modbus request — try again')
       return null
     }
+    // Framing follows the tab's transport: MBAP-wrapped Modbus TCP over a
+    // TCP Client tab, classic RTU (addr + CRC) over serial. A tab's kind
+    // never changes, so the lazily created assembler can pick its parser
+    // once.
+    const isTcp = tab.connectionKind === 'tcp-client'
     if (!runtime.assembler) {
-      runtime.assembler = new ModbusFrameAssembler<ModbusResponseFrame>((bytes) =>
-        runtime.pending
-          ? parseResponseFrame(runtime.pending.functionCode, bytes)
-          : { status: 'incomplete' },
-      )
+      runtime.assembler = new ModbusFrameAssembler<ModbusResponseFrame>((bytes) => {
+        if (!runtime.pending) return { status: 'incomplete' }
+        return isTcp
+          ? parseTcpResponseFrame(runtime.pending.functionCode, bytes)
+          : parseResponseFrame(runtime.pending.functionCode, bytes)
+      })
     }
     runtime.assembler.reset()
 
-    const request = buildRequest(slaveAddr, functionCode, startAddr, quantityOrValue, values)
+    const rtuRequest = buildRequest(slaveAddr, functionCode, startAddr, quantityOrValue, values)
+    const request = isTcp ? rtuToTcp(rtuRequest, runtime.nextTransactionId++ & 0xffff) : rtuRequest
     get().appendModbusMasterLog(id, 'sent', `TX ${formatHex(request)}`)
 
     const responsePromise = new Promise<ModbusResponseFrame | null>((resolve) => {

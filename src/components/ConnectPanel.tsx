@@ -8,6 +8,7 @@ import {
   type StopBits,
 } from '../api/serial'
 import { useTabsStore, type ConnectionKind } from '../state/tabsStore'
+import { mdnsScan, type MdnsService } from '../api/network'
 import {
   useConnectionProfilesStore,
   type ConnectionProfile,
@@ -28,16 +29,59 @@ function formatHexId(id: number | null): string | null {
   return id === null ? null : `0x${id.toString(16).padStart(4, '0').toUpperCase()}`
 }
 
-const TARGETS: { value: ConnectionKind; label: string }[] = [
+// TCP and WebSocket each have a client/server role; grouping by protocol
+// family first (one row, never wraps even in the compact connect panel)
+// and only revealing the Client/Server sub-toggle for those two families
+// keeps the picker from growing to 7 same-level options — see the "role"
+// state below.
+type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt'
+type ConnectionRole = 'client' | 'server'
+
+const FAMILIES: { value: ProtocolFamily; label: string }[] = [
   { value: 'serial', label: 'Serial' },
-  { value: 'tcp-client', label: 'TCP Client' },
-  { value: 'tcp-server', label: 'TCP Server' },
+  { value: 'tcp', label: 'TCP' },
   { value: 'udp', label: 'UDP' },
+  { value: 'ws', label: 'WebSocket' },
   { value: 'mqtt', label: 'MQTT' },
 ]
 
+function familyOf(kind: ConnectionKind): ProtocolFamily {
+  switch (kind) {
+    case 'tcp-client':
+    case 'tcp-server':
+      return 'tcp'
+    case 'ws-client':
+    case 'ws-server':
+      return 'ws'
+    default:
+      return kind
+  }
+}
+
+function roleOf(kind: ConnectionKind): ConnectionRole {
+  return kind === 'tcp-server' || kind === 'ws-server' ? 'server' : 'client'
+}
+
+function kindFor(family: ProtocolFamily, role: ConnectionRole): ConnectionKind {
+  if (family === 'tcp') return role === 'server' ? 'tcp-server' : 'tcp-client'
+  if (family === 'ws') return role === 'server' ? 'ws-server' : 'ws-client'
+  return family
+}
+
+const MDNS_PRESETS: { value: string; label: string }[] = [
+  { value: '_http._tcp.local.', label: 'HTTP (_http._tcp)' },
+  { value: '_mqtt._tcp.local.', label: 'MQTT (_mqtt._tcp)' },
+  { value: '_arduino._tcp.local.', label: 'Arduino OTA (_arduino._tcp)' },
+  { value: '_esphomelib._tcp.local.', label: 'ESPHome (_esphomelib._tcp)' },
+  { value: '_ws._tcp.local.', label: 'WebSocket (_ws._tcp)' },
+]
+
+const MDNS_SCAN_MS = 3000
+
 export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
-  const [target, setTarget] = useState<ConnectionKind>('serial')
+  const [family, setFamily] = useState<ProtocolFamily>('serial')
+  const [role, setRole] = useState<ConnectionRole>('client')
+  const target = kindFor(family, role)
   const [ports, setPorts] = useState<PortInfo[]>([])
   const [portName, setPortName] = useState('')
   const [baudRate, setBaudRate] = useState(115200)
@@ -52,6 +96,8 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
   const [udpLocalPort, setUdpLocalPort] = useState(5005)
   const [udpRemoteHost, setUdpRemoteHost] = useState('')
   const [udpRemotePort, setUdpRemotePort] = useState(5006)
+  const [wsUrl, setWsUrl] = useState('ws://192.168.1.1:81/')
+  const [wsServerPort, setWsServerPort] = useState(8080)
   const [brokerHost, setBrokerHost] = useState('broker.hivemq.com')
   const [brokerPort, setBrokerPort] = useState(1883)
   const [clientId, setClientId] = useState(() => `edt-${Math.random().toString(36).slice(2, 8)}`)
@@ -62,13 +108,17 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [mdnsType, setMdnsType] = useState(MDNS_PRESETS[0].value)
+  const [scanning, setScanning] = useState(false)
+  const [scanResults, setScanResults] = useState<MdnsService[] | null>(null)
   const openTab = useTabsStore((s) => s.openTab)
   const profiles = useConnectionProfilesStore((s) => s.items)
   const saveProfile = useConnectionProfilesStore((s) => s.save)
   const deleteProfile = useConnectionProfilesStore((s) => s.remove)
 
   const applyProfile = (p: ConnectionProfile) => {
-    setTarget(p.kind)
+    setFamily(familyOf(p.kind))
+    setRole(roleOf(p.kind))
     if (p.kind === 'serial') {
       setPortName(p.portName ?? '')
       setBaudRate(p.baudRate ?? 115200)
@@ -87,6 +137,10 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
       setUdpLocalPort(p.localPort ?? 0)
       setUdpRemoteHost(p.remoteHost ?? '')
       setUdpRemotePort(p.remotePort ?? 0)
+    } else if (p.kind === 'ws-client') {
+      setWsUrl(p.wsUrl ?? '')
+    } else if (p.kind === 'ws-server') {
+      setWsServerPort(p.port ?? 0)
     } else {
       setBrokerHost(p.brokerHost ?? '')
       setBrokerPort(p.brokerPort ?? 1883)
@@ -148,6 +202,14 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
           remoteHost: udpRemoteHost || undefined,
           remotePort: udpRemoteHost ? udpRemotePort : undefined,
         })
+      } else if (target === 'ws-client') {
+        await openTab({ kind: 'ws-client', id: `${wsUrl}-${Date.now()}`, url: wsUrl })
+      } else if (target === 'ws-server') {
+        await openTab({
+          kind: 'ws-server',
+          id: `ws::${wsServerPort}-${Date.now()}`,
+          port: wsServerPort,
+        })
       } else {
         await openTab({
           kind: 'mqtt',
@@ -169,6 +231,34 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
     }
   }
 
+  // LAN discovery only makes sense where there's a remote host to fill in.
+  const discoverVisible = target === 'tcp-client' || target === 'ws-client' || family === 'mqtt'
+
+  const handleScan = async () => {
+    setScanning(true)
+    setScanResults(null)
+    try {
+      setScanResults(await mdnsScan(mdnsType, MDNS_SCAN_MS))
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  const applyDiscovered = (svc: MdnsService) => {
+    const addr = svc.addresses[0] ?? svc.hostname
+    if (target === 'tcp-client') {
+      setHost(addr)
+      setTcpPort(svc.port)
+    } else if (target === 'ws-client') {
+      setWsUrl(`ws://${addr}:${svc.port}/`)
+    } else if (family === 'mqtt') {
+      setBrokerHost(addr)
+      setBrokerPort(svc.port)
+    }
+  }
+
   const canConnect =
     target === 'serial'
       ? Boolean(portName)
@@ -176,9 +266,11 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
         ? Boolean(host)
         : target === 'udp'
           ? udpLocalPort > 0
-          : target === 'mqtt'
-            ? Boolean(brokerHost) && Boolean(clientId)
-            : true
+          : target === 'ws-client'
+            ? Boolean(wsUrl)
+            : target === 'mqtt'
+              ? Boolean(brokerHost) && Boolean(clientId)
+              : true
 
   const selected = ports.find((p) => p.portName === portName) ?? null
   const hasDetails = Boolean(
@@ -192,16 +284,27 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
       </h2>
 
       <div className="seg">
-        {TARGETS.map((t) => (
+        {FAMILIES.map((f) => (
           <span
-            key={t.value}
-            className={target === t.value ? 'on' : ''}
-            onClick={() => setTarget(t.value)}
+            key={f.value}
+            className={family === f.value ? 'on' : ''}
+            onClick={() => setFamily(f.value)}
           >
-            {t.label}
+            {f.label}
           </span>
         ))}
       </div>
+
+      {(family === 'tcp' || family === 'ws') && (
+        <div className="seg seg-role">
+          <span className={role === 'client' ? 'on' : ''} onClick={() => setRole('client')}>
+            Client
+          </span>
+          <span className={role === 'server' ? 'on' : ''} onClick={() => setRole('server')}>
+            Server
+          </span>
+        </div>
+      )}
 
       <LibraryRow
         label="Profile"
@@ -233,16 +336,20 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
                         remoteHost: udpRemoteHost,
                         remotePort: udpRemotePort,
                       }
-                    : {
-                        kind: 'mqtt',
-                        brokerHost,
-                        brokerPort,
-                        clientId,
-                        username: mqttUsername,
-                        password: mqttPassword,
-                        subscribeTopic,
-                        publishTopic,
-                      },
+                    : target === 'ws-client'
+                      ? { kind: 'ws-client', wsUrl }
+                      : target === 'ws-server'
+                        ? { kind: 'ws-server', port: wsServerPort }
+                        : {
+                            kind: 'mqtt',
+                            brokerHost,
+                            brokerPort,
+                            clientId,
+                            username: mqttUsername,
+                            password: mqttPassword,
+                            subscribeTopic,
+                            publishTopic,
+                          },
           )
         }
         onDelete={deleteProfile}
@@ -437,6 +544,33 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
         </>
       )}
 
+      {target === 'ws-client' && (
+        <label className="field-group">
+          <span className="field-caption">
+            <GlobeIcon /> URL
+          </span>
+          <input
+            type="text"
+            value={wsUrl}
+            placeholder="ws://192.168.1.1:81/"
+            onChange={(e) => setWsUrl(e.target.value)}
+          />
+        </label>
+      )}
+
+      {target === 'ws-server' && (
+        <label className="field-group">
+          <span className="field-caption">
+            <GlobeIcon /> Listen on port
+          </span>
+          <input
+            type="number"
+            value={wsServerPort}
+            onChange={(e) => setWsServerPort(Number(e.target.value))}
+          />
+        </label>
+      )}
+
       {target === 'mqtt' && (
         <>
           <div className="field-grid">
@@ -505,6 +639,44 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
             </label>
           </div>
         </>
+      )}
+
+      {discoverVisible && (
+        <div className="mdns-discover">
+          <div className="field-row">
+            <select value={mdnsType} onChange={(e) => setMdnsType(e.target.value)}>
+              {MDNS_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+            <button type="button" disabled={scanning} onClick={() => void handleScan()}>
+              {scanning ? 'Scanning…' : 'Scan LAN'}
+            </button>
+          </div>
+          {scanResults !== null &&
+            (scanResults.length === 0 ? (
+              <p className="mdns-empty">No devices found.</p>
+            ) : (
+              <div className="mdns-results">
+                {scanResults.map((svc) => (
+                  <button
+                    key={svc.fullname}
+                    type="button"
+                    className="mdns-result"
+                    title="Use this device's address"
+                    onClick={() => applyDiscovered(svc)}
+                  >
+                    <span className="mdns-name">{svc.fullname.split('.')[0]}</span>
+                    <span className="mono">
+                      {svc.addresses[0] ?? svc.hostname}:{svc.port}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+        </div>
       )}
 
       {error && <p className="connect-error">{error}</p>}

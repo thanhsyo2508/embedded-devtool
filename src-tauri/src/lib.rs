@@ -65,6 +65,87 @@ fn append_trigger_log(path: String, line: String) -> Result<(), String> {
     writeln!(file, "{line}").map_err(|e| e.to_string())
 }
 
+/// Generic save-dialog companions (Tháng 7, plotter CSV/PNG export — but
+/// deliberately not plot-specific): the frontend picks a path via the
+/// dialog plugin, then hands the contents here. Two commands rather than
+/// one bytes command because a large CSV serialized as a JSON number array
+/// would be several times its actual size, while text-as-string is ~1x.
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(&path, contents).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
+    std::fs::write(&path, data).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct MdnsServiceDto {
+    fullname: String,
+    hostname: String,
+    port: u16,
+    addresses: Vec<String>,
+}
+
+/// mDNS/DNS-SD LAN scan (Tháng 6): browses one service type for up to
+/// `timeout_ms`, collecting every resolved instance. Self-contained — the
+/// daemon lives only for the duration of the scan, so there's no long-lived
+/// state to manage. Blocking is fine here: Tauri runs commands off the main
+/// thread and the frontend shows a scanning indicator.
+#[tauri::command]
+fn mdns_scan(service_type: String, timeout_ms: u64) -> Result<Vec<MdnsServiceDto>, String> {
+    use std::collections::HashMap;
+    use std::time::{Duration, Instant};
+
+    let timeout = Duration::from_millis(timeout_ms.clamp(500, 15_000));
+    let daemon = mdns_sd::ServiceDaemon::new().map_err(|e| e.to_string())?;
+    let receiver = daemon.browse(&service_type).map_err(|e| e.to_string())?;
+
+    let mut found: HashMap<String, MdnsServiceDto> = HashMap::new();
+    let deadline = Instant::now() + timeout;
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        match receiver.recv_timeout(remaining) {
+            Ok(mdns_sd::ServiceEvent::ServiceResolved(info)) => {
+                // Prefer IPv4 for display/connect; fall back to whatever
+                // addresses exist (e.g. IPv6-only devices).
+                let mut addresses: Vec<String> = info
+                    .get_addresses_v4()
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect();
+                if addresses.is_empty() {
+                    addresses = info.get_addresses().iter().map(|a| a.to_string()).collect();
+                }
+                addresses.sort();
+                found.insert(
+                    info.get_fullname().to_string(),
+                    MdnsServiceDto {
+                        fullname: info.get_fullname().to_string(),
+                        hostname: info.get_hostname().to_string(),
+                        port: info.get_port(),
+                        addresses,
+                    },
+                );
+            }
+            Ok(_) => {}
+            Err(_) => break, // timeout or daemon gone — either way, done
+        }
+    }
+
+    let _ = daemon.stop_browse(&service_type);
+    let _ = daemon.shutdown();
+
+    let mut services: Vec<MdnsServiceDto> = found.into_values().collect();
+    services.sort_by(|a, b| a.fullname.cmp(&b.fullname));
+    Ok(services)
+}
+
 const LOG_ROTATION_BYTES: u64 = 50 * 1024 * 1024;
 
 /// M1-T2.7: starts writing this port's data to a raw + timestamped log file
@@ -695,6 +776,24 @@ fn open_udp(
 }
 
 #[tauri::command]
+fn open_ws_client(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    url: String,
+) -> Result<(), String> {
+    network.open_ws_client(id, url)
+}
+
+#[tauri::command]
+fn open_ws_server(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    port: u16,
+) -> Result<(), String> {
+    network.open_ws_server(id, port)
+}
+
+#[tauri::command]
 #[allow(clippy::too_many_arguments)]
 fn open_mqtt(
     network: tauri::State<Arc<NetworkManager>>,
@@ -785,6 +884,9 @@ pub fn run() {
             close_serial_port,
             write_serial_port,
             append_trigger_log,
+            write_text_file,
+            write_binary_file,
+            mdns_scan,
             serial_port_states,
             start_serial_logging,
             stop_serial_logging,
@@ -811,6 +913,8 @@ pub fn run() {
             open_tcp_client,
             open_tcp_server,
             open_udp,
+            open_ws_client,
+            open_ws_server,
             open_mqtt,
             close_network_stream,
             write_network_stream,
@@ -831,4 +935,27 @@ pub fn run() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_text_file_round_trips() {
+        let path = std::env::temp_dir().join("edt-test-write-text.csv");
+        let path_str = path.to_string_lossy().to_string();
+        write_text_file(path_str.clone(), "a,b\n1,2\n".to_string()).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "a,b\n1,2\n");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn write_binary_file_round_trips() {
+        let path = std::env::temp_dir().join("edt-test-write-binary.bin");
+        let path_str = path.to_string_lossy().to_string();
+        write_binary_file(path_str.clone(), vec![0x89, 0x50, 0x4e, 0x47]).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), vec![0x89, 0x50, 0x4e, 0x47]);
+        let _ = std::fs::remove_file(&path);
+    }
 }

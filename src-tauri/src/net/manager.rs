@@ -12,6 +12,7 @@ use crate::core::data_stream::DataStream;
 use crate::core::event_bus::{Event, EventBus};
 use crate::core::mqtt_stream::{MqttConfig, MqttStream};
 use crate::core::net_stream::{TcpClientStream, TcpServerStream, UdpDataStream};
+use crate::core::ws_stream::{WsClientStream, WsServerStream};
 
 pub struct NetworkManager {
     streams: Mutex<HashMap<String, Box<dyn DataStream>>>,
@@ -46,6 +47,14 @@ impl NetworkManager {
             _ => None,
         };
         self.open(id, Box::new(UdpDataStream::new(local_port, remote)))
+    }
+
+    pub fn open_ws_client(&self, id: String, url: String) -> Result<(), String> {
+        self.open(id, Box::new(WsClientStream::new(url)))
+    }
+
+    pub fn open_ws_server(&self, id: String, port: u16) -> Result<(), String> {
+        self.open(id, Box::new(WsServerStream::new(port)))
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -19,6 +19,14 @@ export function openUdp(
   return invoke('open_udp', { id, localPort, remoteHost, remotePort })
 }
 
+export function openWsClient(id: string, url: string): Promise<void> {
+  return invoke('open_ws_client', { id, url })
+}
+
+export function openWsServer(id: string, port: number): Promise<void> {
+  return invoke('open_ws_server', { id, port })
+}
+
 export interface MqttParams {
   brokerHost: string
   brokerPort: number
@@ -54,4 +62,17 @@ export function writeNetworkStream(id: string, data: number[]): Promise<void> {
 // — that event is transport-agnostic despite its name, see lib.rs.
 export function onNetworkData(cb: (batch: SerialDataBatch) => void): Promise<UnlistenFn> {
   return listen<SerialDataBatch>('network://data', (event) => cb(event.payload))
+}
+
+export interface MdnsService {
+  fullname: string
+  hostname: string
+  port: number
+  addresses: string[]
+}
+
+/** Blocks for ~timeoutMs while the backend browses the LAN — callers should
+ * show a scanning indicator. */
+export function mdnsScan(serviceType: string, timeoutMs: number): Promise<MdnsService[]> {
+  return invoke('mdns_scan', { serviceType, timeoutMs })
 }

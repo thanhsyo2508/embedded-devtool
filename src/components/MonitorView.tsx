@@ -400,32 +400,34 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <span className="feature-rail-badge">{tab.macroSteps.length}</span>
             )}
           </button>
+          {/* Master speaks Modbus RTU over serial and Modbus TCP over a TCP
+              Client tab; the Slave emulator stays serial/RTU-only. */}
+          {(tab.connectionKind === 'serial' || tab.connectionKind === 'tcp-client') && (
+            <button
+              type="button"
+              className={
+                openPanel === 'modbus-master' || tab.modbusMasterPolls.length > 0 ? 'on' : ''
+              }
+              title="Modbus Master"
+              aria-label="Modbus Master"
+              onClick={() => togglePanel('modbus-master')}
+            >
+              <GaugeIcon />
+              {tab.modbusMasterPolls.length > 0 && (
+                <span className="feature-rail-badge">{tab.modbusMasterPolls.length}</span>
+              )}
+            </button>
+          )}
           {tab.connectionKind === 'serial' && (
-            <>
-              <button
-                type="button"
-                className={
-                  openPanel === 'modbus-master' || tab.modbusMasterPolls.length > 0 ? 'on' : ''
-                }
-                title="Modbus Master"
-                aria-label="Modbus Master"
-                onClick={() => togglePanel('modbus-master')}
-              >
-                <GaugeIcon />
-                {tab.modbusMasterPolls.length > 0 && (
-                  <span className="feature-rail-badge">{tab.modbusMasterPolls.length}</span>
-                )}
-              </button>
-              <button
-                type="button"
-                className={openPanel === 'modbus-slave' || tab.modbusSlave.enabled ? 'on' : ''}
-                title={tab.modbusSlave.enabled ? 'Modbus Slave (listening)' : 'Modbus Slave'}
-                aria-label="Modbus Slave"
-                onClick={() => togglePanel('modbus-slave')}
-              >
-                <ChipIcon />
-              </button>
-            </>
+            <button
+              type="button"
+              className={openPanel === 'modbus-slave' || tab.modbusSlave.enabled ? 'on' : ''}
+              title={tab.modbusSlave.enabled ? 'Modbus Slave (listening)' : 'Modbus Slave'}
+              aria-label="Modbus Slave"
+              onClick={() => togglePanel('modbus-slave')}
+            >
+              <ChipIcon />
+            </button>
           )}
           <div className="feature-rail-spacer" />
           {tab.connectionKind === 'serial' && (

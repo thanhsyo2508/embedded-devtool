@@ -783,6 +783,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "data-encoding"
+version = "2.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4ae5f15dda3c708c0ade84bfee31ccab44a3da4f88015ed22f63732abe300c8"
+
+[[package]]
 name = "dbus"
 version = "0.9.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1039,7 +1045,9 @@ version = "0.1.0"
 dependencies = [
  "crossbeam-channel",
  "espflash",
+ "http",
  "keepawake",
+ "mdns-sd",
  "mlua",
  "regex",
  "rumqttc",
@@ -1050,6 +1058,7 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
+ "tungstenite",
 ]
 
 [[package]]
@@ -1835,7 +1844,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2",
+ "socket2 0.6.4",
  "tokio",
  "tower-service",
  "tracing",
@@ -1982,6 +1991,16 @@ checksum = "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
 dependencies = [
  "icu_normalizer",
  "icu_properties",
+]
+
+[[package]]
+name = "if-addrs"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b2eeee38fef3aa9b4cc5f1beea8a2444fc00e7377cafae396de3f5c2065e24"
+dependencies = [
+ "libc",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -2348,6 +2367,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mdns-sd"
+version = "0.13.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "328f4e1041f7cfeb3affccb814ddbe2f004856a2ce769c8bf22080d74c5204c6"
+dependencies = [
+ "fastrand",
+ "flume",
+ "if-addrs",
+ "log",
+ "mio",
+ "socket2 0.5.10",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2407,6 +2440,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "02bd0af71c67b473010cbbc60715ee815645a4dc942899111f494b4b737d6fda"
 dependencies = [
  "libc",
+ "log",
  "wasi",
  "windows-sys 0.61.2",
 ]
@@ -3035,6 +3069,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
+name = "ppv-lite86"
+version = "0.2.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85eae3c4ed2f50dcfe72643da4befc30deadb458a9b590d720cde2f2b1e97da9"
+dependencies = [
+ "zerocopy",
+]
+
+[[package]]
 name = "precomputed-hash"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3137,6 +3180,36 @@ name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc33ff2d4973d518d823d61aa239014831e521c75da58e3df4840d3f47749d09"
+
+[[package]]
+name = "rand"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
+dependencies = [
+ "libc",
+ "rand_chacha",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
+dependencies = [
+ "ppv-lite86",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+dependencies = [
+ "getrandom 0.2.17",
+]
 
 [[package]]
 name = "raw-window-handle"
@@ -3728,6 +3801,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3bf829a2d51ab4a5ddf1352d8470c140cadc8301b2ae1789db023f01cedd6ba"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest 0.10.7",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3783,6 +3867,16 @@ name = "smallvec"
 version = "1.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ed6a63f02c8539c91a8685a86f4099661ba3da017932f6ebbea6de3f0fa7c90"
+
+[[package]]
+name = "socket2"
+version = "0.5.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
+dependencies = [
+ "libc",
+ "windows-sys 0.52.0",
+]
 
 [[package]]
 name = "socket2"
@@ -4484,7 +4578,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
- "socket2",
+ "socket2 0.6.4",
  "tokio-macros",
  "windows-sys 0.61.2",
 ]
@@ -4747,6 +4841,24 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "tungstenite"
+version = "0.24.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "18e5b8366ee7a95b16d32197d0b2604b43a0be89dc5fac9f8e96ccafbaedda8a"
+dependencies = [
+ "byteorder",
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand",
+ "sha1",
+ "thiserror 1.0.69",
+ "utf-8",
+]
 
 [[package]]
 name = "twox-hash"
@@ -5841,6 +5953,26 @@ dependencies = [
  "serde",
  "winnow 1.0.3",
  "zvariant",
+]
+
+[[package]]
+name = "zerocopy"
+version = "0.8.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce1022995ff5ff5d841ad7d994facc23098cd40152f2c1d11cd607c6f530653f"
+dependencies = [
+ "zerocopy-derive",
+]
+
+[[package]]
+name = "zerocopy-derive"
+version = "0.8.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ae7f38b72ec2a254e2b87ef277cf2cd4fb97cbebf944faa6f33354da0867930"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
 ]
 
 [[package]]

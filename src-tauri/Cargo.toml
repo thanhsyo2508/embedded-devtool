@@ -30,4 +30,7 @@ tauri-plugin-dialog = "2.7.1"
 regex = "1.12.4"
 mlua = { version = "0.10", features = ["lua54", "vendored"] }
 rumqttc = "0.24"
+tungstenite = "0.24"
+http = "1"
+mdns-sd = "0.13"
 

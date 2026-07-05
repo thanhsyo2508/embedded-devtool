@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import type { TabState } from './tabsStore'
+import type { FftWindow } from '../lib/fft'
+import type { MathChannelDef } from '../lib/plotMath'
 
 const MAX_CHANNELS = 8
 const MAX_POINTS = 5_000
@@ -45,6 +47,14 @@ export interface Extractor {
   enabled: boolean
 }
 
+/** Horizontal alert level drawn over the chart; crossing it upward beeps. */
+export interface ThresholdLine {
+  id: string
+  enabled: boolean
+  channel: string
+  value: number
+}
+
 function applyExtractors(text: string, extractors: Extractor[]): Record<string, number> {
   const result: Record<string, number> = {}
   for (const extractor of extractors) {
@@ -74,6 +84,11 @@ interface PlotState {
   hiddenChannels: string[]
   chartType: ChartType
   extractors: Extractor[]
+  mathChannels: MathChannelDef[]
+  thresholds: ThresholdLine[]
+  fftMode: boolean
+  fftWindow: FftWindow
+  showStats: boolean
 
   setVisible: (v: boolean) => void
   setSourceTabId: (id: string | null) => void
@@ -81,6 +96,9 @@ interface PlotState {
   setDockHeight: (v: number) => void
   toggleChannelVisibility: (ch: string) => void
   setChartType: (t: ChartType) => void
+  setFftMode: (v: boolean) => void
+  setFftWindow: (w: FftWindow) => void
+  setShowStats: (v: boolean) => void
   reset: () => void
   ingest: (tab: TabState) => void
   ingestScriptPoint: (streamId: string, channel: string, value: number) => void
@@ -88,6 +106,14 @@ interface PlotState {
   removeExtractor: (id: string) => void
   updateExtractor: (id: string, patch: Partial<Pick<Extractor, 'pattern' | 'channel'>>) => void
   toggleExtractorEnabled: (id: string) => void
+  addMathChannel: () => void
+  removeMathChannel: (id: string) => void
+  updateMathChannel: (id: string, patch: Partial<Omit<MathChannelDef, 'id'>>) => void
+  toggleMathChannelEnabled: (id: string) => void
+  addThreshold: () => void
+  removeThreshold: (id: string) => void
+  updateThreshold: (id: string, patch: Partial<Omit<ThresholdLine, 'id'>>) => void
+  toggleThresholdEnabled: (id: string) => void
 }
 
 const emptyData = { channelOrder: [], channelData: {}, timestamps: [], lastProcessedLineSeq: -1 }
@@ -100,6 +126,11 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   hiddenChannels: [],
   chartType: 'line',
   extractors: [],
+  mathChannels: [],
+  thresholds: [],
+  fftMode: false,
+  fftWindow: 'hann',
+  showStats: false,
   ...emptyData,
 
   setVisible: (visible) => set({ visible }),
@@ -113,6 +144,9 @@ export const usePlotStore = create<PlotState>((set, get) => ({
         : [...state.hiddenChannels, ch],
     })),
   setChartType: (chartType) => set({ chartType }),
+  setFftMode: (fftMode) => set({ fftMode }),
+  setFftWindow: (fftWindow) => set({ fftWindow }),
+  setShowStats: (showStats) => set({ showStats }),
   reset: () => set({ ...emptyData }),
 
   addExtractor: () =>
@@ -139,6 +173,62 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   toggleExtractorEnabled: (id) =>
     set((state) => ({
       extractors: state.extractors.map((e) => (e.id === id ? { ...e, enabled: !e.enabled } : e)),
+    })),
+
+  addMathChannel: () =>
+    set((state) => ({
+      mathChannels: [
+        ...state.mathChannels,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          enabled: true,
+          label: `math${state.mathChannels.length + 1}`,
+          op: 'movingAvg' as const,
+          sourceA: state.channelOrder[0] ?? '',
+          window: 10,
+        },
+      ],
+    })),
+
+  removeMathChannel: (id) =>
+    set((state) => ({ mathChannels: state.mathChannels.filter((m) => m.id !== id) })),
+
+  updateMathChannel: (id, patch) =>
+    set((state) => ({
+      mathChannels: state.mathChannels.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    })),
+
+  toggleMathChannelEnabled: (id) =>
+    set((state) => ({
+      mathChannels: state.mathChannels.map((m) =>
+        m.id === id ? { ...m, enabled: !m.enabled } : m,
+      ),
+    })),
+
+  addThreshold: () =>
+    set((state) => ({
+      thresholds: [
+        ...state.thresholds,
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          enabled: true,
+          channel: state.channelOrder[0] ?? '',
+          value: 0,
+        },
+      ],
+    })),
+
+  removeThreshold: (id) =>
+    set((state) => ({ thresholds: state.thresholds.filter((t) => t.id !== id) })),
+
+  updateThreshold: (id, patch) =>
+    set((state) => ({
+      thresholds: state.thresholds.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    })),
+
+  toggleThresholdEnabled: (id) =>
+    set((state) => ({
+      thresholds: state.thresholds.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)),
     })),
 
   ingest: (tab) => {

@@ -21,6 +21,7 @@ export interface ConnectionProfile extends LibraryItem {
   localPort?: number
   remoteHost?: string
   remotePort?: number
+  wsUrl?: string
   brokerHost?: string
   brokerPort?: number
   clientId?: string
