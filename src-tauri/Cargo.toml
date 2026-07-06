@@ -34,4 +34,6 @@ tungstenite = "0.24"
 http = "1"
 mdns-sd = "0.13"
 dns-lookup = "3.0.1"
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
 

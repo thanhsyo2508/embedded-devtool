@@ -977,6 +977,13 @@ button:disabled {
   margin: 0;
 }
 
+.update-notes {
+  margin: -6px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
 .feedback-button {
   display: flex;
   align-items: center;

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -10,7 +10,8 @@ import {
   type NewlineMode,
   type Theme,
 } from '../state/settingsStore'
-import { BookOpenIcon, GearIcon, MessageIcon, XIcon } from './icons'
+import { useUpdateStore } from '../state/updateStore'
+import { BookOpenIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
 import { HelpGuide } from './HelpGuide'
 
 const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
@@ -18,6 +19,18 @@ const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const settings = useSettingsStore()
   const [showGuide, setShowGuide] = useState(false)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
+  const updateStatus = useUpdateStore((s) => s.status)
+  const updateVersion = useUpdateStore((s) => s.version)
+  const updateBody = useUpdateStore((s) => s.body)
+  const updateProgress = useUpdateStore((s) => s.progress)
+  const updateError = useUpdateStore((s) => s.error)
+  const checkForUpdate = useUpdateStore((s) => s.checkForUpdate)
+  const installAndRelaunch = useUpdateStore((s) => s.installAndRelaunch)
+
+  useEffect(() => {
+    void getVersion().then(setAppVersion)
+  }, [])
 
   const handleKeepAwakeChange = (checked: boolean) => {
     settings.setKeepAwake(checked)
@@ -161,6 +174,49 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <BookOpenIcon /> Open guide
           </button>
         </div>
+
+        <hr className="settings-divider" />
+
+        <div className="settings-row">
+          <span>App version</span>
+          <span className="mono">{appVersion ?? '…'}</span>
+        </div>
+        <div className="settings-row">
+          <span>
+            {updateStatus === 'checking'
+              ? 'Checking…'
+              : updateStatus === 'up-to-date'
+                ? "You're up to date"
+                : updateStatus === 'available'
+                  ? `Update available: v${updateVersion}`
+                  : updateStatus === 'downloading'
+                    ? `Downloading… ${updateProgress}%`
+                    : updateStatus === 'ready'
+                      ? 'Restarting…'
+                      : 'Updates'}
+          </span>
+          <button
+            type="button"
+            className="feedback-button"
+            disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
+            onClick={() => void checkForUpdate()}
+          >
+            <RefreshIcon /> Check for updates
+          </button>
+        </div>
+        {updateStatus === 'available' && (
+          <>
+            {updateBody && <p className="update-notes">{updateBody}</p>}
+            <button
+              type="button"
+              className="connect-button"
+              onClick={() => void installAndRelaunch()}
+            >
+              Install and restart
+            </button>
+          </>
+        )}
+        {updateStatus === 'error' && <p className="connect-error">{updateError}</p>}
 
         <hr className="settings-divider" />
 
