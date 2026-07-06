@@ -35,7 +35,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDJCNEYzMTREQkIzM0REMzIKUldReTNUTzdUVEZQSzA1ZlBuSGRaUXUwaUxXTXdIU0Fsci9PdVZiWnBjYmh4eXFBV1pmZ0tERGoK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERCNkFFQ0QyQTIwODMxMEIKUldRTE1RaWkwdXhxMjBCUzUyNWFCR1gyVHovVTZkbUZMZ3R1VEtQd056cm00LzQ4b2VqSFNnaGkK",
       "endpoints": [
         "https://github.com/thanhsyo2508/embedded-devtool/releases/latest/download/latest.json"
       ]
