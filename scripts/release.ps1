@@ -1,30 +1,48 @@
 <#
 .SYNOPSIS
   Bumps edt version across package.json, Cargo.toml, and tauri.conf.json,
-  commits, and tags -- optionally pushing to trigger the release workflow.
+  commits, tags, builds a local installer, and (optionally) pushes to
+  trigger the signed cross-platform release workflow.
 
 .DESCRIPTION
-  This script only does the mechanical part of a release (version bump,
-  commit, tag). Write the CHANGELOG.md entry describing what changed
-  before running this -- see .claude/skills/release/SKILL.md.
+  This script does the mechanical part of a release (version bump,
+  commit, tag, local build). Write the CHANGELOG.md entry describing
+  what changed before running this -- see .claude/skills/release/SKILL.md.
+
+  It does NOT publish a GitHub Release by itself -- there is no GitHub
+  CLI/token on this machine, and building the *signed* updater artifacts
+  requires the signing key, which only exists as GitHub Actions secrets
+  (see .github/workflows/release.yml), not locally. The local build this
+  script produces is unsigned and for local testing only. Passing -Push
+  is what actually creates the release: it pushes the tag, which triggers
+  that workflow to build signed installers for every platform and draft
+  a GitHub Release with them.
 
 .PARAMETER Version
   New version number, e.g. "0.1.1" (no leading v).
 
+.PARAMETER SkipBuild
+  Skip the local `tauri build` step (just bump/commit/tag). Useful when
+  iterating on the version-bump mechanics without waiting for a full build.
+
 .PARAMETER Push
-  Also pushes the commit and tag to origin, which triggers
-  .github/workflows/release.yml. Omitted by default, since pushing a tag
-  is a public, hard to reverse action -- review the local commit/tag
-  first, then re-run with -Push (or push manually).
+  Push the commit and tag to origin, which triggers
+  .github/workflows/release.yml and is what actually creates the GitHub
+  Release. Omitted by default, since pushing a tag is a public, hard to
+  reverse action -- review the local commit/tag/build first, then
+  re-run with -Push (or push manually).
 
 .EXAMPLE
   ./scripts/release.ps1 -Version 0.1.1
   ./scripts/release.ps1 -Version 0.1.1 -Push
+  ./scripts/release.ps1 -Version 0.1.1 -SkipBuild -Push
 #>
 param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^\d+\.\d+\.\d+$")]
     [string]$Version,
+
+    [switch]$SkipBuild,
 
     [switch]$Push
 )
@@ -82,6 +100,42 @@ git commit -m "Release v$Version"
 git tag -a "v$Version" -m "v$Version"
 
 Write-Host "Committed and tagged v$Version locally."
+
+if ($SkipBuild) {
+    Write-Host "Skipping local build (-SkipBuild)."
+}
+else {
+    Write-Host ""
+    Write-Host "Building local installer (unsigned, for local testing -- the signed release build happens in CI)..."
+    npm run tauri build
+    $buildExitCode = $LASTEXITCODE
+
+    # tauri build still exits non-zero here even when the installers come
+    # out fine: createUpdaterArtifacts also tries to produce a signed
+    # updater package, which needs TAURI_SIGNING_PRIVATE_KEY -- only set as
+    # a GitHub Actions secret, never locally. So judge success by whether
+    # the installer actually exists, not by the process exit code alone.
+    $bundleRoot = "src-tauri/target/release/bundle"
+    $installers = Get-ChildItem -Path $bundleRoot -Recurse -Include "*.exe", "*.msi" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "*$Version*" }
+
+    if ($installers) {
+        Write-Host ""
+        if ($buildExitCode -ne 0) {
+            Write-Host "Installer(s) built for v$Version (the updater-signing step failed afterward, as expected without a local signing key -- CI signs the real release build):"
+        }
+        else {
+            Write-Host "Built installer(s) for v$Version :"
+        }
+        foreach ($installer in $installers) {
+            Write-Host "  $($installer.FullName)"
+        }
+    }
+    else {
+        Write-Warning "Build failed and no installer matching v$Version was found under $bundleRoot -- check the build output above."
+        exit 1
+    }
+}
 
 if ($Push) {
     Write-Host "Pushing commit and tag to origin (this triggers the release workflow)..."
