@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.1.1 — 2026-07-06
+
+No app-facing changes — this bump exists only to move past v0.1.0, whose
+tag/draft release ended up entangled with testing the release tooling
+itself. Release process changes only:
+
+- `scripts/release.ps1` now builds a local installer and prints its
+  resolved path, fixes a bug where it silently wrote a UTF-8 BOM into
+  `package.json`/`tauri.conf.json` (broke `cargo`'s JSON parser), and
+  gained `-Publish` (create the GitHub Release directly via the `gh`
+  CLI, for when the CI-based signed release isn't set up yet).
+- Confirmed the CI release workflow (`-Push`) can't succeed until
+  `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` are
+  actually added as repo secrets — it's been failing silently on every
+  attempt so far.
+
 ## v0.1.0 — 2026-07-06
 
 First tagged release. EDT bundles serial monitoring, ESP32/STM32 flashing,
