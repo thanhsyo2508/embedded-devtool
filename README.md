@@ -2,7 +2,7 @@
 
 All-in-one desktop tool for embedded development: ESP32/STM32 flashing, serial monitor, and a realtime plotter — in one app instead of three or four.
 
-> **Status:** Core MVP plus most of the post-MVP roadmap implemented — serial monitor, ESP32 + STM32 flashing, the realtime plotter, TCP/UDP/MQTT network tools, a Lua scripting engine, and RS485/Modbus RTU master-slave tooling are all working end to end. See [docs/quickstart.md](docs/quickstart.md) to build and try it. Beta release/polish is in progress; see [docs/ke-hoach-phat-trien-embedded-devtool.md](docs/ke-hoach-phat-trien-embedded-devtool.md) for the full roadmap and [docs/ke-hoach-chi-tiet-giai-doan-0-1.md](docs/ke-hoach-chi-tiet-giai-doan-0-1.md) for the detailed task breakdown.
+> **Status:** v0.1.0 — the full roadmap's core feature set is implemented and working end to end: serial monitor, ESP32 + STM32 flashing, the realtime plotter (with FFT and math channels), TCP/UDP/WebSocket/MQTT network tools (each with a protocol-appropriate terminal, not a generic byte stream), a LAN network scanner, RS485/Modbus RTU + Modbus TCP, a Lua scripting engine, and auto-update via GitHub Releases. See [docs/quickstart.md](docs/quickstart.md) to build and try it, and [CHANGELOG.md](CHANGELOG.md) for what shipped in this release. See [docs/ke-hoach-phat-trien-embedded-devtool.md](docs/ke-hoach-phat-trien-embedded-devtool.md) for the full roadmap and [docs/ke-hoach-chi-tiet-giai-doan-0-1.md](docs/ke-hoach-chi-tiet-giai-doan-0-1.md) for the detailed task breakdown.
 
 ## Why
 
@@ -11,23 +11,30 @@ Existing tools each cover one slice: PlatformIO (build/flash, weak monitor), Coo
 ## What works today
 
 - **Serial monitor:** multi-tab, virtualized rendering, hex/ASCII/mixed view, delta/absolute timestamps, auto-reconnect on unplug/replug, RS485 half-duplex (auto RTS toggle), automatic log-level coloring, regex filters (include/exclude) with full-text search and bookmarks, per-tab live stats (bytes/s, lines/s, errors, uptime), send panel (text/hex, configurable line ending, checksum/CRC append, command history), triggers (pattern match → send/sound/file-log/bookmark), macro recorder (record and replay with real timing), log-to-file with rotation, DTR/RTS toggling, smart auto-scroll.
-- **Network tools:** TCP client/server and UDP (unicast/broadcast), plus an MQTT client — all driving the same monitor, filters, triggers, macros, and plotter as a serial connection, since every transport sits behind one shared data-stream abstraction.
-- **RS485 / Modbus RTU:** a Modbus master (one-shot request builder plus repeating poll rules that feed the plotter) for testing RS485 sensors and devices, and a Modbus slave emulator with editable coil/register maps for testing a master device.
+- **Network tools**, each with a protocol-appropriate terminal instead of one generic byte stream:
+  - **MQTT** — a topic tree explorer with per-topic message history, JSON-aware payload rendering (auto pretty-print, syntax highlighting, hex fallback for binary), dynamic subscribe/unsubscribe, publish presets, and a connect that waits for the broker's CONNACK before handing you the terminal.
+  - **UDP** — a packet log showing each datagram's sender address, size, and payload.
+  - **WebSocket** — a frame log distinguishing Text and Binary frames, with the ability to send either.
+  - **TCP client/server**, plus a standalone **Network Scanner** (CIDR + common-port sweep, ARP/reverse-DNS host info, per-host deep scan) for finding LAN devices that don't advertise via mDNS.
+  - Every transport still drives the same filters, triggers, macros, and plotter as a serial connection, since they all sit behind one shared data-stream abstraction; connection profiles, last-used config, and mDNS "Scan LAN" presets are scoped per protocol.
+- **RS485 / Modbus:** a Modbus RTU master (one-shot request builder plus repeating poll rules that feed the plotter) for testing RS485 sensors and devices, a Modbus slave emulator with editable coil/register maps for testing a master device, and Modbus TCP support over any TCP client tab.
 - **Lua scripting engine:** a sandboxed per-tab script with `on_data`/`send`/`send_hex`/`wait_for`/`log`/`alert`/`plot`/`timer`, for custom automation beyond filters/triggers.
 - **Saved libraries:** connection profiles, a script library, and filter/trigger presets — save, load, or delete from any tab, stored locally.
 - **ESP32 flashing:** chip auto-detect (ESP32/S2/S3/C3/C6), MAC/flash-size read, multi-segment flash with progress, erase (full/region), flash read, reusable flash profiles.
 - **STM32 flashing:** auto-detects an installed `STM32_Programmer_CLI`, flashes over ST-Link (SWD) or UART bootloader, mass erase, option-byte read/write with an RDP confirmation guard.
-- **Realtime plotter:** up to 8 channels, auto-parses CSV/space-separated/`key:value`/Arduino-plotter-style lines plus user-defined regex extractors, line/area/step/bar/point chart types, freeze/resume, zoom/pan, wired to any monitor tab, Lua script, or Modbus poll rule as its data source.
+- **Realtime plotter:** up to 8 channels, auto-parses CSV/space-separated/`key:value`/Arduino-plotter-style lines plus user-defined regex extractors, line/area/step/bar/point chart types, freeze/resume, zoom/pan, an FFT spectrum view (Hann/Hamming/rectangular windows), computed math channels (A±B, A×B, A÷B, moving average, derivative, RMS), threshold lines with edge-triggered beep alerts, a live min/max/avg/peak-to-peak/frequency stats strip, CSV/PNG export, wired to any monitor tab, Lua script, or Modbus poll rule as its data source.
+- **Auto-update:** checks GitHub Releases for a newer version from Settings, downloads, and relaunches — releases are built and signed via a GitHub Actions workflow triggered by a version tag.
 - Dark/light/system theme, global keyboard shortcuts, persisted settings, an in-app User Guide with worked examples for every feature.
 
-Not yet built: WebSocket tooling, mDNS/DNS-SD device discovery, FFT, a plugin system — these are later-phase items in the roadmap docs above.
+Not yet built: a plugin system — see the roadmap docs above for later-phase items.
 
 ## Stack
 
 - **Framework:** Tauri 2.x (Rust backend + React/TypeScript WebView frontend)
 - **Serial:** `serialport-rs` · **ESP32 flash:** `espflash` (native Rust) · **STM32 flash:** wraps `STM32_Programmer_CLI`
-- **MQTT:** `rumqttc` (synchronous client) · **Scripting:** `mlua` (sandboxed Lua 5.4) · **Modbus RTU:** hand-rolled TypeScript codec (CRC16 + frame encode/decode)
-- **Plotter:** uPlot
+- **MQTT:** `rumqttc` (synchronous client) · **WebSocket:** `tungstenite` · **mDNS discovery:** `mdns-sd`
+- **Scripting:** `mlua` (sandboxed Lua 5.4) · **Modbus RTU/TCP:** hand-rolled TypeScript codec (CRC16 + frame encode/decode)
+- **Plotter:** uPlot · **Auto-update:** `tauri-plugin-updater` + GitHub Releases
 
 See [docs/ke-hoach-phat-trien-embedded-devtool.md](docs/ke-hoach-phat-trien-embedded-devtool.md) §2 for the full architecture and rationale, and the [ADRs](docs/adr/) for the individual decisions.
 
