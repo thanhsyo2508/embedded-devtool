@@ -11,7 +11,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::core::event_bus::{Event, EventBus};
+use crate::core::event_bus::{Event, EventBus, WsFrameKind};
 use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
 use crate::flash::profile::{self, FlashProfile};
 use crate::flash::stm32::{self, Interface as StmInterface, McuInfo as StmMcuInfo};
@@ -144,6 +144,168 @@ fn mdns_scan(service_type: String, timeout_ms: u64) -> Result<Vec<MdnsServiceDto
     let mut services: Vec<MdnsServiceDto> = found.into_values().collect();
     services.sort_by(|a, b| a.fullname.cmp(&b.fullname));
     Ok(services)
+}
+
+/// Prefills the scan UI's CIDR field: opens a UDP socket "connected" to a
+/// public address (no packet actually sent — `connect()` on a UDP socket
+/// just picks the outbound route) purely to read back which local IPv4
+/// interface/subnet the OS would use.
+#[tauri::command]
+fn detect_local_subnet() -> Result<String, String> {
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
+    socket.connect("8.8.8.8:80").map_err(|e| e.to_string())?;
+    match socket.local_addr().map_err(|e| e.to_string())?.ip() {
+        std::net::IpAddr::V4(ip) => {
+            let o = ip.octets();
+            Ok(format!("{}.{}.{}.0/24", o[0], o[1], o[2]))
+        }
+        std::net::IpAddr::V6(_) => Err("no local IPv4 address found".to_string()),
+    }
+}
+
+#[tauri::command]
+fn common_scan_ports() -> Vec<(u16, String)> {
+    net::scanner::COMMON_PORTS
+        .iter()
+        .map(|(port, name)| (*port, name.to_string()))
+        .collect()
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct NetScanHitEvent {
+    id: String,
+    ip: String,
+    port: u16,
+    service: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct NetScanDoneEvent {
+    id: String,
+    hosts_scanned: usize,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct NetScanHostEvent {
+    id: String,
+    ip: String,
+    mac: Option<String>,
+    name: Option<String>,
+}
+
+/// LAN scanner (complements `mdns_scan`): sweeps `cidr` and TCP-connects to
+/// `ports` (defaults to `COMMON_PORTS` when empty) on every host, streaming
+/// each open port back as a "netscan://hit" event as soon as it's found,
+/// tagged with the caller-supplied `id` the same way flash/stm32 tag their
+/// progress events. CIDR parsing happens synchronously so a typo comes back
+/// as an immediate `Err`; the scan itself runs on a background thread since
+/// a full /24 can take a few seconds even with concurrent connects.
+///
+/// Once the port sweep finishes, every host that had at least one open port
+/// gets a single "netscan://host" event with its MAC (from the ARP table)
+/// and hostname (reverse DNS) — done as a second pass over just the live
+/// hosts rather than per-port, since ARP/DNS lookups are far slower than a
+/// TCP connect attempt and would otherwise dominate the scan time.
+#[tauri::command]
+fn start_network_scan(
+    app: AppHandle,
+    id: String,
+    cidr: String,
+    ports: Vec<u16>,
+    timeout_ms: u64,
+) -> Result<(), String> {
+    let ips = net::scanner::expand_cidr(&cidr)?;
+    let ports = if ports.is_empty() {
+        net::scanner::COMMON_PORTS.iter().map(|(p, _)| *p).collect()
+    } else {
+        ports
+    };
+    let hosts_scanned = ips.len();
+
+    thread::spawn(move || {
+        let live_ips = Arc::new(Mutex::new(std::collections::HashSet::<String>::new()));
+
+        let app_for_hits = app.clone();
+        let id_for_hits = id.clone();
+        let live_ips_for_hits = live_ips.clone();
+        net::scanner::scan_ports(&ips, &ports, timeout_ms, move |hit| {
+            live_ips_for_hits.lock().unwrap().insert(hit.ip.clone());
+            let _ = app_for_hits.emit(
+                "netscan://hit",
+                NetScanHitEvent {
+                    id: id_for_hits.clone(),
+                    ip: hit.ip,
+                    port: hit.port,
+                    service: hit.service,
+                },
+            );
+        });
+
+        let arp = net::scanner::arp_table();
+        for ip in live_ips.lock().unwrap().iter() {
+            let mac = arp.get(ip).cloned();
+            let name = ip
+                .parse()
+                .ok()
+                .and_then(net::scanner::reverse_dns);
+            let _ = app.emit(
+                "netscan://host",
+                NetScanHostEvent { id: id.clone(), ip: ip.clone(), mac, name },
+            );
+        }
+
+        let _ = app.emit("netscan://done", NetScanDoneEvent { id, hosts_scanned });
+    });
+    Ok(())
+}
+
+/// Deep scan (M-extra): sweeps a custom port range on a single already-known
+/// IP — the counterpart to `start_network_scan`'s fixed common-port list.
+/// Capped at `MAX_DEEP_SCAN_RANGE` ports so a mistaken full 0-65535 request
+/// doesn't tie up the worker pool for minutes.
+#[tauri::command]
+fn start_deep_scan(
+    app: AppHandle,
+    id: String,
+    ip: String,
+    port_from: u16,
+    port_to: u16,
+    timeout_ms: u64,
+) -> Result<(), String> {
+    const MAX_DEEP_SCAN_RANGE: u32 = 20_000;
+
+    let addr: std::net::Ipv4Addr = ip.parse().map_err(|_| format!("invalid IP address: {ip}"))?;
+    if port_from > port_to {
+        return Err("port range start must be <= end".to_string());
+    }
+    let range_size = port_to as u32 - port_from as u32 + 1;
+    if range_size > MAX_DEEP_SCAN_RANGE {
+        return Err(format!(
+            "port range too large ({range_size}) — max {MAX_DEEP_SCAN_RANGE}"
+        ));
+    }
+    let ports: Vec<u16> = (port_from..=port_to).collect();
+
+    thread::spawn(move || {
+        let app_for_hits = app.clone();
+        let id_for_hits = id.clone();
+        net::scanner::scan_ports(&[addr], &ports, timeout_ms, move |hit| {
+            let _ = app_for_hits.emit(
+                "netscan://hit",
+                NetScanHitEvent {
+                    id: id_for_hits.clone(),
+                    ip: hit.ip,
+                    port: hit.port,
+                    service: hit.service,
+                },
+            );
+        });
+        let _ = app.emit("netscan://done", NetScanDoneEvent { id, hosts_scanned: 1 });
+    });
+    Ok(())
 }
 
 const LOG_ROTATION_BYTES: u64 = 50 * 1024 * 1024;
@@ -296,26 +458,114 @@ enum PortLifecycleEvent {
     Error { stream_id: String, message: String },
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct MqttMessageEvent {
+    id: String,
+    topic: String,
+    payload: Vec<u8>,
+    qos: u8,
+    retain: bool,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct UdpDatagramEvent {
+    id: String,
+    from: String,
+    data: Vec<u8>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+enum WsFrameKindDto {
+    Text,
+    Binary,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct WsFrameEvent {
+    id: String,
+    kind: WsFrameKindDto,
+    data: Vec<u8>,
+}
+
 /// Forwards port lifecycle events (open/close/error) from the internal
 /// EventBus to the frontend. Raw data does not travel this path — see
 /// `spawn_batch_emitter` — so this stays cheap even under high throughput.
 /// Despite the "serial" event name, this is transport-agnostic: it forwards
 /// lifecycle events from *any* publisher on the shared bus, so `NetworkManager`
-/// (Tháng 6, TCP) rides along for free.
+/// (Tháng 6, TCP) rides along for free. `MqttMessage` rides the same bus but
+/// is forwarded under its own `mqtt://message` event rather than being
+/// squeezed into `PortLifecycleEvent`.
 fn spawn_lifecycle_forwarder(app: AppHandle, event_bus: EventBus) {
     let rx = event_bus.subscribe();
     thread::spawn(move || {
         for event in rx {
-            let payload = match event {
-                Event::PortOpened { stream_id } => Some(PortLifecycleEvent::Opened { stream_id }),
-                Event::PortClosed { stream_id } => Some(PortLifecycleEvent::Closed { stream_id }),
-                Event::Error { stream_id, message } => {
-                    Some(PortLifecycleEvent::Error { stream_id, message })
+            match event {
+                Event::PortOpened { stream_id } => {
+                    let _ = app.emit("serial://lifecycle", PortLifecycleEvent::Opened { stream_id });
                 }
-                Event::DataReceived { .. } => None,
-            };
-            if let Some(payload) = payload {
-                let _ = app.emit("serial://lifecycle", payload);
+                Event::PortClosed { stream_id } => {
+                    let _ = app.emit("serial://lifecycle", PortLifecycleEvent::Closed { stream_id });
+                }
+                Event::Error { stream_id, message } => {
+                    let _ = app.emit(
+                        "serial://lifecycle",
+                        PortLifecycleEvent::Error { stream_id, message },
+                    );
+                }
+                Event::MqttMessage {
+                    stream_id,
+                    topic,
+                    payload,
+                    qos,
+                    retain,
+                } => {
+                    let _ = app.emit(
+                        "mqtt://message",
+                        MqttMessageEvent {
+                            id: stream_id,
+                            topic,
+                            payload: payload.to_vec(),
+                            qos,
+                            retain,
+                        },
+                    );
+                }
+                Event::UdpDatagram {
+                    stream_id,
+                    from,
+                    data,
+                } => {
+                    let _ = app.emit(
+                        "udp://datagram",
+                        UdpDatagramEvent {
+                            id: stream_id,
+                            from,
+                            data: data.to_vec(),
+                        },
+                    );
+                }
+                Event::WsFrame {
+                    stream_id,
+                    kind,
+                    data,
+                } => {
+                    let _ = app.emit(
+                        "ws://frame",
+                        WsFrameEvent {
+                            id: stream_id,
+                            kind: match kind {
+                                WsFrameKind::Text => WsFrameKindDto::Text,
+                                WsFrameKind::Binary => WsFrameKindDto::Binary,
+                            },
+                            data: data.to_vec(),
+                        },
+                    );
+                }
+                Event::DataReceived { .. } => {}
             }
         }
     });
@@ -835,6 +1085,56 @@ fn write_network_stream(
     network.write(&id, &data)
 }
 
+/// Publishes to an arbitrary topic with explicit QoS/retain — the MQTT topic
+/// explorer's Publish widget uses this instead of `write_network_stream` so
+/// it isn't limited to the one `publish_topic` configured at connect time.
+#[tauri::command]
+fn mqtt_publish(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    topic: String,
+    payload: Vec<u8>,
+    qos: u8,
+    retain: bool,
+) -> Result<(), String> {
+    network.publish(&id, &topic, &payload, qos, retain)
+}
+
+/// Adds a subscription beyond the one topic set at connect time — the
+/// topic explorer's subscription manager uses this to watch additional
+/// topics without reconnecting.
+#[tauri::command]
+fn mqtt_subscribe(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    topic: String,
+    qos: u8,
+) -> Result<(), String> {
+    network.subscribe(&id, &topic, qos)
+}
+
+#[tauri::command]
+fn mqtt_unsubscribe(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    topic: String,
+) -> Result<(), String> {
+    network.unsubscribe(&id, &topic)
+}
+
+/// Sends a WebSocket Text frame — unlike `write_network_stream` (always
+/// Binary), this preserves the frame kind for peers that distinguish them
+/// (e.g. browser-side `ws.onmessage` gives a string for Text, a Blob for
+/// Binary).
+#[tauri::command]
+fn ws_send_text(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    text: String,
+) -> Result<(), String> {
+    network.send_text(&id, &text)
+}
+
 /// Same ~60fps drain shape as `spawn_batch_emitter`, over `NetworkManager`
 /// instead of `PortManager` — see `emit_batches`.
 fn spawn_network_batch_emitter(app: AppHandle, network: Arc<NetworkManager>, event_bus: EventBus) {
@@ -887,6 +1187,10 @@ pub fn run() {
             write_text_file,
             write_binary_file,
             mdns_scan,
+            detect_local_subnet,
+            common_scan_ports,
+            start_network_scan,
+            start_deep_scan,
             serial_port_states,
             start_serial_logging,
             stop_serial_logging,
@@ -918,6 +1222,10 @@ pub fn run() {
             open_mqtt,
             close_network_stream,
             write_network_stream,
+            mqtt_publish,
+            mqtt_subscribe,
+            mqtt_unsubscribe,
+            ws_send_text,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

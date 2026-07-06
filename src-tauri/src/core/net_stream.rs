@@ -14,6 +14,7 @@ use std::time::Duration;
 use crossbeam_channel::{unbounded, Receiver, Sender};
 
 use super::data_stream::{DataCallback, DataStream};
+use super::event_bus::{Event, EventBus};
 use super::ring_buffer::RingBuffer;
 use super::stream_pump::spawn_pump_thread;
 
@@ -289,6 +290,8 @@ impl DataStream for TcpServerStream {
 /// unconditionally since it's a per-socket flag with no downside for
 /// unicast use, matching the plan's "unicast/broadcast" being one feature.
 pub struct UdpDataStream {
+    stream_id: String,
+    event_bus: EventBus,
     local_port: u16,
     remote: Option<(String, u16)>,
     socket: Option<UdpSocket>,
@@ -300,8 +303,15 @@ pub struct UdpDataStream {
 }
 
 impl UdpDataStream {
-    pub fn new(local_port: u16, remote: Option<(String, u16)>) -> Self {
+    pub fn new(
+        stream_id: String,
+        event_bus: EventBus,
+        local_port: u16,
+        remote: Option<(String, u16)>,
+    ) -> Self {
         Self {
+            stream_id,
+            event_bus,
             local_port,
             remote,
             socket: None,
@@ -329,15 +339,22 @@ impl DataStream for UdpDataStream {
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
         self.stop_flag.store(false, Ordering::SeqCst);
         let stop_flag = self.stop_flag.clone();
+        let stream_id = self.stream_id.clone();
+        let event_bus = self.event_bus.clone();
 
         self.reader_thread = Some(thread::spawn(move || {
             let mut buf = [0u8; READ_BUF_SIZE];
             while !stop_flag.load(Ordering::Relaxed) {
                 match reader_socket.recv_from(&mut buf) {
-                    Ok((n, _sender)) => {
+                    Ok((n, sender)) => {
                         if tx.send(buf[..n].to_vec()).is_err() {
                             break; // pump thread gone, stream closed
                         }
+                        event_bus.publish(Event::UdpDatagram {
+                            stream_id: stream_id.clone(),
+                            from: sender.to_string(),
+                            data: Arc::from(&buf[..n]),
+                        });
                     }
                     Err(ref e) if is_transient_timeout(e) => continue,
                     // No "peer closed" concept for a connectionless socket —
@@ -449,8 +466,18 @@ mod tests {
     fn udp_round_trip() {
         let port_a = 18272;
         let port_b = 18273;
-        let mut a = UdpDataStream::new(port_a, Some(("127.0.0.1".to_string(), port_b)));
-        let mut b = UdpDataStream::new(port_b, Some(("127.0.0.1".to_string(), port_a)));
+        let mut a = UdpDataStream::new(
+            "a".to_string(),
+            EventBus::new(),
+            port_a,
+            Some(("127.0.0.1".to_string(), port_b)),
+        );
+        let mut b = UdpDataStream::new(
+            "b".to_string(),
+            EventBus::new(),
+            port_b,
+            Some(("127.0.0.1".to_string(), port_a)),
+        );
         a.open().unwrap();
         b.open().unwrap();
 

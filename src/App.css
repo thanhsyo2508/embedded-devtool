@@ -218,6 +218,11 @@ body,
   color: var(--accent);
 }
 
+.connect-cancel {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
 .field-group {
   display: flex;
   flex-direction: column;
@@ -1260,6 +1265,462 @@ button:disabled {
 .mdns-result .mono {
   flex: none;
   color: var(--text-muted);
+}
+
+/* ---- network scanner ---- */
+.netscan-overlay {
+  justify-content: center;
+  align-items: center;
+}
+
+.netscan-panel {
+  /* width: min(1100px, 94vw); */
+  max-height: 88vh;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.netscan-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.netscan-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.netscan-table th,
+.netscan-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.netscan-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel);
+  color: var(--text-muted);
+  font-weight: 500;
+  z-index: 1;
+}
+
+.netscan-table td.netscan-cell {
+  text-align: center;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.netscan-table td.netscan-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}
+
+.netscan-deep-overlay {
+  justify-content: center;
+  align-items: center;
+  z-index: 11;
+}
+
+.netscan-deep-panel {
+  width: 360px;
+  max-width: 92vw;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.netscan-deep-panel .field-row input[type='number'] {
+  width: 90px;
+  min-width: 0;
+}
+
+.netscan-ports {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.netscan-port-chip {
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+
+/* ---- specialized/raw view toggle (MQTT/UDP/WS tabs) ---- */
+.protocol-view-toggle {
+  align-self: flex-start;
+  margin: 8px 10px 0;
+}
+
+/* ---- MQTT topic explorer ---- */
+
+.mqtt-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+/* -- subscriptions bar -- */
+.mqtt-subscriptions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.mqtt-sub-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  padding: 3px 6px 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+}
+
+.mqtt-sub-chip .mqtt-sub-qos {
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+
+.mqtt-sub-chip button {
+  display: flex;
+  border: none;
+  padding: 2px;
+  color: var(--text-muted);
+}
+
+.mqtt-sub-chip button:hover {
+  color: var(--err);
+}
+
+.mqtt-sub-add {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.mqtt-sub-add input {
+  width: 180px;
+}
+
+/* -- tree + detail split -- */
+.mqtt-explorer {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+}
+
+.mqtt-tree-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mqtt-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  flex: none;
+}
+
+.mqtt-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  padding: 2px 0;
+}
+
+.mqtt-tree-scroll {
+  flex: 1;
+  overflow: auto;
+}
+
+.mqtt-tree {
+  font-size: 12px;
+}
+
+.mqtt-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mqtt-tree-row:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.mqtt-tree-row.on {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.mqtt-tree-toggle {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.mqtt-tree-toggle-spacer {
+  visibility: hidden;
+}
+
+.mqtt-tree-segment {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mqtt-tree-count {
+  margin-left: auto;
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.mqtt-tree-badge {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.mqtt-detail-pane {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.mqtt-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+}
+
+.mqtt-detail-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mqtt-history {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mqtt-history-entry {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.mqtt-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.mqtt-copy-payload {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+}
+
+.mqtt-payload-view {
+  margin: 0;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* JSON syntax highlighting — reuses the theme's existing semantic colors
+   rather than introducing JSON-specific variables. */
+.json-key {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.json-string {
+  color: var(--ok);
+}
+
+.json-boolean {
+  color: var(--err);
+  font-weight: 600;
+}
+
+.json-null {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* -- publish form -- */
+.mqtt-publish {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+}
+
+.mqtt-publish-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mqtt-publish-row .field-group:first-child {
+  flex: 1;
+  min-width: 160px;
+}
+
+.mqtt-publish-format-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mqtt-publish-error {
+  font-size: 11px;
+  color: var(--err);
+}
+
+.mqtt-publish-payload {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+}
+
+.mqtt-publish-payload.invalid {
+  border-color: var(--err);
+}
+
+/* ---- UDP packet log / WS frame log ---- */
+.udp-panel,
+.ws-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 8px;
+  padding: 10px;
+}
+
+.packet-log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.packet-entry {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  flex: none;
+}
+
+.packet-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.packet-from {
+  color: var(--text);
+}
+
+.ws-frame-kind {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  text-transform: uppercase;
+}
+
+.ws-frame-kind.text {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.ws-frame-kind.binary {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.ws-send-text {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+
+.ws-send-text input {
+  flex: 1;
+  min-width: 0;
 }
 
 .plot-channel-toggle {

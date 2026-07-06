@@ -832,23 +832,21 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         log: [],
       },
     }
+    // Attempt the connection before the tab ever appears in the strip —
+    // a failed *initial* connect (bad port, host unreachable, port already
+    // bound) should surface as an error in ConnectPanel, not swap the user
+    // into a broken tab. Once open, later drops are a different case
+    // (see reconnectTab) and legitimately show as an 'error' status tab.
+    if (req.kind === 'serial') await openSerialPort(req)
+    else if (req.kind === 'tcp-client') await openTcpClient(req.id, req.host, req.port)
+    else if (req.kind === 'tcp-server') await openTcpServer(req.id, req.port)
+    else if (req.kind === 'udp')
+      await openUdp(req.id, req.localPort, req.remoteHost, req.remotePort)
+    else if (req.kind === 'ws-client') await openWsClient(req.id, req.url)
+    else if (req.kind === 'ws-server') await openWsServer(req.id, req.port)
+    else await openMqtt(req.id, req)
+
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
-    try {
-      if (req.kind === 'serial') await openSerialPort(req)
-      else if (req.kind === 'tcp-client') await openTcpClient(req.id, req.host, req.port)
-      else if (req.kind === 'tcp-server') await openTcpServer(req.id, req.port)
-      else if (req.kind === 'udp')
-        await openUdp(req.id, req.localPort, req.remoteHost, req.remotePort)
-      else if (req.kind === 'ws-client') await openWsClient(req.id, req.url)
-      else if (req.kind === 'ws-server') await openWsServer(req.id, req.port)
-      else await openMqtt(req.id, req)
-    } catch (err) {
-      set((state) => ({
-        tabs: state.tabs.map((tab) =>
-          tab.id === req.id ? { ...tab, status: 'error', errorMessage: String(err) } : tab,
-        ),
-      }))
-    }
   },
 
   closeTab: async (id) => {

@@ -13,6 +13,7 @@ import {
   useConnectionProfilesStore,
   type ConnectionProfile,
 } from '../state/connectionProfilesStore'
+import { useLastConnectionStore, type LastConnectionConfig } from '../state/lastConnectionStore'
 import {
   ChipIcon,
   GaugeIcon,
@@ -22,6 +23,7 @@ import {
   RefreshIcon,
   RepeatIcon,
   UsbIcon,
+  XIcon,
 } from './icons'
 import { LibraryRow } from './LibraryRow'
 
@@ -68,51 +70,87 @@ function kindFor(family: ProtocolFamily, role: ConnectionRole): ConnectionKind {
   return family
 }
 
-const MDNS_PRESETS: { value: string; label: string }[] = [
-  { value: '_http._tcp.local.', label: 'HTTP (_http._tcp)' },
-  { value: '_mqtt._tcp.local.', label: 'MQTT (_mqtt._tcp)' },
-  { value: '_arduino._tcp.local.', label: 'Arduino OTA (_arduino._tcp)' },
-  { value: '_esphomelib._tcp.local.', label: 'ESPHome (_esphomelib._tcp)' },
-  { value: '_ws._tcp.local.', label: 'WebSocket (_ws._tcp)' },
-]
+// Which mDNS service types are worth offering depends on what's being
+// configured — a bare TCP client could be any generic device service, but
+// WebSocket/MQTT only ever look for their own protocol. Keyed by `target`
+// (not just family) so the list only ever shows what's actually relevant to
+// what's on screen, rather than one fixed list shared by every protocol.
+const MDNS_PRESETS_BY_TARGET: Partial<Record<ConnectionKind, { value: string; label: string }[]>> =
+  {
+    'tcp-client': [
+      { value: '_http._tcp.local.', label: 'HTTP (_http._tcp)' },
+      { value: '_arduino._tcp.local.', label: 'Arduino OTA (_arduino._tcp)' },
+      { value: '_esphomelib._tcp.local.', label: 'ESPHome (_esphomelib._tcp)' },
+    ],
+    'ws-client': [
+      { value: '_ws._tcp.local.', label: 'WebSocket (_ws._tcp)' },
+      { value: '_esphomelib._tcp.local.', label: 'ESPHome (_esphomelib._tcp)' },
+    ],
+    mqtt: [{ value: '_mqtt._tcp.local.', label: 'MQTT (_mqtt._tcp)' }],
+  }
 
 const MDNS_SCAN_MS = 3000
 
-export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
-  const [family, setFamily] = useState<ProtocolFamily>('serial')
-  const [role, setRole] = useState<ConnectionRole>('client')
+export function ConnectPanel({
+  onConnected,
+  onCancel,
+}: {
+  onConnected: () => void
+  onCancel?: () => void
+}) {
+  // Read once at construction — these only seed initial state, they don't
+  // need to be reactive (nothing here changes while this panel is mounted).
+  const [initialLast] = useState(() => useLastConnectionStore.getState())
+  const lastFor = (kind: ConnectionKind) => initialLast.byKind[kind]
+
+  const [family, setFamily] = useState<ProtocolFamily>(() =>
+    familyOf(initialLast.lastKind ?? 'serial'),
+  )
+  const [role, setRole] = useState<ConnectionRole>(() => roleOf(initialLast.lastKind ?? 'serial'))
   const target = kindFor(family, role)
   const [ports, setPorts] = useState<PortInfo[]>([])
-  const [portName, setPortName] = useState('')
-  const [baudRate, setBaudRate] = useState(115200)
-  const [dataBits, setDataBits] = useState<DataBits>('eight')
-  const [parity, setParity] = useState<Parity>('none')
-  const [stopBits, setStopBits] = useState<StopBits>('one')
-  const [flowControl, setFlowControl] = useState<FlowControl>('none')
-  const [autoReconnect, setAutoReconnect] = useState(true)
-  const [rs485AutoRts, setRs485AutoRts] = useState(false)
-  const [host, setHost] = useState('192.168.1.1')
-  const [tcpPort, setTcpPort] = useState(23)
-  const [udpLocalPort, setUdpLocalPort] = useState(5005)
-  const [udpRemoteHost, setUdpRemoteHost] = useState('')
-  const [udpRemotePort, setUdpRemotePort] = useState(5006)
-  const [wsUrl, setWsUrl] = useState('ws://192.168.1.1:81/')
-  const [wsServerPort, setWsServerPort] = useState(8080)
-  const [brokerHost, setBrokerHost] = useState('broker.hivemq.com')
-  const [brokerPort, setBrokerPort] = useState(1883)
-  const [clientId, setClientId] = useState(() => `edt-${Math.random().toString(36).slice(2, 8)}`)
-  const [mqttUsername, setMqttUsername] = useState('')
-  const [mqttPassword, setMqttPassword] = useState('')
-  const [subscribeTopic, setSubscribeTopic] = useState('#')
-  const [publishTopic, setPublishTopic] = useState('')
+  const [portName, setPortName] = useState(() => lastFor('serial')?.portName ?? '')
+  const [baudRate, setBaudRate] = useState(() => lastFor('serial')?.baudRate ?? 115200)
+  const [dataBits, setDataBits] = useState<DataBits>(() => lastFor('serial')?.dataBits ?? 'eight')
+  const [parity, setParity] = useState<Parity>(() => lastFor('serial')?.parity ?? 'none')
+  const [stopBits, setStopBits] = useState<StopBits>(() => lastFor('serial')?.stopBits ?? 'one')
+  const [flowControl, setFlowControl] = useState<FlowControl>(
+    () => lastFor('serial')?.flowControl ?? 'none',
+  )
+  const [autoReconnect, setAutoReconnect] = useState(() => lastFor('serial')?.autoReconnect ?? true)
+  const [rs485AutoRts, setRs485AutoRts] = useState(() => lastFor('serial')?.rs485AutoRts ?? false)
+  const [host, setHost] = useState(() => lastFor('tcp-client')?.host ?? '192.168.1.1')
+  const [tcpPort, setTcpPort] = useState(
+    () => lastFor('tcp-client')?.port ?? lastFor('tcp-server')?.port ?? 23,
+  )
+  const [udpLocalPort, setUdpLocalPort] = useState(() => lastFor('udp')?.localPort ?? 5005)
+  const [udpRemoteHost, setUdpRemoteHost] = useState(() => lastFor('udp')?.remoteHost ?? '')
+  const [udpRemotePort, setUdpRemotePort] = useState(() => lastFor('udp')?.remotePort ?? 5006)
+  const [wsUrl, setWsUrl] = useState(() => lastFor('ws-client')?.wsUrl ?? 'ws://192.168.1.1:81/')
+  const [wsServerPort, setWsServerPort] = useState(() => lastFor('ws-server')?.port ?? 8080)
+  const [brokerHost, setBrokerHost] = useState(
+    () => lastFor('mqtt')?.brokerHost ?? 'broker.hivemq.com',
+  )
+  const [brokerPort, setBrokerPort] = useState(() => lastFor('mqtt')?.brokerPort ?? 1883)
+  const [clientId, setClientId] = useState(
+    () => lastFor('mqtt')?.clientId ?? `edt-${Math.random().toString(36).slice(2, 8)}`,
+  )
+  const [mqttUsername, setMqttUsername] = useState(() => lastFor('mqtt')?.username ?? '')
+  const [mqttPassword, setMqttPassword] = useState(() => lastFor('mqtt')?.password ?? '')
+  const [subscribeTopic, setSubscribeTopic] = useState(() => lastFor('mqtt')?.subscribeTopic ?? '#')
+  const [publishTopic, setPublishTopic] = useState(() => lastFor('mqtt')?.publishTopic ?? '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
-  const [mdnsType, setMdnsType] = useState(MDNS_PRESETS[0].value)
+  const [mdnsType, setMdnsType] = useState(
+    () => (MDNS_PRESETS_BY_TARGET[target] ?? [])[0]?.value ?? '',
+  )
   const [scanning, setScanning] = useState(false)
   const [scanResults, setScanResults] = useState<MdnsService[] | null>(null)
   const openTab = useTabsStore((s) => s.openTab)
+  const rememberLastConnection = useLastConnectionStore((s) => s.remember)
   const profiles = useConnectionProfilesStore((s) => s.items)
+  const targetProfiles = profiles.filter((p) => p.kind === target)
   const saveProfile = useConnectionProfilesStore((s) => s.save)
   const deleteProfile = useConnectionProfilesStore((s) => s.remove)
 
@@ -167,6 +205,47 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
       cancelled = true
     }
   }, [refreshKey])
+
+  // Shared by "Save profile" and the automatic last-used-config memory —
+  // both just want a snapshot of the currently entered fields for `target`.
+  const currentConfigData = (): LastConnectionConfig =>
+    target === 'serial'
+      ? {
+          kind: 'serial',
+          portName,
+          baudRate,
+          dataBits,
+          parity,
+          stopBits,
+          flowControl,
+          autoReconnect,
+          rs485AutoRts,
+        }
+      : target === 'tcp-client'
+        ? { kind: 'tcp-client', host, port: tcpPort }
+        : target === 'tcp-server'
+          ? { kind: 'tcp-server', port: tcpPort }
+          : target === 'udp'
+            ? {
+                kind: 'udp',
+                localPort: udpLocalPort,
+                remoteHost: udpRemoteHost,
+                remotePort: udpRemotePort,
+              }
+            : target === 'ws-client'
+              ? { kind: 'ws-client', wsUrl }
+              : target === 'ws-server'
+                ? { kind: 'ws-server', port: wsServerPort }
+                : {
+                    kind: 'mqtt',
+                    brokerHost,
+                    brokerPort,
+                    clientId,
+                    username: mqttUsername,
+                    password: mqttPassword,
+                    subscribeTopic,
+                    publishTopic,
+                  }
 
   const handleConnect = async () => {
     setLoading(true)
@@ -223,6 +302,7 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
           publishTopic,
         })
       }
+      rememberLastConnection(target, currentConfigData())
       onConnected()
     } catch (err) {
       setError(String(err))
@@ -233,6 +313,18 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
 
   // LAN discovery only makes sense where there's a remote host to fill in.
   const discoverVisible = target === 'tcp-client' || target === 'ws-client' || family === 'mqtt'
+  const mdnsPresets = MDNS_PRESETS_BY_TARGET[target] ?? []
+
+  // Re-target the preset list (and drop stale results from a previous
+  // protocol) whenever what's being configured changes — adjusted during
+  // render rather than in an effect, per React's guidance for resetting
+  // state when a derived value changes (avoids an extra render pass).
+  const [presetsFor, setPresetsFor] = useState(target)
+  if (target !== presetsFor) {
+    setPresetsFor(target)
+    setMdnsType(mdnsPresets[0]?.value ?? '')
+    setScanResults(null)
+  }
 
   const handleScan = async () => {
     setScanning(true)
@@ -281,6 +373,17 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
     <div className="connect-panel">
       <h2>
         <PlugIcon /> New connection
+        {onCancel && (
+          <button
+            type="button"
+            className="icon-button connect-cancel"
+            aria-label="Cancel"
+            title="Back to current tab (Esc)"
+            onClick={onCancel}
+          >
+            <XIcon />
+          </button>
+        )}
       </h2>
 
       <div className="seg">
@@ -308,50 +411,9 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
 
       <LibraryRow
         label="Profile"
-        items={profiles}
+        items={targetProfiles}
         onLoad={applyProfile}
-        onSave={(name) =>
-          saveProfile(
-            name,
-            target === 'serial'
-              ? {
-                  kind: 'serial',
-                  portName,
-                  baudRate,
-                  dataBits,
-                  parity,
-                  stopBits,
-                  flowControl,
-                  autoReconnect,
-                  rs485AutoRts,
-                }
-              : target === 'tcp-client'
-                ? { kind: 'tcp-client', host, port: tcpPort }
-                : target === 'tcp-server'
-                  ? { kind: 'tcp-server', port: tcpPort }
-                  : target === 'udp'
-                    ? {
-                        kind: 'udp',
-                        localPort: udpLocalPort,
-                        remoteHost: udpRemoteHost,
-                        remotePort: udpRemotePort,
-                      }
-                    : target === 'ws-client'
-                      ? { kind: 'ws-client', wsUrl }
-                      : target === 'ws-server'
-                        ? { kind: 'ws-server', port: wsServerPort }
-                        : {
-                            kind: 'mqtt',
-                            brokerHost,
-                            brokerPort,
-                            clientId,
-                            username: mqttUsername,
-                            password: mqttPassword,
-                            subscribeTopic,
-                            publishTopic,
-                          },
-          )
-        }
+        onSave={(name) => saveProfile(name, currentConfigData())}
         onDelete={deleteProfile}
       />
 
@@ -645,7 +707,7 @@ export function ConnectPanel({ onConnected }: { onConnected: () => void }) {
         <div className="mdns-discover">
           <div className="field-row">
             <select value={mdnsType} onChange={(e) => setMdnsType(e.target.value)}>
-              {MDNS_PRESETS.map((p) => (
+              {mdnsPresets.map((p) => (
                 <option key={p.value} value={p.value}>
                   {p.label}
                 </option>

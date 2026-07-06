@@ -1,6 +1,12 @@
 import { useTabsStore } from '../state/tabsStore'
 
-export function TabStrip({ onAddClick }: { onAddClick: () => void }) {
+export function TabStrip({
+  onAddClick,
+  onTabClick,
+}: {
+  onAddClick: () => void
+  onTabClick: () => void
+}) {
   const tabs = useTabsStore((s) => s.tabs)
   const activeTabId = useTabsStore((s) => s.activeTabId)
   const setActiveTab = useTabsStore((s) => s.setActiveTab)
@@ -12,7 +18,10 @@ export function TabStrip({ onAddClick }: { onAddClick: () => void }) {
         <div
           key={tab.id}
           className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
-          onClick={() => setActiveTab(tab.id)}
+          onClick={() => {
+            setActiveTab(tab.id)
+            onTabClick()
+          }}
         >
           <span className={`status-dot ${tab.status}`} />
           <span className="tab-label">{tab.connectionLabel}</span>

@@ -14,12 +14,23 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { FlashPanel } from './components/FlashPanel'
 import { PlotDock } from './components/PlotDock'
 import { WorkspaceResizer } from './components/WorkspaceResizer'
-import { ChartIcon, GearIcon, ZapIcon } from './components/icons'
+import { NetScanPanel } from './components/NetScanPanel'
+import { MqttPanel } from './components/MqttPanel'
+import { UdpPanel } from './components/UdpPanel'
+import { WsPanel } from './components/WsPanel'
+import { useMqttStore } from './state/mqttStore'
+import { useUdpStore } from './state/udpStore'
+import { useWsStore } from './state/wsStore'
+import { ChartIcon, GearIcon, GlobeIcon, ZapIcon } from './components/icons'
 
 function App() {
   const wireEventsOnce = useTabsStore((s) => s.wireEventsOnce)
   const wireFlashEventsOnce = useFlashStore((s) => s.wireEventsOnce)
   const wireStm32EventsOnce = useStm32Store((s) => s.wireEventsOnce)
+  const wireMqttEventsOnce = useMqttStore((s) => s.wireEventsOnce)
+  const wireUdpEventsOnce = useUdpStore((s) => s.wireEventsOnce)
+  const wireWsEventsOnce = useWsStore((s) => s.wireEventsOnce)
+  const [protocolView, setProtocolView] = useState<'specialized' | 'raw'>('specialized')
   const tabs = useTabsStore((s) => s.tabs)
   const activeTabId = useTabsStore((s) => s.activeTabId)
   const setActiveTab = useTabsStore((s) => s.setActiveTab)
@@ -29,6 +40,7 @@ function App() {
   const [showConnect, setShowConnect] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
+  const [showNetScan, setShowNetScan] = useState(false)
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
@@ -40,7 +52,17 @@ function App() {
     wireEventsOnce()
     wireFlashEventsOnce()
     wireStm32EventsOnce()
-  }, [wireEventsOnce, wireFlashEventsOnce, wireStm32EventsOnce])
+    wireMqttEventsOnce()
+    wireUdpEventsOnce()
+    wireWsEventsOnce()
+  }, [
+    wireEventsOnce,
+    wireFlashEventsOnce,
+    wireStm32EventsOnce,
+    wireMqttEventsOnce,
+    wireUdpEventsOnce,
+    wireWsEventsOnce,
+  ])
 
   useEffect(() => {
     if (theme === 'system') {
@@ -59,6 +81,14 @@ function App() {
   }, [keepAwake])
 
   const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
+  const specializedViewLabel =
+    activeTab?.connectionKind === 'mqtt'
+      ? 'Topics'
+      : activeTab?.connectionKind === 'udp'
+        ? 'Packets'
+        : activeTab?.connectionKind === 'ws-client' || activeTab?.connectionKind === 'ws-server'
+          ? 'Frames'
+          : null
 
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
   useEffect(() => {
@@ -70,6 +100,8 @@ function App() {
       if (e.key === 'Escape') {
         if (showSettings) setShowSettings(false)
         else if (showFlash) setShowFlash(false)
+        else if (showNetScan) setShowNetScan(false)
+        else if (showConnect && activeTab) setShowConnect(false)
         return
       }
 
@@ -132,6 +164,7 @@ function App() {
     showConnect,
     showSettings,
     showFlash,
+    showNetScan,
     plotVisible,
     closeTab,
     clearLines,
@@ -143,7 +176,10 @@ function App() {
   return (
     <div className="app">
       <div className="app-topbar">
-        <TabStrip onAddClick={() => setShowConnect(true)} />
+        <TabStrip
+          onAddClick={() => setShowConnect(true)}
+          onTabClick={() => setShowConnect(false)}
+        />
         <button
           type="button"
           className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}
@@ -165,6 +201,15 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
+          aria-label="Network Scanner"
+          title="Network Scanner"
+          onClick={() => setShowNetScan(true)}
+        >
+          <GlobeIcon />
+        </button>
+        <button
+          type="button"
+          className="icon-button settings-trigger"
           aria-label="Settings"
           title="Settings (Ctrl+,)"
           onClick={() => setShowSettings(true)}
@@ -173,12 +218,43 @@ function App() {
         </button>
       </div>
       {showConnect || !activeTab ? (
-        <ConnectPanel onConnected={() => setShowConnect(false)} />
+        <ConnectPanel
+          onConnected={() => setShowConnect(false)}
+          onCancel={activeTab ? () => setShowConnect(false) : undefined}
+        />
       ) : (
         <div className="workspace">
           <div className="monitor-column">
-            <MonitorView tab={activeTab} />
-            <SendPanel tab={activeTab} />
+            {specializedViewLabel && (
+              <div className="seg protocol-view-toggle">
+                <span
+                  className={protocolView === 'specialized' ? 'on' : ''}
+                  onClick={() => setProtocolView('specialized')}
+                >
+                  {specializedViewLabel}
+                </span>
+                <span
+                  className={protocolView === 'raw' ? 'on' : ''}
+                  onClick={() => setProtocolView('raw')}
+                >
+                  Raw log
+                </span>
+              </div>
+            )}
+            {specializedViewLabel && protocolView === 'specialized' ? (
+              activeTab.connectionKind === 'mqtt' ? (
+                <MqttPanel tab={activeTab} />
+              ) : activeTab.connectionKind === 'udp' ? (
+                <UdpPanel tab={activeTab} />
+              ) : (
+                <WsPanel tab={activeTab} />
+              )
+            ) : (
+              <>
+                <MonitorView tab={activeTab} />
+                <SendPanel tab={activeTab} />
+              </>
+            )}
           </div>
           {plotVisible && (
             <>
@@ -190,6 +266,7 @@ function App() {
       )}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showFlash && <FlashPanel onClose={() => setShowFlash(false)} />}
+      {showNetScan && <NetScanPanel onClose={() => setShowNetScan(false)} />}
     </div>
   )
 }

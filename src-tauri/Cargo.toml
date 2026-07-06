@@ -33,4 +33,5 @@ rumqttc = "0.24"
 tungstenite = "0.24"
 http = "1"
 mdns-sd = "0.13"
+dns-lookup = "3.0.1"
 

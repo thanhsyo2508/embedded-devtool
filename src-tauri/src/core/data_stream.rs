@@ -29,6 +29,45 @@ pub trait DataStream: Send {
 
     fn is_open(&self) -> bool;
 
+    /// Publishes to an arbitrary topic with explicit QoS/retain, bypassing
+    /// the configured default publish topic passed to `write`. Only MQTT
+    /// implements this; every other transport has no notion of topics, so
+    /// the default is a plain error rather than a silent no-op.
+    fn publish(&mut self, _topic: &str, _payload: &[u8], _qos: u8, _retain: bool) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support topic-based publish",
+        ))
+    }
+
+    /// Adds a subscription beyond the one topic configured at connect time.
+    /// Only MQTT implements this.
+    fn subscribe(&mut self, _topic: &str, _qos: u8) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support subscribe",
+        ))
+    }
+
+    /// Removes a subscription previously added via `subscribe` (or the
+    /// initial connect-time one). Only MQTT implements this.
+    fn unsubscribe(&mut self, _topic: &str) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support unsubscribe",
+        ))
+    }
+
+    /// Sends a WebSocket Text frame instead of `write`'s always-Binary
+    /// frame. Only the WS streams implement this — every other transport
+    /// has no frame-kind concept to preserve.
+    fn send_text(&mut self, _text: &str) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support text frames",
+        ))
+    }
+
     /// True if the transport observed itself go from open to broken (e.g. a
     /// TCP peer closing the connection) without an explicit `close()` call.
     /// Lets a manager notice and clean up without a transport-specific poll

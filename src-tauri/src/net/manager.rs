@@ -46,15 +46,24 @@ impl NetworkManager {
             (Some(host), Some(port)) if !host.is_empty() => Some((host, port)),
             _ => None,
         };
-        self.open(id, Box::new(UdpDataStream::new(local_port, remote)))
+        self.open(
+            id.clone(),
+            Box::new(UdpDataStream::new(id, self.event_bus.clone(), local_port, remote)),
+        )
     }
 
     pub fn open_ws_client(&self, id: String, url: String) -> Result<(), String> {
-        self.open(id, Box::new(WsClientStream::new(url)))
+        self.open(
+            id.clone(),
+            Box::new(WsClientStream::new(id, self.event_bus.clone(), url)),
+        )
     }
 
     pub fn open_ws_server(&self, id: String, port: u16) -> Result<(), String> {
-        self.open(id, Box::new(WsServerStream::new(port)))
+        self.open(
+            id.clone(),
+            Box::new(WsServerStream::new(id, self.event_bus.clone(), port)),
+        )
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -70,16 +79,20 @@ impl NetworkManager {
         publish_topic: String,
     ) -> Result<(), String> {
         self.open(
-            id,
-            Box::new(MqttStream::new(MqttConfig {
-                broker_host,
-                broker_port,
-                client_id,
-                username,
-                password,
-                subscribe_topic,
-                publish_topic,
-            })),
+            id.clone(),
+            Box::new(MqttStream::new(
+                id,
+                self.event_bus.clone(),
+                MqttConfig {
+                    broker_host,
+                    broker_port,
+                    client_id,
+                    username,
+                    password,
+                    subscribe_topic,
+                    publish_topic,
+                },
+            )),
         )
     }
 
@@ -123,6 +136,44 @@ impl NetworkManager {
         let mut streams = self.streams.lock().unwrap();
         match streams.get_mut(id) {
             Some(stream) => stream.write(data).map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
+    }
+
+    /// Topic-based publish for MQTT tabs — see `DataStream::publish`. Every
+    /// other transport rejects this with its default "unsupported" error.
+    pub fn publish(&self, id: &str, topic: &str, data: &[u8], qos: u8, retain: bool) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream.publish(topic, data, qos, retain).map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
+    }
+
+    /// Adds an MQTT subscription beyond the one topic set at connect time —
+    /// see `DataStream::subscribe`.
+    pub fn subscribe(&self, id: &str, topic: &str, qos: u8) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream.subscribe(topic, qos).map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
+    }
+
+    pub fn unsubscribe(&self, id: &str, topic: &str) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream.unsubscribe(topic).map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
+    }
+
+    /// Sends a WebSocket Text frame — see `DataStream::send_text`. Every
+    /// other transport rejects this with its default "unsupported" error.
+    pub fn send_text(&self, id: &str, text: &str) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream.send_text(text).map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }

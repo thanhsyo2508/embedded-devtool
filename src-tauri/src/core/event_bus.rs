@@ -24,6 +24,41 @@ pub enum Event {
         stream_id: String,
         message: String,
     },
+    /// A single MQTT PUBLISH received on a subscribed topic. Carries
+    /// structured metadata (topic/qos/retain) that `DataReceived`'s opaque
+    /// bytes can't — the topic-based UI reads this instead of parsing the
+    /// synthetic "{topic}: {payload}" text lines `DataReceived` still gets
+    /// for backward compatibility with filters/triggers/scripts.
+    MqttMessage {
+        stream_id: String,
+        topic: String,
+        payload: Arc<[u8]>,
+        qos: u8,
+        retain: bool,
+    },
+    /// One UDP datagram, tagged with its sender address — `DataReceived`
+    /// concatenates all datagrams into one opaque byte stream, losing both
+    /// the per-packet boundary and who sent it, neither of which a
+    /// connectionless protocol's UI should have to give up.
+    UdpDatagram {
+        stream_id: String,
+        from: String,
+        data: Arc<[u8]>,
+    },
+    /// One WebSocket message, tagged with its frame kind — `DataReceived`
+    /// flattens Text and Binary frames into the same byte stream (and
+    /// newline-terminates Text), losing the distinction a WS-aware UI needs.
+    WsFrame {
+        stream_id: String,
+        kind: WsFrameKind,
+        data: Arc<[u8]>,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WsFrameKind {
+    Text,
+    Binary,
 }
 
 #[derive(Default, Clone)]

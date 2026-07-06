@@ -19,9 +19,12 @@ use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use rumqttc::{Client, Event, MqttOptions, Packet, QoS, RecvTimeoutError};
+use rumqttc::{
+    Client, ConnectReturnCode, Event as MqttEvent, MqttOptions, Packet, QoS, RecvTimeoutError,
+};
 
 use super::data_stream::{DataCallback, DataStream};
+use super::event_bus::{Event as CoreEvent, EventBus};
 use super::ring_buffer::RingBuffer;
 use super::stream_pump::spawn_pump_thread;
 
@@ -29,6 +32,12 @@ const RING_BUFFER_CAPACITY: usize = 1 << 20;
 /// How often the poll thread wakes up to re-check the stop flag, and how
 /// long it backs off after a connection error before rumqttc retries.
 const POLL_TIMEOUT: Duration = Duration::from_millis(200);
+/// How long `open()` blocks waiting for the broker's CONNACK before giving
+/// up. Without this, `Client::new` + `subscribe()` return immediately no
+/// matter whether the broker is even reachable — the caller would see a
+/// successful connect and land in the terminal against a stream that's
+/// silently retrying forever in the background.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
 
 pub struct MqttConfig {
     pub broker_host: String,
@@ -41,6 +50,8 @@ pub struct MqttConfig {
 }
 
 pub struct MqttStream {
+    stream_id: String,
+    event_bus: EventBus,
     config: MqttConfig,
     client: Option<Client>,
     poll_thread: Option<JoinHandle<()>>,
@@ -51,8 +62,10 @@ pub struct MqttStream {
 }
 
 impl MqttStream {
-    pub fn new(config: MqttConfig) -> Self {
+    pub fn new(stream_id: String, event_bus: EventBus, config: MqttConfig) -> Self {
         Self {
+            stream_id,
+            event_bus,
             config,
             client: None,
             poll_thread: None,
@@ -61,6 +74,22 @@ impl MqttStream {
             buffer: Arc::new(Mutex::new(RingBuffer::new(RING_BUFFER_CAPACITY))),
             callbacks: Arc::new(Mutex::new(Vec::new())),
         }
+    }
+}
+
+fn qos_to_u8(qos: QoS) -> u8 {
+    match qos {
+        QoS::AtMostOnce => 0,
+        QoS::AtLeastOnce => 1,
+        QoS::ExactlyOnce => 2,
+    }
+}
+
+fn u8_to_qos(qos: u8) -> QoS {
+    match qos {
+        1 => QoS::AtLeastOnce,
+        2 => QoS::ExactlyOnce,
+        _ => QoS::AtMostOnce,
     }
 }
 
@@ -85,15 +114,49 @@ impl DataStream for MqttStream {
             .subscribe(&self.config.subscribe_topic, QoS::AtMostOnce)
             .map_err(io::Error::other)?;
 
+        // Block until the broker actually acknowledges the connection (or
+        // rejects/times out) so a bad host/port/credentials surfaces as a
+        // real error to the caller instead of a silent background retry.
+        let deadline = std::time::Instant::now() + CONNECT_TIMEOUT;
+        loop {
+            if std::time::Instant::now() >= deadline {
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "timed out waiting for the broker to respond",
+                ));
+            }
+            match connection.recv_timeout(POLL_TIMEOUT) {
+                Ok(Ok(MqttEvent::Incoming(Packet::ConnAck(ack)))) => {
+                    if ack.code != ConnectReturnCode::Success {
+                        return Err(io::Error::other(format!(
+                            "broker refused connection: {:?}",
+                            ack.code
+                        )));
+                    }
+                    break;
+                }
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => return Err(io::Error::other(e.to_string())),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => {
+                    return Err(io::Error::other(
+                        "connection closed before the broker responded",
+                    ))
+                }
+            }
+        }
+
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
         self.stop_flag.store(false, Ordering::SeqCst);
         let stop_flag = self.stop_flag.clone();
+        let stream_id = self.stream_id.clone();
+        let event_bus = self.event_bus.clone();
 
         self.poll_thread = Some(thread::spawn(move || {
             let mut erroring = false;
             while !stop_flag.load(Ordering::Relaxed) {
                 match connection.recv_timeout(POLL_TIMEOUT) {
-                    Ok(Ok(Event::Incoming(Packet::Publish(publish)))) => {
+                    Ok(Ok(MqttEvent::Incoming(Packet::Publish(publish)))) => {
                         let line = format!(
                             "{}: {}\n",
                             publish.topic,
@@ -102,8 +165,15 @@ impl DataStream for MqttStream {
                         if tx.send(line.into_bytes()).is_err() {
                             break; // pump thread gone, stream closed
                         }
+                        event_bus.publish(CoreEvent::MqttMessage {
+                            stream_id: stream_id.clone(),
+                            topic: publish.topic,
+                            payload: Arc::from(publish.payload.as_ref()),
+                            qos: qos_to_u8(publish.qos),
+                            retain: publish.retain,
+                        });
                     }
-                    Ok(Ok(Event::Incoming(Packet::ConnAck(_)))) => {
+                    Ok(Ok(MqttEvent::Incoming(Packet::ConnAck(_)))) => {
                         if erroring {
                             erroring = false;
                             let _ = tx.send(b"[mqtt] reconnected\n".to_vec());
@@ -161,6 +231,31 @@ impl DataStream for MqttStream {
 
     fn on_data(&mut self, callback: DataCallback) {
         self.callbacks.lock().unwrap().push(callback);
+    }
+
+    fn publish(&mut self, topic: &str, payload: &[u8], qos: u8, retain: bool) -> io::Result<()> {
+        match self.client.as_ref() {
+            Some(client) => client
+                .publish(topic, u8_to_qos(qos), retain, payload)
+                .map_err(io::Error::other),
+            None => Err(io::Error::new(io::ErrorKind::NotConnected, "not connected")),
+        }
+    }
+
+    fn subscribe(&mut self, topic: &str, qos: u8) -> io::Result<()> {
+        match self.client.as_ref() {
+            Some(client) => client
+                .subscribe(topic, u8_to_qos(qos))
+                .map_err(io::Error::other),
+            None => Err(io::Error::new(io::ErrorKind::NotConnected, "not connected")),
+        }
+    }
+
+    fn unsubscribe(&mut self, topic: &str) -> io::Result<()> {
+        match self.client.as_ref() {
+            Some(client) => client.unsubscribe(topic).map_err(io::Error::other),
+            None => Err(io::Error::new(io::ErrorKind::NotConnected, "not connected")),
+        }
     }
 
     fn is_open(&self) -> bool {
