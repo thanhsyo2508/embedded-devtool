@@ -230,15 +230,11 @@ Chốt nền tảng kỹ thuật, dựng khung dự án, tránh phải đập đ
 
 ---
 
-## 7. Mô hình kinh doanh (đề xuất)
+## 7. Mô hình phát hành
 
-| Bản | Giá | Bao gồm |
-|---|---|---|
-| Free | 0đ | Toàn bộ giai đoạn 1 + phần lớn giai đoạn 2 (monitor, flash, plotter, TCP/UDP, scripting cơ bản) |
-| Pro | ~$5–8/tháng hoặc mua đứt | FFT, math channels, plugin, session replay, layout nâng cao |
-| Business | Theo seat | CLI/CI mode, test runner, batch flash, mass production, hỗ trợ ưu tiên |
+100% open source — toàn bộ tính năng ở mọi giai đoạn (bao gồm cả các mục "Pro"/"Business" cũ như FFT, plugin, CLI/CI mode, batch flash, mass production) đều miễn phí và mở mã nguồn, không có bản trả phí hay tính năng khoá sau paywall. Giấy phép dual MIT/Apache-2.0 (đã áp dụng từ đầu, xem [LICENSE-MIT](../LICENSE-MIT)/[LICENSE-APACHE](../LICENSE-APACHE)).
 
-Nguyên tắc: bản Free phải đủ tốt để thay thế hoàn toàn CoolTerm + Hercules — đó là động lực lan truyền.
+Nguyên tắc: sản phẩm phải đủ tốt để thay thế hoàn toàn CoolTerm + Hercules + STM32CubeProgrammer — đó là động lực lan truyền và đóng góp cộng đồng, không phải doanh thu trực tiếp từ phần mềm. Nếu về sau cần nguồn thu, ưu tiên các hướng không tách tính năng khỏi bản mở (vd. tài trợ cộng đồng, dịch vụ hỗ trợ/tư vấn riêng, không phải "open core").
 
 ---
 
@@ -259,13 +255,13 @@ Nguyên tắc: bản Free phải đủ tốt để thay thế hoàn toàn CoolTe
 
 - **Beta (cuối T3):** 500+ lượt tải, 20+ issue/feedback chất lượng.
 - **v1.0 (cuối T7):** 3.000+ lượt tải, crash-free > 99.5%, 100+ user hoạt động hàng tuần.
-- **v2.0 (cuối T12):** 10.000+ lượt tải, 5+ plugin cộng đồng, khách hàng doanh nghiệp đầu tiên.
+- **v2.0 (cuối T12):** 10.000+ lượt tải, 5+ plugin cộng đồng, công ty đầu tiên dùng trong quy trình sản xuất thực tế.
 
 ---
 
 ## 10. Việc cần làm ngay tuần này
 
-1. Tạo repo, chốt tên sản phẩm và license (khuyến nghị: core open source MIT/Apache-2 + tính năng Pro closed — mô hình "open core").
+1. Tạo repo, chốt tên sản phẩm và license — 100% open source, dual MIT/Apache-2.0, không tách bản Pro/closed.
 2. Viết PoC Tauri + serialport-rs, benchmark 2Mbps.
 3. Vẽ wireframe layout chính (monitor multi-tab + panel flash).
 4. Lập backlog trên GitHub Projects theo đúng cấu trúc giai đoạn của tài liệu này.
