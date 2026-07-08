@@ -114,12 +114,25 @@ body,
   flex: none;
 }
 
+.app-topbar-spacer {
+  flex: 1;
+}
+
+/* Each pane owns its own tab strip now (see PaneContent) rather than a
+ * single strip living in the app-topbar, so it needs its own separator
+ * and can't rely on flex:1 in a row context — it's flex:none in a column. */
 .tab-strip {
   display: flex;
   align-items: center;
-  flex: 1;
+  flex: none;
   min-width: 0;
   overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.tab-strip.drag-over {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .settings-trigger {
@@ -359,10 +372,9 @@ body,
   min-height: 0;
 }
 
-.monitor-column {
+.pane-tree {
   flex: 1;
   display: flex;
-  flex-direction: column;
   min-width: 0;
   min-height: 80px;
 }
@@ -376,6 +388,116 @@ body,
 
 .workspace-resizer:hover {
   background: var(--accent);
+}
+
+/* ---- multi-pane split layout (Snap Layouts) ---- */
+.pane-split {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane-split-row {
+  flex-direction: row;
+}
+
+.pane-split-column {
+  flex-direction: column;
+}
+
+.pane-split-item {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.pane-resizer {
+  flex: none;
+  background: var(--border);
+}
+
+.pane-resizer-row {
+  width: 5px;
+  cursor: col-resize;
+}
+
+.pane-resizer-column {
+  height: 5px;
+  cursor: row-resize;
+}
+
+.pane-resizer:hover {
+  background: var(--accent);
+}
+
+.pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.pane.focused {
+  outline-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.pane-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 80px;
+  position: relative;
+}
+
+.pane-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.drop-zone-overlay {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border: 2px solid var(--accent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.drop-zone-overlay.zone-left {
+  right: 50%;
+}
+
+.drop-zone-overlay.zone-right {
+  left: 50%;
+}
+
+.drop-zone-overlay.zone-top {
+  bottom: 50%;
+}
+
+.drop-zone-overlay.zone-bottom {
+  top: 50%;
+}
+
+/* ---- connect panel modal overlay ---- */
+.connect-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  overflow-y: auto;
 }
 
 /* ---- monitor ---- */
@@ -1728,6 +1850,22 @@ button:disabled {
 .ws-send-text input {
   flex: 1;
   min-width: 0;
+}
+
+/* ---- SSH terminal ---- */
+.ssh-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ssh-terminal {
+  flex: 1;
+  min-height: 0;
+  padding: 6px;
+  background: #000;
+  overflow: hidden;
 }
 
 .plot-channel-toggle {

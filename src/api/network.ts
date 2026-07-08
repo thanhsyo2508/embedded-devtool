@@ -27,6 +27,25 @@ export function openWsServer(id: string, port: number): Promise<void> {
   return invoke('open_ws_server', { id, port })
 }
 
+/** A real interactive PTY shell — unlike every other open_* here, this
+ * tab's data isn't line-oriented text, it's raw terminal bytes (including
+ * ANSI escapes) meant for a real terminal emulator (xterm.js), not the
+ * generic monitor. */
+export function openSsh(
+  id: string,
+  host: string,
+  port: number,
+  username: string,
+  password: string,
+): Promise<void> {
+  return invoke('open_ssh', { id, host, port, username, password })
+}
+
+/** Tells the remote PTY the terminal was resized. */
+export function sshResize(id: string, cols: number, rows: number): Promise<void> {
+  return invoke('ssh_resize', { id, cols, rows })
+}
+
 export interface MqttParams {
   brokerHost: string
   brokerPort: number

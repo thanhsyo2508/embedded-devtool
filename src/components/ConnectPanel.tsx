@@ -36,7 +36,7 @@ function formatHexId(id: number | null): string | null {
 // and only revealing the Client/Server sub-toggle for those two families
 // keeps the picker from growing to 7 same-level options — see the "role"
 // state below.
-type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt'
+type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt' | 'ssh'
 type ConnectionRole = 'client' | 'server'
 
 const FAMILIES: { value: ProtocolFamily; label: string }[] = [
@@ -45,6 +45,7 @@ const FAMILIES: { value: ProtocolFamily; label: string }[] = [
   { value: 'udp', label: 'UDP' },
   { value: 'ws', label: 'WebSocket' },
   { value: 'mqtt', label: 'MQTT' },
+  { value: 'ssh', label: 'SSH' },
 ]
 
 function familyOf(kind: ConnectionKind): ProtocolFamily {
@@ -87,6 +88,7 @@ const MDNS_PRESETS_BY_TARGET: Partial<Record<ConnectionKind, { value: string; la
       { value: '_esphomelib._tcp.local.', label: 'ESPHome (_esphomelib._tcp)' },
     ],
     mqtt: [{ value: '_mqtt._tcp.local.', label: 'MQTT (_mqtt._tcp)' }],
+    ssh: [{ value: '_ssh._tcp.local.', label: 'SSH (_ssh._tcp)' }],
   }
 
 const MDNS_SCAN_MS = 3000
@@ -95,7 +97,7 @@ export function ConnectPanel({
   onConnected,
   onCancel,
 }: {
-  onConnected: () => void
+  onConnected: (tabId: string) => void
   onCancel?: () => void
 }) {
   // Read once at construction — these only seed initial state, they don't
@@ -139,6 +141,12 @@ export function ConnectPanel({
   const [mqttPassword, setMqttPassword] = useState(() => lastFor('mqtt')?.password ?? '')
   const [subscribeTopic, setSubscribeTopic] = useState(() => lastFor('mqtt')?.subscribeTopic ?? '#')
   const [publishTopic, setPublishTopic] = useState(() => lastFor('mqtt')?.publishTopic ?? '')
+  // Password intentionally never seeded from lastFor/profiles — see
+  // currentConfigData below, it's never included in what gets persisted.
+  const [sshHost, setSshHost] = useState(() => lastFor('ssh')?.host ?? '192.168.1.1')
+  const [sshPort, setSshPort] = useState(() => lastFor('ssh')?.port ?? 22)
+  const [sshUsername, setSshUsername] = useState(() => lastFor('ssh')?.username ?? '')
+  const [sshPassword, setSshPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -179,6 +187,12 @@ export function ConnectPanel({
       setWsUrl(p.wsUrl ?? '')
     } else if (p.kind === 'ws-server') {
       setWsServerPort(p.port ?? 0)
+    } else if (p.kind === 'ssh') {
+      setSshHost(p.host ?? '')
+      setSshPort(p.port ?? 22)
+      setSshUsername(p.username ?? '')
+      // Password is deliberately never saved in a profile — re-enter it.
+      setSshPassword('')
     } else {
       setBrokerHost(p.brokerHost ?? '')
       setBrokerPort(p.brokerPort ?? 1883)
@@ -236,25 +250,32 @@ export function ConnectPanel({
               ? { kind: 'ws-client', wsUrl }
               : target === 'ws-server'
                 ? { kind: 'ws-server', port: wsServerPort }
-                : {
-                    kind: 'mqtt',
-                    brokerHost,
-                    brokerPort,
-                    clientId,
-                    username: mqttUsername,
-                    password: mqttPassword,
-                    subscribeTopic,
-                    publishTopic,
-                  }
+                : target === 'ssh'
+                  ? // Password never included here — this snapshot feeds both
+                    // "Save profile" and the last-used-config memory, both of
+                    // which persist to localStorage.
+                    { kind: 'ssh', host: sshHost, port: sshPort, username: sshUsername }
+                  : {
+                      kind: 'mqtt',
+                      brokerHost,
+                      brokerPort,
+                      clientId,
+                      username: mqttUsername,
+                      password: mqttPassword,
+                      subscribeTopic,
+                      publishTopic,
+                    }
 
   const handleConnect = async () => {
     setLoading(true)
     setError(null)
     try {
+      let tabId: string
       if (target === 'serial') {
+        tabId = `${portName}-${Date.now()}`
         await openTab({
           kind: 'serial',
-          id: `${portName}-${Date.now()}`,
+          id: tabId,
           portName,
           baudRate,
           dataBits,
@@ -265,34 +286,40 @@ export function ConnectPanel({
           rs485AutoRts,
         })
       } else if (target === 'tcp-client') {
+        tabId = `${host}:${tcpPort}-${Date.now()}`
         await openTab({
           kind: 'tcp-client',
-          id: `${host}:${tcpPort}-${Date.now()}`,
+          id: tabId,
           host,
           port: tcpPort,
         })
       } else if (target === 'tcp-server') {
-        await openTab({ kind: 'tcp-server', id: `:${tcpPort}-${Date.now()}`, port: tcpPort })
+        tabId = `:${tcpPort}-${Date.now()}`
+        await openTab({ kind: 'tcp-server', id: tabId, port: tcpPort })
       } else if (target === 'udp') {
+        tabId = `udp:${udpLocalPort}-${Date.now()}`
         await openTab({
           kind: 'udp',
-          id: `udp:${udpLocalPort}-${Date.now()}`,
+          id: tabId,
           localPort: udpLocalPort,
           remoteHost: udpRemoteHost || undefined,
           remotePort: udpRemoteHost ? udpRemotePort : undefined,
         })
       } else if (target === 'ws-client') {
-        await openTab({ kind: 'ws-client', id: `${wsUrl}-${Date.now()}`, url: wsUrl })
+        tabId = `${wsUrl}-${Date.now()}`
+        await openTab({ kind: 'ws-client', id: tabId, url: wsUrl })
       } else if (target === 'ws-server') {
+        tabId = `ws::${wsServerPort}-${Date.now()}`
         await openTab({
           kind: 'ws-server',
-          id: `ws::${wsServerPort}-${Date.now()}`,
+          id: tabId,
           port: wsServerPort,
         })
-      } else {
+      } else if (target === 'mqtt') {
+        tabId = `mqtt:${brokerHost}:${brokerPort}-${Date.now()}`
         await openTab({
           kind: 'mqtt',
-          id: `mqtt:${brokerHost}:${brokerPort}-${Date.now()}`,
+          id: tabId,
           brokerHost,
           brokerPort,
           clientId,
@@ -301,9 +328,19 @@ export function ConnectPanel({
           subscribeTopic,
           publishTopic,
         })
+      } else {
+        tabId = `ssh:${sshUsername}@${sshHost}:${sshPort}-${Date.now()}`
+        await openTab({
+          kind: 'ssh',
+          id: tabId,
+          host: sshHost,
+          port: sshPort,
+          username: sshUsername,
+          password: sshPassword,
+        })
       }
       rememberLastConnection(target, currentConfigData())
-      onConnected()
+      onConnected(tabId)
     } catch (err) {
       setError(String(err))
     } finally {
@@ -312,7 +349,8 @@ export function ConnectPanel({
   }
 
   // LAN discovery only makes sense where there's a remote host to fill in.
-  const discoverVisible = target === 'tcp-client' || target === 'ws-client' || family === 'mqtt'
+  const discoverVisible =
+    target === 'tcp-client' || target === 'ws-client' || family === 'mqtt' || family === 'ssh'
   const mdnsPresets = MDNS_PRESETS_BY_TARGET[target] ?? []
 
   // Re-target the preset list (and drop stale results from a previous
@@ -348,6 +386,9 @@ export function ConnectPanel({
     } else if (family === 'mqtt') {
       setBrokerHost(addr)
       setBrokerPort(svc.port)
+    } else if (family === 'ssh') {
+      setSshHost(addr)
+      setSshPort(svc.port)
     }
   }
 
@@ -362,7 +403,9 @@ export function ConnectPanel({
             ? Boolean(wsUrl)
             : target === 'mqtt'
               ? Boolean(brokerHost) && Boolean(clientId)
-              : true
+              : target === 'ssh'
+                ? Boolean(sshHost) && Boolean(sshUsername) && Boolean(sshPassword)
+                : true
 
   const selected = ports.find((p) => p.portName === portName) ?? null
   const hasDetails = Boolean(
@@ -370,388 +413,434 @@ export function ConnectPanel({
   )
 
   return (
-    <div className="connect-panel">
-      <h2>
-        <PlugIcon /> New connection
-        {onCancel && (
-          <button
-            type="button"
-            className="icon-button connect-cancel"
-            aria-label="Cancel"
-            title="Back to current tab (Esc)"
-            onClick={onCancel}
-          >
-            <XIcon />
-          </button>
-        )}
-      </h2>
-
-      <div className="seg">
-        {FAMILIES.map((f) => (
-          <span
-            key={f.value}
-            className={family === f.value ? 'on' : ''}
-            onClick={() => setFamily(f.value)}
-          >
-            {f.label}
-          </span>
-        ))}
-      </div>
-
-      {(family === 'tcp' || family === 'ws') && (
-        <div className="seg seg-role">
-          <span className={role === 'client' ? 'on' : ''} onClick={() => setRole('client')}>
-            Client
-          </span>
-          <span className={role === 'server' ? 'on' : ''} onClick={() => setRole('server')}>
-            Server
-          </span>
-        </div>
-      )}
-
-      <LibraryRow
-        label="Profile"
-        items={targetProfiles}
-        onLoad={applyProfile}
-        onSave={(name) => saveProfile(name, currentConfigData())}
-        onDelete={deleteProfile}
-      />
-
-      {target === 'serial' && (
-        <>
-          <label className="field-group">
-            <span className="field-caption">
-              <UsbIcon /> Port
-            </span>
-            <div className="field-row">
-              <select value={portName} onChange={(e) => setPortName(e.target.value)}>
-                {ports.length === 0 && <option value="">No ports found</option>}
-                {ports.map((p) => (
-                  <option key={p.portName} value={p.portName}>
-                    {p.portName}
-                    {p.product ? ` — ${p.product}` : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label="Refresh ports"
-                title="Refresh ports"
-                onClick={() => setRefreshKey((k) => k + 1)}
-              >
-                <RefreshIcon />
-              </button>
-            </div>
-          </label>
-
-          {selected && hasDetails && (
-            <div className="port-details">
-              <ChipIcon className="port-details-icon" />
-              <div className="port-details-text">
-                <span className="port-details-name">{selected.product ?? selected.portName}</span>
-                {selected.manufacturer && <span>{selected.manufacturer}</span>}
-                {selected.vid !== null && (
-                  <span className="mono">
-                    {formatHexId(selected.vid)}:{formatHexId(selected.pid)}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="field-grid">
-            <label className="field-group">
-              <span className="field-caption">
-                <GaugeIcon /> Baud
-              </span>
-              <input
-                type="number"
-                value={baudRate}
-                onChange={(e) => setBaudRate(Number(e.target.value))}
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-caption">Data bits</span>
-              <select value={dataBits} onChange={(e) => setDataBits(e.target.value as DataBits)}>
-                <option value="five">5</option>
-                <option value="six">6</option>
-                <option value="seven">7</option>
-                <option value="eight">8</option>
-              </select>
-            </label>
-            <label className="field-group">
-              <span className="field-caption">Parity</span>
-              <select value={parity} onChange={(e) => setParity(e.target.value as Parity)}>
-                <option value="none">None</option>
-                <option value="odd">Odd</option>
-                <option value="even">Even</option>
-              </select>
-            </label>
-            <label className="field-group">
-              <span className="field-caption">Stop bits</span>
-              <select value={stopBits} onChange={(e) => setStopBits(e.target.value as StopBits)}>
-                <option value="one">1</option>
-                <option value="two">2</option>
-              </select>
-            </label>
-          </div>
-
-          <label className="field-group">
-            <span className="field-caption">Flow control</span>
-            <select
-              value={flowControl}
-              onChange={(e) => setFlowControl(e.target.value as FlowControl)}
+    <div className="connect-overlay" onClick={onCancel}>
+      <div className="connect-panel" onClick={(e) => e.stopPropagation()}>
+        <h2>
+          <PlugIcon /> New connection
+          {onCancel && (
+            <button
+              type="button"
+              className="icon-button connect-cancel"
+              aria-label="Cancel"
+              title="Back to current tab (Esc)"
+              onClick={onCancel}
             >
-              <option value="none">None</option>
-              <option value="hardware">Hardware (RTS/CTS)</option>
-              <option value="software">Software (XON/XOFF)</option>
-            </select>
-          </label>
+              <XIcon />
+            </button>
+          )}
+        </h2>
 
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={autoReconnect}
-              onChange={(e) => setAutoReconnect(e.target.checked)}
-            />
-            <RepeatIcon />
-            <span>Auto-reconnect</span>
-          </label>
-
-          <label
-            className="checkbox-field"
-            title="Toggles RTS around each write for RS485 transceivers whose DE/RE pin has no auto-direction circuitry"
-          >
-            <input
-              type="checkbox"
-              checked={rs485AutoRts}
-              onChange={(e) => setRs485AutoRts(e.target.checked)}
-            />
-            <RepeatIcon />
-            <span>RS485 half-duplex (auto RTS toggle)</span>
-          </label>
-        </>
-      )}
-
-      {target === 'tcp-client' && (
-        <div className="field-grid">
-          <label className="field-group">
-            <span className="field-caption">
-              <GlobeIcon /> Host
+        <div className="seg">
+          {FAMILIES.map((f) => (
+            <span
+              key={f.value}
+              className={family === f.value ? 'on' : ''}
+              onClick={() => setFamily(f.value)}
+            >
+              {f.label}
             </span>
-            <input
-              type="text"
-              value={host}
-              placeholder="192.168.1.1"
-              onChange={(e) => setHost(e.target.value)}
-            />
-          </label>
-          <label className="field-group">
-            <span className="field-caption">Port</span>
-            <input
-              type="number"
-              value={tcpPort}
-              onChange={(e) => setTcpPort(Number(e.target.value))}
-            />
-          </label>
+          ))}
         </div>
-      )}
 
-      {target === 'tcp-server' && (
-        <label className="field-group">
-          <span className="field-caption">
-            <GlobeIcon /> Listen on port
-          </span>
-          <input
-            type="number"
-            value={tcpPort}
-            onChange={(e) => setTcpPort(Number(e.target.value))}
-          />
-        </label>
-      )}
-
-      {target === 'udp' && (
-        <>
-          <label className="field-group">
-            <span className="field-caption">
-              <GlobeIcon /> Local port (receive)
+        {(family === 'tcp' || family === 'ws') && (
+          <div className="seg seg-role">
+            <span className={role === 'client' ? 'on' : ''} onClick={() => setRole('client')}>
+              Client
             </span>
-            <input
-              type="number"
-              value={udpLocalPort}
-              onChange={(e) => setUdpLocalPort(Number(e.target.value))}
-            />
-          </label>
-          <div className="field-grid">
-            <label className="field-group">
-              <span className="field-caption">Remote host (to send, optional)</span>
-              <input
-                type="text"
-                value={udpRemoteHost}
-                placeholder="192.168.1.255 for broadcast"
-                onChange={(e) => setUdpRemoteHost(e.target.value)}
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-caption">Remote port</span>
-              <input
-                type="number"
-                value={udpRemotePort}
-                disabled={!udpRemoteHost}
-                onChange={(e) => setUdpRemotePort(Number(e.target.value))}
-              />
-            </label>
+            <span className={role === 'server' ? 'on' : ''} onClick={() => setRole('server')}>
+              Server
+            </span>
           </div>
-        </>
-      )}
+        )}
 
-      {target === 'ws-client' && (
-        <label className="field-group">
-          <span className="field-caption">
-            <GlobeIcon /> URL
-          </span>
-          <input
-            type="text"
-            value={wsUrl}
-            placeholder="ws://192.168.1.1:81/"
-            onChange={(e) => setWsUrl(e.target.value)}
-          />
-        </label>
-      )}
+        <LibraryRow
+          label="Profile"
+          items={targetProfiles}
+          onLoad={applyProfile}
+          onSave={(name) => saveProfile(name, currentConfigData())}
+          onDelete={deleteProfile}
+        />
 
-      {target === 'ws-server' && (
-        <label className="field-group">
-          <span className="field-caption">
-            <GlobeIcon /> Listen on port
-          </span>
-          <input
-            type="number"
-            value={wsServerPort}
-            onChange={(e) => setWsServerPort(Number(e.target.value))}
-          />
-        </label>
-      )}
+        {target === 'serial' && (
+          <>
+            <label className="field-group">
+              <span className="field-caption">
+                <UsbIcon /> Port
+              </span>
+              <div className="field-row">
+                <select value={portName} onChange={(e) => setPortName(e.target.value)}>
+                  {ports.length === 0 && <option value="">No ports found</option>}
+                  {ports.map((p) => (
+                    <option key={p.portName} value={p.portName}>
+                      {p.portName}
+                      {p.product ? ` — ${p.product}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Refresh ports"
+                  title="Refresh ports"
+                  onClick={() => setRefreshKey((k) => k + 1)}
+                >
+                  <RefreshIcon />
+                </button>
+              </div>
+            </label>
 
-      {target === 'mqtt' && (
-        <>
+            {selected && hasDetails && (
+              <div className="port-details">
+                <ChipIcon className="port-details-icon" />
+                <div className="port-details-text">
+                  <span className="port-details-name">{selected.product ?? selected.portName}</span>
+                  {selected.manufacturer && <span>{selected.manufacturer}</span>}
+                  {selected.vid !== null && (
+                    <span className="mono">
+                      {formatHexId(selected.vid)}:{formatHexId(selected.pid)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">
+                  <GaugeIcon /> Baud
+                </span>
+                <input
+                  type="number"
+                  value={baudRate}
+                  onChange={(e) => setBaudRate(Number(e.target.value))}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Data bits</span>
+                <select value={dataBits} onChange={(e) => setDataBits(e.target.value as DataBits)}>
+                  <option value="five">5</option>
+                  <option value="six">6</option>
+                  <option value="seven">7</option>
+                  <option value="eight">8</option>
+                </select>
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Parity</span>
+                <select value={parity} onChange={(e) => setParity(e.target.value as Parity)}>
+                  <option value="none">None</option>
+                  <option value="odd">Odd</option>
+                  <option value="even">Even</option>
+                </select>
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Stop bits</span>
+                <select value={stopBits} onChange={(e) => setStopBits(e.target.value as StopBits)}>
+                  <option value="one">1</option>
+                  <option value="two">2</option>
+                </select>
+              </label>
+            </div>
+
+            <label className="field-group">
+              <span className="field-caption">Flow control</span>
+              <select
+                value={flowControl}
+                onChange={(e) => setFlowControl(e.target.value as FlowControl)}
+              >
+                <option value="none">None</option>
+                <option value="hardware">Hardware (RTS/CTS)</option>
+                <option value="software">Software (XON/XOFF)</option>
+              </select>
+            </label>
+
+            <label className="checkbox-field">
+              <input
+                type="checkbox"
+                checked={autoReconnect}
+                onChange={(e) => setAutoReconnect(e.target.checked)}
+              />
+              <RepeatIcon />
+              <span>Auto-reconnect</span>
+            </label>
+
+            <label
+              className="checkbox-field"
+              title="Toggles RTS around each write for RS485 transceivers whose DE/RE pin has no auto-direction circuitry"
+            >
+              <input
+                type="checkbox"
+                checked={rs485AutoRts}
+                onChange={(e) => setRs485AutoRts(e.target.checked)}
+              />
+              <RepeatIcon />
+              <span>RS485 half-duplex (auto RTS toggle)</span>
+            </label>
+          </>
+        )}
+
+        {target === 'tcp-client' && (
           <div className="field-grid">
             <label className="field-group">
               <span className="field-caption">
-                <GlobeIcon /> Broker host
+                <GlobeIcon /> Host
               </span>
               <input
                 type="text"
-                value={brokerHost}
-                placeholder="broker.hivemq.com"
-                onChange={(e) => setBrokerHost(e.target.value)}
+                value={host}
+                placeholder="192.168.1.1"
+                onChange={(e) => setHost(e.target.value)}
               />
             </label>
             <label className="field-group">
               <span className="field-caption">Port</span>
               <input
                 type="number"
-                value={brokerPort}
-                onChange={(e) => setBrokerPort(Number(e.target.value))}
+                value={tcpPort}
+                onChange={(e) => setTcpPort(Number(e.target.value))}
               />
             </label>
           </div>
+        )}
+
+        {target === 'tcp-server' && (
           <label className="field-group">
-            <span className="field-caption">Client ID</span>
-            <input type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} />
+            <span className="field-caption">
+              <GlobeIcon /> Listen on port
+            </span>
+            <input
+              type="number"
+              value={tcpPort}
+              onChange={(e) => setTcpPort(Number(e.target.value))}
+            />
           </label>
-          <div className="field-grid">
-            <label className="field-group">
-              <span className="field-caption">Username (optional)</span>
-              <input
-                type="text"
-                value={mqttUsername}
-                onChange={(e) => setMqttUsername(e.target.value)}
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-caption">Password (optional)</span>
-              <input
-                type="password"
-                value={mqttPassword}
-                onChange={(e) => setMqttPassword(e.target.value)}
-              />
-            </label>
-          </div>
-          <div className="field-grid">
+        )}
+
+        {target === 'udp' && (
+          <>
             <label className="field-group">
               <span className="field-caption">
-                <MessageIcon /> Subscribe topic
+                <GlobeIcon /> Local port (receive)
               </span>
               <input
-                type="text"
-                value={subscribeTopic}
-                placeholder="#"
-                onChange={(e) => setSubscribeTopic(e.target.value)}
+                type="number"
+                value={udpLocalPort}
+                onChange={(e) => setUdpLocalPort(Number(e.target.value))}
               />
             </label>
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">Remote host (to send, optional)</span>
+                <input
+                  type="text"
+                  value={udpRemoteHost}
+                  placeholder="192.168.1.255 for broadcast"
+                  onChange={(e) => setUdpRemoteHost(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Remote port</span>
+                <input
+                  type="number"
+                  value={udpRemotePort}
+                  disabled={!udpRemoteHost}
+                  onChange={(e) => setUdpRemotePort(Number(e.target.value))}
+                />
+              </label>
+            </div>
+          </>
+        )}
+
+        {target === 'ws-client' && (
+          <label className="field-group">
+            <span className="field-caption">
+              <GlobeIcon /> URL
+            </span>
+            <input
+              type="text"
+              value={wsUrl}
+              placeholder="ws://192.168.1.1:81/"
+              onChange={(e) => setWsUrl(e.target.value)}
+            />
+          </label>
+        )}
+
+        {target === 'ws-server' && (
+          <label className="field-group">
+            <span className="field-caption">
+              <GlobeIcon /> Listen on port
+            </span>
+            <input
+              type="number"
+              value={wsServerPort}
+              onChange={(e) => setWsServerPort(Number(e.target.value))}
+            />
+          </label>
+        )}
+
+        {target === 'mqtt' && (
+          <>
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">
+                  <GlobeIcon /> Broker host
+                </span>
+                <input
+                  type="text"
+                  value={brokerHost}
+                  placeholder="broker.hivemq.com"
+                  onChange={(e) => setBrokerHost(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Port</span>
+                <input
+                  type="number"
+                  value={brokerPort}
+                  onChange={(e) => setBrokerPort(Number(e.target.value))}
+                />
+              </label>
+            </div>
             <label className="field-group">
-              <span className="field-caption">Publish topic</span>
-              <input
-                type="text"
-                value={publishTopic}
-                placeholder="devices/my-device/cmd"
-                onChange={(e) => setPublishTopic(e.target.value)}
-              />
+              <span className="field-caption">Client ID</span>
+              <input type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} />
             </label>
-          </div>
-        </>
-      )}
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">Username (optional)</span>
+                <input
+                  type="text"
+                  value={mqttUsername}
+                  onChange={(e) => setMqttUsername(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Password (optional)</span>
+                <input
+                  type="password"
+                  value={mqttPassword}
+                  onChange={(e) => setMqttPassword(e.target.value)}
+                />
+              </label>
+            </div>
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">
+                  <MessageIcon /> Subscribe topic
+                </span>
+                <input
+                  type="text"
+                  value={subscribeTopic}
+                  placeholder="#"
+                  onChange={(e) => setSubscribeTopic(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Publish topic</span>
+                <input
+                  type="text"
+                  value={publishTopic}
+                  placeholder="devices/my-device/cmd"
+                  onChange={(e) => setPublishTopic(e.target.value)}
+                />
+              </label>
+            </div>
+          </>
+        )}
 
-      {discoverVisible && (
-        <div className="mdns-discover">
-          <div className="field-row">
-            <select value={mdnsType} onChange={(e) => setMdnsType(e.target.value)}>
-              {mdnsPresets.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-            <button type="button" disabled={scanning} onClick={() => void handleScan()}>
-              {scanning ? 'Scanning…' : 'Scan LAN'}
-            </button>
-          </div>
-          {scanResults !== null &&
-            (scanResults.length === 0 ? (
-              <p className="mdns-empty">No devices found.</p>
-            ) : (
-              <div className="mdns-results">
-                {scanResults.map((svc) => (
-                  <button
-                    key={svc.fullname}
-                    type="button"
-                    className="mdns-result"
-                    title="Use this device's address"
-                    onClick={() => applyDiscovered(svc)}
-                  >
-                    <span className="mdns-name">{svc.fullname.split('.')[0]}</span>
-                    <span className="mono">
-                      {svc.addresses[0] ?? svc.hostname}:{svc.port}
-                    </span>
-                  </button>
+        {target === 'ssh' && (
+          <>
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">
+                  <GlobeIcon /> Host
+                </span>
+                <input
+                  type="text"
+                  value={sshHost}
+                  placeholder="192.168.1.1"
+                  onChange={(e) => setSshHost(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Port</span>
+                <input
+                  type="number"
+                  value={sshPort}
+                  onChange={(e) => setSshPort(Number(e.target.value))}
+                />
+              </label>
+            </div>
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">Username</span>
+                <input
+                  type="text"
+                  value={sshUsername}
+                  onChange={(e) => setSshUsername(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">Password</span>
+                <input
+                  type="password"
+                  value={sshPassword}
+                  onChange={(e) => setSshPassword(e.target.value)}
+                />
+              </label>
+            </div>
+          </>
+        )}
+
+        {discoverVisible && (
+          <div className="mdns-discover">
+            <div className="field-row">
+              <select value={mdnsType} onChange={(e) => setMdnsType(e.target.value)}>
+                {mdnsPresets.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
                 ))}
-              </div>
-            ))}
-        </div>
-      )}
+              </select>
+              <button type="button" disabled={scanning} onClick={() => void handleScan()}>
+                {scanning ? 'Scanning…' : 'Scan LAN'}
+              </button>
+            </div>
+            {scanResults !== null &&
+              (scanResults.length === 0 ? (
+                <p className="mdns-empty">No devices found.</p>
+              ) : (
+                <div className="mdns-results">
+                  {scanResults.map((svc) => (
+                    <button
+                      key={svc.fullname}
+                      type="button"
+                      className="mdns-result"
+                      title="Use this device's address"
+                      onClick={() => applyDiscovered(svc)}
+                    >
+                      <span className="mdns-name">{svc.fullname.split('.')[0]}</span>
+                      <span className="mono">
+                        {svc.addresses[0] ?? svc.hostname}:{svc.port}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+          </div>
+        )}
 
-      {error && <p className="connect-error">{error}</p>}
+        {error && <p className="connect-error">{error}</p>}
 
-      <button
-        type="button"
-        className="connect-button"
-        disabled={!canConnect || loading}
-        onClick={() => void handleConnect()}
-      >
-        <PlugIcon />
-        {loading ? 'Connecting…' : 'Connect'}
-      </button>
+        <button
+          type="button"
+          className="connect-button"
+          disabled={!canConnect || loading}
+          onClick={() => void handleConnect()}
+        >
+          <PlugIcon />
+          {loading ? 'Connecting…' : 'Connect'}
+        </button>
+      </div>
     </div>
   )
 }

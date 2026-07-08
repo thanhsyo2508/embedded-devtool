@@ -1068,6 +1068,34 @@ fn open_mqtt(
     )
 }
 
+/// SSH is a real interactive PTY shell (see core::ssh_stream), not the
+/// line-oriented byte stream every other open_* command here backs — the
+/// frontend renders it with a real terminal emulator (xterm.js) instead of
+/// the generic monitor.
+#[tauri::command]
+fn open_ssh(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    network.open_ssh(id, host, port, username, password)
+}
+
+/// Tells an SSH tab's PTY the terminal was resized — see
+/// `DataStream::resize`. No-ops (errors) for every other transport.
+#[tauri::command]
+fn ssh_resize(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    cols: u32,
+    rows: u32,
+) -> Result<(), String> {
+    network.resize(&id, cols, rows)
+}
+
 #[tauri::command]
 fn close_network_stream(
     network: tauri::State<Arc<NetworkManager>>,
@@ -1222,6 +1250,8 @@ pub fn run() {
             open_ws_client,
             open_ws_server,
             open_mqtt,
+            open_ssh,
+            ssh_resize,
             close_network_stream,
             write_network_stream,
             mqtt_publish,

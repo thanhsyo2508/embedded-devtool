@@ -41,6 +41,28 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
 
         <div className="help-body">
           <section className="guide-section">
+            <h3>Multi-pane Layout (Snap Layouts)</h3>
+            <p>
+              Drag a tab by its label and drop it on the left/right/top/bottom edge of any pane's
+              content area to split the workspace and view two tabs side by side — drop on the edge
+              of an existing pane again to split it further, nesting as many rows/columns as you
+              need. A thin divider appears between panes; drag it to resize.
+            </p>
+            <p>
+              To merge panes back, drag a tab onto another pane's tab strip (or drop it in the
+              middle of that pane's content area instead of an edge) — the tab moves there, and if
+              that was the last tab in its old pane, the now-empty pane and its split collapse away
+              automatically. Clicking anywhere in a pane focuses it, which is what <kbd>Ctrl+1</kbd>
+              -<kbd>9</kbd>, <kbd>Ctrl+W</kbd>, <kbd>Ctrl+L</kbd>, and <kbd>Space</kbd> act on.
+            </p>
+            <p>
+              The Plotter is shared across the whole window rather than living inside one pane —
+              toggle it from the top bar and pick its source tab from its own dropdown regardless of
+              which pane that tab is currently showing in.
+            </p>
+          </section>
+
+          <section className="guide-section">
             <h3>Serial Monitor</h3>
             <p>
               Click <b>+</b> in the tab strip (or <kbd>Ctrl+N</kbd>) to connect. Each connection is
@@ -137,6 +159,30 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               and lists what it finds — click a result to fill in the host and port automatically.
               Devices must advertise themselves via mDNS (most IoT firmware frameworks do) and be on
               the same subnet.
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>SSH Terminal</h3>
+            <p>
+              Pick <b>SSH</b> in the New connection panel and enter host, port, username, and
+              password. Unlike the other connection kinds, an SSH tab opens a real interactive
+              terminal (a PTY, rendered with an actual terminal emulator) instead of a line-oriented
+              monitor — there's no raw-log toggle, no Send panel, and no filters/triggers/script
+              engine, since those all assume a stream of discrete lines rather than a live shell.
+              The terminal resizes itself (and tells the remote shell) whenever its pane changes
+              size, including when you split or merge panes.
+            </p>
+            <p>
+              While an SSH tab is focused, <kbd>Ctrl+W</kbd> and <kbd>Ctrl+L</kbd> go to the shell
+              (delete word / clear screen) instead of being caught as the app's close-tab /
+              clear-log shortcuts.
+            </p>
+            <p>
+              Two current limitations worth knowing: authentication is password-only (no key-based
+              auth yet), and the host key isn't verified against a known-hosts list — any server's
+              key is accepted, so this isn't yet safe against an on-path attacker impersonating the
+              host.
             </p>
           </section>
 

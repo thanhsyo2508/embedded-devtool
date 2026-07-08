@@ -12,6 +12,7 @@ use crate::core::data_stream::DataStream;
 use crate::core::event_bus::{Event, EventBus};
 use crate::core::mqtt_stream::{MqttConfig, MqttStream};
 use crate::core::net_stream::{TcpClientStream, TcpServerStream, UdpDataStream};
+use crate::core::ssh_stream::SshStream;
 use crate::core::ws_stream::{WsClientStream, WsServerStream};
 
 pub struct NetworkManager {
@@ -96,6 +97,17 @@ impl NetworkManager {
         )
     }
 
+    pub fn open_ssh(
+        &self,
+        id: String,
+        host: String,
+        port: u16,
+        username: String,
+        password: String,
+    ) -> Result<(), String> {
+        self.open(id, Box::new(SshStream::new(host, port, username, password)))
+    }
+
     fn open(&self, id: String, mut stream: Box<dyn DataStream>) -> Result<(), String> {
         let mut streams = self.streams.lock().unwrap();
         if streams.contains_key(&id) {
@@ -174,6 +186,16 @@ impl NetworkManager {
         let mut streams = self.streams.lock().unwrap();
         match streams.get_mut(id) {
             Some(stream) => stream.send_text(text).map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
+    }
+
+    /// Tells an SSH tab's PTY the terminal size changed — see
+    /// `DataStream::resize`. Every other transport rejects this.
+    pub fn resize(&self, id: &str, cols: u32, rows: u32) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream.resize(cols, rows).map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }

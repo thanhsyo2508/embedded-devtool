@@ -68,6 +68,16 @@ pub trait DataStream: Send {
         ))
     }
 
+    /// Tells the remote end the terminal size changed. Only SSH implements
+    /// this (a PTY window-change request) — every other transport has no
+    /// notion of terminal dimensions.
+    fn resize(&mut self, _cols: u32, _rows: u32) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support resizing",
+        ))
+    }
+
     /// True if the transport observed itself go from open to broken (e.g. a
     /// TCP peer closing the connection) without an explicit `close()` call.
     /// Lets a manager notice and clean up without a transport-specific poll

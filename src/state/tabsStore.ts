@@ -13,6 +13,7 @@ import {
   closeNetworkStream,
   onNetworkData,
   openMqtt,
+  openSsh,
   openTcpClient,
   openTcpServer,
   openUdp,
@@ -138,12 +139,14 @@ export type TimestampMode = 'delta' | 'abs' | 'off'
 export type LineEnding = 'none' | 'cr' | 'lf' | 'crlf'
 export type TabStatus = 'open' | 'closed' | 'error'
 export type ConnectionKind =
-  'serial' | 'tcp-client' | 'tcp-server' | 'udp' | 'ws-client' | 'ws-server' | 'mqtt'
+  'serial' | 'tcp-client' | 'tcp-server' | 'udp' | 'ws-client' | 'ws-server' | 'mqtt' | 'ssh'
 
 /** What a tab connects over — serial keeps the full `OpenPortRequest` (data
  * bits/parity/etc.), TCP only needs host/port. Kept around so Reconnect can
  * reopen with the exact same settings instead of making the user re-enter
- * everything. */
+ * everything. SSH's password lives here (in-memory only, never persisted —
+ * unlike ConnectionProfile/lastConnectionStore, TabState never touches
+ * localStorage) purely so Reconnect works without re-prompting mid-session. */
 export type ConnectionConfig =
   | { kind: 'serial'; req: OpenPortRequest }
   | { kind: 'tcp-client'; host: string; port: number }
@@ -152,6 +155,7 @@ export type ConnectionConfig =
   | { kind: 'ws-client'; url: string }
   | { kind: 'ws-server'; port: number }
   | ({ kind: 'mqtt' } & MqttParams)
+  | { kind: 'ssh'; host: string; port: number; username: string; password: string }
 
 /** What `openTab` accepts to start a new connection of any kind. `id` is
  * always the caller-assigned tab id (also used as the underlying stream id). */
@@ -169,6 +173,7 @@ export type OpenTabRequest =
   | { kind: 'ws-client'; id: string; url: string }
   | { kind: 'ws-server'; id: string; port: number }
   | ({ kind: 'mqtt'; id: string } & MqttParams)
+  | { kind: 'ssh'; id: string; host: string; port: number; username: string; password: string }
 
 export interface TabState {
   id: string
@@ -468,6 +473,8 @@ function connectionLabelFor(config: ConnectionConfig): string {
       return `:${config.port} (WS server)`
     case 'mqtt':
       return `mqtt://${config.brokerHost}:${config.brokerPort}`
+    case 'ssh':
+      return `${config.username}@${config.host}:${config.port}`
   }
 }
 
@@ -775,16 +782,24 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
                 ? { kind: 'ws-client', url: req.url }
                 : req.kind === 'ws-server'
                   ? { kind: 'ws-server', port: req.port }
-                  : {
-                      kind: 'mqtt',
-                      brokerHost: req.brokerHost,
-                      brokerPort: req.brokerPort,
-                      clientId: req.clientId,
-                      username: req.username,
-                      password: req.password,
-                      subscribeTopic: req.subscribeTopic,
-                      publishTopic: req.publishTopic,
-                    }
+                  : req.kind === 'mqtt'
+                    ? {
+                        kind: 'mqtt',
+                        brokerHost: req.brokerHost,
+                        brokerPort: req.brokerPort,
+                        clientId: req.clientId,
+                        username: req.username,
+                        password: req.password,
+                        subscribeTopic: req.subscribeTopic,
+                        publishTopic: req.publishTopic,
+                      }
+                    : {
+                        kind: 'ssh',
+                        host: req.host,
+                        port: req.port,
+                        username: req.username,
+                        password: req.password,
+                      }
 
     const newTab: TabState = {
       id: req.id,
@@ -844,7 +859,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       await openUdp(req.id, req.localPort, req.remoteHost, req.remotePort)
     else if (req.kind === 'ws-client') await openWsClient(req.id, req.url)
     else if (req.kind === 'ws-server') await openWsServer(req.id, req.port)
-    else await openMqtt(req.id, req)
+    else if (req.kind === 'mqtt') await openMqtt(req.id, req)
+    else await openSsh(req.id, req.host, req.port, req.username, req.password)
 
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
   },
@@ -894,7 +910,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         await openUdp(id, config.localPort, config.remoteHost, config.remotePort)
       else if (config.kind === 'ws-client') await openWsClient(id, config.url)
       else if (config.kind === 'ws-server') await openWsServer(id, config.port)
-      else await openMqtt(id, config)
+      else if (config.kind === 'mqtt') await openMqtt(id, config)
+      else await openSsh(id, config.host, config.port, config.username, config.password)
     } catch (err) {
       set((state) => ({
         tabs: state.tabs.map((t) =>

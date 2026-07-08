@@ -2,22 +2,19 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import './App.css'
 import { useTabsStore } from './state/tabsStore'
+import { useLayoutStore } from './state/layoutStore'
+import { findPane } from './lib/layoutTree'
 import { FONT_SIZE_PX, useSettingsStore } from './state/settingsStore'
 import { useFlashStore } from './state/flashStore'
 import { useStm32Store } from './state/stm32Store'
 import { usePlotStore } from './state/plotStore'
-import { TabStrip } from './components/TabStrip'
+import { PaneView } from './components/PaneView'
 import { ConnectPanel } from './components/ConnectPanel'
-import { MonitorView } from './components/MonitorView'
-import { SendPanel } from './components/SendPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { FlashPanel } from './components/FlashPanel'
 import { PlotDock } from './components/PlotDock'
 import { WorkspaceResizer } from './components/WorkspaceResizer'
 import { NetScanPanel } from './components/NetScanPanel'
-import { MqttPanel } from './components/MqttPanel'
-import { UdpPanel } from './components/UdpPanel'
-import { WsPanel } from './components/WsPanel'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
 import { useWsStore } from './state/wsStore'
@@ -30,10 +27,7 @@ function App() {
   const wireMqttEventsOnce = useMqttStore((s) => s.wireEventsOnce)
   const wireUdpEventsOnce = useUdpStore((s) => s.wireEventsOnce)
   const wireWsEventsOnce = useWsStore((s) => s.wireEventsOnce)
-  const [protocolView, setProtocolView] = useState<'specialized' | 'raw'>('specialized')
   const tabs = useTabsStore((s) => s.tabs)
-  const activeTabId = useTabsStore((s) => s.activeTabId)
-  const setActiveTab = useTabsStore((s) => s.setActiveTab)
   const closeTab = useTabsStore((s) => s.closeTab)
   const clearLines = useTabsStore((s) => s.clearLines)
   const togglePause = useTabsStore((s) => s.togglePause)
@@ -47,6 +41,12 @@ function App() {
   const keepAwake = useSettingsStore((s) => s.keepAwake)
   const plotVisible = usePlotStore((s) => s.visible)
   const setPlotVisible = usePlotStore((s) => s.setVisible)
+
+  const layoutRoot = useLayoutStore((s) => s.root)
+  const focusedPaneId = useLayoutStore((s) => s.focusedPaneId)
+  const openTabInFocusedPane = useLayoutStore((s) => s.openTabInFocusedPane)
+  const setActiveTabInPane = useLayoutStore((s) => s.setActiveTabInPane)
+  const layoutCloseTab = useLayoutStore((s) => s.closeTab)
 
   useEffect(() => {
     wireEventsOnce()
@@ -80,17 +80,16 @@ function App() {
     void invoke('set_keep_awake', { enabled: keepAwake }).catch(() => {})
   }, [keepAwake])
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null
-  const specializedViewLabel =
-    activeTab?.connectionKind === 'mqtt'
-      ? 'Topics'
-      : activeTab?.connectionKind === 'udp'
-        ? 'Packets'
-        : activeTab?.connectionKind === 'ws-client' || activeTab?.connectionKind === 'ws-server'
-          ? 'Frames'
-          : null
+  const hasAnyTabs = tabs.length > 0
+  const focusedPane = findPane(layoutRoot, focusedPaneId)
+  const focusedTab = focusedPane
+    ? (tabs.find((t) => t.id === focusedPane.activeTabId) ?? null)
+    : null
 
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
+  // Shortcuts that target "the current tab" now act on the focused pane's
+  // active tab, since there's no longer a single global active tab once
+  // panes can split.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
@@ -101,7 +100,7 @@ function App() {
         if (showSettings) setShowSettings(false)
         else if (showFlash) setShowFlash(false)
         else if (showNetScan) setShowNetScan(false)
-        else if (showConnect && activeTab) setShowConnect(false)
+        else if (showConnect && hasAnyTabs) setShowConnect(false)
         return
       }
 
@@ -125,33 +124,38 @@ function App() {
         setShowConnect(true)
         return
       }
+      // Ctrl+W (delete word) and Ctrl+L (clear screen) are load-bearing
+      // shell keybindings — let an SSH tab's terminal have them instead of
+      // treating them as app-level "close tab"/"clear log" shortcuts.
+      const isSshFocused = focusedTab?.connectionKind === 'ssh' && !showConnect
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'w') {
-        if (activeTab) {
+        if (focusedTab && !isSshFocused) {
           e.preventDefault()
-          void closeTab(activeTab.id)
+          void closeTab(focusedTab.id)
+          layoutCloseTab(focusedTab.id)
         }
         return
       }
       if (mod && e.key.toLowerCase() === 'l') {
-        if (activeTab && !showConnect) {
+        if (focusedTab && !showConnect && !isSshFocused) {
           e.preventDefault()
-          clearLines(activeTab.id)
+          clearLines(focusedTab.id)
         }
         return
       }
       if (mod && e.key >= '1' && e.key <= '9') {
         const index = Number(e.key) - 1
-        if (tabs[index]) {
+        if (focusedPane && focusedPane.tabIds[index]) {
           e.preventDefault()
-          setActiveTab(tabs[index].id)
+          setActiveTabInPane(focusedPane.id, focusedPane.tabIds[index])
           setShowConnect(false)
         }
         return
       }
       if (!mod && e.key === ' ' && !isTyping) {
-        if (activeTab && !showConnect) {
+        if (focusedTab && !showConnect) {
           e.preventDefault()
-          togglePause(activeTab.id)
+          togglePause(focusedTab.id)
         }
       }
     }
@@ -159,27 +163,26 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
-    activeTab,
-    tabs,
+    focusedTab,
+    focusedPane,
     showConnect,
     showSettings,
     showFlash,
     showNetScan,
+    hasAnyTabs,
     plotVisible,
     closeTab,
+    layoutCloseTab,
     clearLines,
     togglePause,
-    setActiveTab,
+    setActiveTabInPane,
     setPlotVisible,
   ])
 
   return (
     <div className="app">
       <div className="app-topbar">
-        <TabStrip
-          onAddClick={() => setShowConnect(true)}
-          onTabClick={() => setShowConnect(false)}
-        />
+        <div className="app-topbar-spacer" />
         <button
           type="button"
           className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}
@@ -217,52 +220,25 @@ function App() {
           <GearIcon />
         </button>
       </div>
-      {showConnect || !activeTab ? (
-        <ConnectPanel
-          onConnected={() => setShowConnect(false)}
-          onCancel={activeTab ? () => setShowConnect(false) : undefined}
-        />
-      ) : (
-        <div className="workspace">
-          <div className="monitor-column">
-            {specializedViewLabel && (
-              <div className="seg protocol-view-toggle">
-                <span
-                  className={protocolView === 'specialized' ? 'on' : ''}
-                  onClick={() => setProtocolView('specialized')}
-                >
-                  {specializedViewLabel}
-                </span>
-                <span
-                  className={protocolView === 'raw' ? 'on' : ''}
-                  onClick={() => setProtocolView('raw')}
-                >
-                  Raw log
-                </span>
-              </div>
-            )}
-            {specializedViewLabel && protocolView === 'specialized' ? (
-              activeTab.connectionKind === 'mqtt' ? (
-                <MqttPanel tab={activeTab} />
-              ) : activeTab.connectionKind === 'udp' ? (
-                <UdpPanel tab={activeTab} />
-              ) : (
-                <WsPanel tab={activeTab} />
-              )
-            ) : (
-              <>
-                <MonitorView tab={activeTab} />
-                <SendPanel tab={activeTab} />
-              </>
-            )}
-          </div>
-          {plotVisible && (
-            <>
-              <WorkspaceResizer />
-              <PlotDock />
-            </>
-          )}
+      <div className="workspace">
+        <div className="pane-tree">
+          <PaneView node={layoutRoot} onAddClick={() => setShowConnect(true)} />
         </div>
+        {plotVisible && (
+          <>
+            <WorkspaceResizer />
+            <PlotDock />
+          </>
+        )}
+      </div>
+      {showConnect && (
+        <ConnectPanel
+          onConnected={(tabId) => {
+            openTabInFocusedPane(tabId)
+            setShowConnect(false)
+          }}
+          onCancel={hasAnyTabs ? () => setShowConnect(false) : undefined}
+        />
       )}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showFlash && <FlashPanel onClose={() => setShowFlash(false)} />}

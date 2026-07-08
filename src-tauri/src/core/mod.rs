@@ -5,5 +5,6 @@ pub mod mqtt_stream;
 pub mod net_stream;
 pub mod ring_buffer;
 pub mod serial_stream;
+pub mod ssh_stream;
 pub mod stream_pump;
 pub mod ws_stream;
