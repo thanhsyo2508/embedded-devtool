@@ -368,8 +368,8 @@ fn set_keep_awake(state: tauri::State<KeepAwakeState>, enabled: bool) -> Result<
             let awake = keepawake::Builder::default()
                 .display(true)
                 .idle(true)
-                .reason("EDT serial monitoring")
-                .app_name("EDT")
+                .reason("Embedded DevTool serial monitoring")
+                .app_name("Embedded DevTool")
                 .app_reverse_domain("dev.edt.app")
                 .create()
                 .map_err(|e| e.to_string())?;
