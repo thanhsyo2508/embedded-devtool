@@ -33,7 +33,13 @@ pub trait DataStream: Send {
     /// the configured default publish topic passed to `write`. Only MQTT
     /// implements this; every other transport has no notion of topics, so
     /// the default is a plain error rather than a silent no-op.
-    fn publish(&mut self, _topic: &str, _payload: &[u8], _qos: u8, _retain: bool) -> io::Result<()> {
+    fn publish(
+        &mut self,
+        _topic: &str,
+        _payload: &[u8],
+        _qos: u8,
+        _retain: bool,
+    ) -> io::Result<()> {
         Err(io::Error::new(
             io::ErrorKind::Unsupported,
             "this stream does not support topic-based publish",

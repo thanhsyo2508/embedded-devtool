@@ -115,14 +115,21 @@ pub fn expand_cidr(cidr: &str) -> Result<Vec<Ipv4Addr>, String> {
     }
 
     let host_bits = 32 - prefix;
-    let count: u32 = 1u64.checked_shl(host_bits).unwrap_or(0).min(u32::MAX as u64) as u32;
+    let count: u32 = 1u64
+        .checked_shl(host_bits)
+        .unwrap_or(0)
+        .min(u32::MAX as u64) as u32;
     if count > MAX_HOSTS {
         return Err(format!(
             "range too large ({count} addresses) — narrow it to /20 or smaller ({MAX_HOSTS} max)"
         ));
     }
 
-    let mask = if prefix == 0 { 0 } else { u32::MAX << host_bits };
+    let mask = if prefix == 0 {
+        0
+    } else {
+        u32::MAX << host_bits
+    };
     let network = u32::from(base) & mask;
 
     let mut ips = Vec::with_capacity(count as usize);

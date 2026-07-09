@@ -247,13 +247,15 @@ fn start_network_scan(
         let arp = net::scanner::arp_table();
         for ip in live_ips.lock().unwrap().iter() {
             let mac = arp.get(ip).cloned();
-            let name = ip
-                .parse()
-                .ok()
-                .and_then(net::scanner::reverse_dns);
+            let name = ip.parse().ok().and_then(net::scanner::reverse_dns);
             let _ = app.emit(
                 "netscan://host",
-                NetScanHostEvent { id: id.clone(), ip: ip.clone(), mac, name },
+                NetScanHostEvent {
+                    id: id.clone(),
+                    ip: ip.clone(),
+                    mac,
+                    name,
+                },
             );
         }
 
@@ -277,7 +279,9 @@ fn start_deep_scan(
 ) -> Result<(), String> {
     const MAX_DEEP_SCAN_RANGE: u32 = 20_000;
 
-    let addr: std::net::Ipv4Addr = ip.parse().map_err(|_| format!("invalid IP address: {ip}"))?;
+    let addr: std::net::Ipv4Addr = ip
+        .parse()
+        .map_err(|_| format!("invalid IP address: {ip}"))?;
     if port_from > port_to {
         return Err("port range start must be <= end".to_string());
     }
@@ -303,7 +307,13 @@ fn start_deep_scan(
                 },
             );
         });
-        let _ = app.emit("netscan://done", NetScanDoneEvent { id, hosts_scanned: 1 });
+        let _ = app.emit(
+            "netscan://done",
+            NetScanDoneEvent {
+                id,
+                hosts_scanned: 1,
+            },
+        );
     });
     Ok(())
 }
@@ -505,10 +515,16 @@ fn spawn_lifecycle_forwarder(app: AppHandle, event_bus: EventBus) {
         for event in rx {
             match event {
                 Event::PortOpened { stream_id } => {
-                    let _ = app.emit("serial://lifecycle", PortLifecycleEvent::Opened { stream_id });
+                    let _ = app.emit(
+                        "serial://lifecycle",
+                        PortLifecycleEvent::Opened { stream_id },
+                    );
                 }
                 Event::PortClosed { stream_id } => {
-                    let _ = app.emit("serial://lifecycle", PortLifecycleEvent::Closed { stream_id });
+                    let _ = app.emit(
+                        "serial://lifecycle",
+                        PortLifecycleEvent::Closed { stream_id },
+                    );
                 }
                 Event::Error { stream_id, message } => {
                     let _ = app.emit(

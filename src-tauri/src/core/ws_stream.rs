@@ -317,11 +317,13 @@ impl DataStream for WsServerStream {
                                     }
                                 };
                                 match result {
-                                    Ok(msg) => match forward_message(msg, &tx, &stream_id, &event_bus) {
-                                        Some(true) => continue,
-                                        Some(false) => break,
-                                        None => break, // peer closed
-                                    },
+                                    Ok(msg) => {
+                                        match forward_message(msg, &tx, &stream_id, &event_bus) {
+                                            Some(true) => continue,
+                                            Some(false) => break,
+                                            None => break, // peer closed
+                                        }
+                                    }
                                     Err(ref e) if is_transient(e) => continue,
                                     Err(_) => break,
                                 }

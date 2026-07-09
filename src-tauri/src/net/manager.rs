@@ -49,7 +49,12 @@ impl NetworkManager {
         };
         self.open(
             id.clone(),
-            Box::new(UdpDataStream::new(id, self.event_bus.clone(), local_port, remote)),
+            Box::new(UdpDataStream::new(
+                id,
+                self.event_bus.clone(),
+                local_port,
+                remote,
+            )),
         )
     }
 
@@ -154,10 +159,19 @@ impl NetworkManager {
 
     /// Topic-based publish for MQTT tabs — see `DataStream::publish`. Every
     /// other transport rejects this with its default "unsupported" error.
-    pub fn publish(&self, id: &str, topic: &str, data: &[u8], qos: u8, retain: bool) -> Result<(), String> {
+    pub fn publish(
+        &self,
+        id: &str,
+        topic: &str,
+        data: &[u8],
+        qos: u8,
+        retain: bool,
+    ) -> Result<(), String> {
         let mut streams = self.streams.lock().unwrap();
         match streams.get_mut(id) {
-            Some(stream) => stream.publish(topic, data, qos, retain).map_err(|e| e.to_string()),
+            Some(stream) => stream
+                .publish(topic, data, qos, retain)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
