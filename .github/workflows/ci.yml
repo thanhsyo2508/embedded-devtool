@@ -90,7 +90,35 @@ jobs:
 
       - run: npm ci
 
+      - name: Load signing credentials
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "TAURI_SIGNING_AVAILABLE=true" >> "$GITHUB_ENV"
+          else
+            echo "TAURI_SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
+          fi
+
+      # This job builds on every push as a smoke test (does it build at
+      # all?), not to produce a real release artifact -- so without the
+      # signing secret, disable createUpdaterArtifacts rather than fail the
+      # whole job. release.yml is what actually ships signed builds.
+      - name: Disable updater artifact signing for unsigned build
+        if: env.TAURI_SIGNING_AVAILABLE != 'true'
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          config.bundle.createUpdaterArtifacts = false;
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+          NODE
+
       - name: Build Tauri app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npm run tauri build
 
       - name: Upload installer artifacts
