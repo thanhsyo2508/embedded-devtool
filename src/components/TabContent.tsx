@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { TabState } from '../state/tabsStore'
 import { MonitorView } from './MonitorView'
 import { SendPanel } from './SendPanel'
+import { QuickCommandsBar } from './QuickCommandsBar'
 import { MqttPanel } from './MqttPanel'
 import { UdpPanel } from './UdpPanel'
 import { WsPanel } from './WsPanel'
@@ -57,6 +58,7 @@ export function TabContent({ tab }: { tab: TabState }) {
       ) : (
         <>
           <MonitorView tab={tab} />
+          <QuickCommandsBar tab={tab} />
           <SendPanel tab={tab} />
         </>
       )}

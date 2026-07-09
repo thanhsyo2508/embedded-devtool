@@ -230,16 +230,16 @@ function App() {
             <PlotDock />
           </>
         )}
+        {showConnect && (
+          <ConnectPanel
+            onConnected={(tabId) => {
+              openTabInFocusedPane(tabId)
+              setShowConnect(false)
+            }}
+            onCancel={hasAnyTabs ? () => setShowConnect(false) : undefined}
+          />
+        )}
       </div>
-      {showConnect && (
-        <ConnectPanel
-          onConnected={(tabId) => {
-            openTabInFocusedPane(tabId)
-            setShowConnect(false)
-          }}
-          onCancel={hasAnyTabs ? () => setShowConnect(false) : undefined}
-        />
-      )}
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showFlash && <FlashPanel onClose={() => setShowFlash(false)} />}
       {showNetScan && <NetScanPanel onClose={() => setShowNetScan(false)} />}

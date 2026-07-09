@@ -313,6 +313,34 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
+            <h3>Quick Commands</h3>
+            <p>
+              The slim row above the send box is for one-click, frequently-reused commands (think AT
+              commands, a reboot string, a status query) — unlike the macro recorder, there's no
+              sequence or delay involved, each chip just fires that one command immediately when
+              clicked.
+            </p>
+            <p>
+              Commands are grouped into named <b>profiles</b> (the dropdown on the left) so you can
+              keep separate sets for different devices — saved permanently, and shared by every tab,
+              not just the one you created them in. Pick a profile to show its commands; the +
+              button next to the dropdown creates a new one.
+            </p>
+            <ul>
+              <li>
+                <b>+ Add</b> at the end of the row opens a small form below for the command's label
+                (optional — falls back to showing the command text itself), the text or hex payload
+                to send, and a hex toggle.
+              </li>
+              <li>Click the pencil on any chip to edit it, or the × to remove it.</li>
+              <li>
+                Drag a chip and drop it on another to reorder — the order is the priority, and is
+                saved back to the profile immediately.
+              </li>
+            </ul>
+          </section>
+
+          <section className="guide-section">
             <h3>Filters</h3>
             <p>
               Click <b>Filters</b> in the monitor toolbar. Each rule is a regex, either{' '}

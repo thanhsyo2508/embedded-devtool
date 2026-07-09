@@ -225,6 +225,10 @@ export interface TabState {
   modbusMasterLog: ModbusLogEntry[]
   modbusMasterPolls: ModbusPollRule[]
   modbusSlave: ModbusSlaveState
+  /** Which saved quick-command profile (see quickCommandProfilesStore) this
+   * tab currently shows in its Quick Commands bar. Not persisted — like
+   * viewMode/timestampMode, it resets to "none picked" for a fresh tab. */
+  quickCommandProfileId: string | null
 }
 
 interface TabsStore {
@@ -242,6 +246,7 @@ interface TabsStore {
   setTimestampMode: (id: string, mode: TimestampMode) => void
   setLineEnding: (id: string, ending: LineEnding) => void
   setChecksumMode: (id: string, mode: ChecksumMode) => void
+  setQuickCommandProfile: (id: string, profileId: string | null) => void
   send: (id: string, text: string) => Promise<void>
   sendBytes: (id: string, bytes: number[], historyEntry: string, isHex?: boolean) => Promise<void>
   toggleLogging: (id: string) => Promise<void>
@@ -846,6 +851,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         inputRegisters: {},
         log: [],
       },
+      quickCommandProfileId: null,
     }
     // Attempt the connection before the tab ever appears in the strip —
     // a failed *initial* connect (bad port, host unreachable, port already
@@ -941,6 +947,13 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
   setChecksumMode: (id, mode) =>
     set((state) => ({
       tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, checksumMode: mode } : tab)),
+    })),
+
+  setQuickCommandProfile: (id, profileId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, quickCommandProfileId: profileId } : tab,
+      ),
     })),
 
   send: async (id, text) => {

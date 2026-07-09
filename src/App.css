@@ -370,6 +370,7 @@ body,
   display: flex;
   flex-direction: column;
   min-height: 0;
+  position: relative;
 }
 
 .pane-tree {
@@ -489,8 +490,11 @@ body,
 }
 
 /* ---- connect panel modal overlay ---- */
+/* Scoped to .workspace (not position:fixed over the whole viewport) so it
+ * never covers the app-topbar — its icon buttons (Settings, NetScan, ...)
+ * must stay clickable even on first launch, before any tab is open. */
 .connect-overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
   display: flex;
@@ -995,6 +999,100 @@ body,
   background: var(--panel);
   color: var(--text-muted);
   cursor: pointer;
+}
+
+/* ---- quick commands bar ---- */
+.quick-commands-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  flex: none;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.quick-command-profile-select {
+  flex: none;
+  max-width: 140px;
+}
+
+.quick-command-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quick-command-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.quick-command-chip:hover {
+  border-color: var(--accent);
+}
+
+.quick-command-chip.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.quick-command-label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-command-edit,
+.quick-command-remove {
+  border: none;
+  background: none;
+  padding: 0 1px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.quick-command-edit:hover {
+  color: var(--accent);
+}
+
+.quick-command-remove:hover {
+  color: var(--err);
+}
+
+.quick-command-add {
+  color: var(--text-muted);
+}
+
+.quick-command-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  flex: none;
+}
+
+.quick-command-form input[type='text'] {
+  flex: none;
+  width: 130px;
+}
+
+.quick-command-form input[type='text'].invalid {
+  border-color: var(--err);
 }
 
 /* ---- send panel ---- */
