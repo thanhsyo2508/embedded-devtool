@@ -1379,7 +1379,7 @@ dependencies = [
 
 [[package]]
 name = "edt"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "crossbeam-channel",
  "dns-lookup",

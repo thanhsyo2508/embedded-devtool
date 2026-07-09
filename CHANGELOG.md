@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3 — 2026-07-09
+
+- Small update to support testing the auto-update flow and ensure the
+  next release is visible to the updater.
+
 ## v0.1.2 — 2026-07-09
 
 - **Renamed** the app to "Embedded DevTool" in the window title, taskbar,
