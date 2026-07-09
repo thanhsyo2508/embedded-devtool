@@ -10,6 +10,14 @@ on:
     tags:
       - 'v*'
 
+# tauri-action creates/updates the GitHub Release via the GITHUB_TOKEN
+# below, which needs write access to releases — the default GITHUB_TOKEN is
+# read-only unless a repo/org setting already grants write, so this must be
+# declared explicitly or release creation fails with "Resource not
+# accessible by integration".
+permissions:
+  contents: write
+
 jobs:
   release:
     strategy:
