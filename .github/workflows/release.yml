@@ -39,7 +39,20 @@ jobs:
 
       - run: npm ci
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Check signing secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "TAURI_SIGNING_AVAILABLE=true" >> "$GITHUB_ENV"
+            echo "Tauri updater signing secrets detected."
+          else
+            echo "TAURI_SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
+            echo "Tauri updater signing secrets not configured; building unsigned bundles only."
+          fi
+
+      - name: Build and publish signed release
+        if: env.TAURI_SIGNING_AVAILABLE == 'true'
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -49,3 +62,7 @@ jobs:
           releaseName: 'edt ${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
+
+      - name: Build unsigned bundles
+        if: env.TAURI_SIGNING_AVAILABLE != 'true'
+        run: npm run tauri build
