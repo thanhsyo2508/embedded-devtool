@@ -31,6 +31,7 @@ use super::event_bus::{Event, EventBus, WsFrameKind};
 use super::ring_buffer::RingBuffer;
 use super::stream_pump::spawn_pump_thread;
 
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 const POLL_TIMEOUT: Duration = Duration::from_millis(200);
 const RING_BUFFER_CAPACITY: usize = 1 << 20;
 
@@ -136,7 +137,11 @@ impl DataStream for WsClientStream {
         }
 
         let (host, port) = host_port_from_url(&self.url)?;
-        let tcp = TcpStream::connect((host.as_str(), port))?;
+        let addr: std::net::SocketAddr = format!("{host}:{port}")
+            .parse()
+            .map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "invalid socket address"))?;
+        let tcp = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT)
+            .map_err(|e| io::Error::new(e.kind(), format!("connect failed: {e}")))?;
         tcp.set_nodelay(true).ok();
         tcp.set_read_timeout(Some(POLL_TIMEOUT))?;
         tcp.set_write_timeout(Some(POLL_TIMEOUT))?;
