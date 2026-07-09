@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.1.2 — 2026-07-09
+
+- **Renamed** the app to "Embedded DevTool" in the window title, taskbar,
+  and installer (the underlying app identifier is unchanged, so this
+  doesn't affect existing installs or auto-update continuity).
+- **SSH terminal:** a new connection kind backed by a real interactive
+  PTY, rendered with an actual terminal emulator instead of the
+  line-oriented monitor — password auth only for now, and the host key
+  isn't verified against a known-hosts list yet.
+- **Multi-pane layout (Snap Layouts):** drag a tab to the edge of any
+  pane to split the workspace and view tabs side by side, nestable and
+  resizable; drag a tab onto another pane's tab strip or the middle of
+  its content to merge panes back together. The Plotter stays shared
+  across the whole window rather than living in one pane.
+- **Quick Commands:** a compact, always-visible row of one-click,
+  frequently-reused commands (text or hex) above the send box, grouped
+  into named profiles you can switch per tab; drag a chip to reorder its
+  priority.
+- Fixed the "New connection" panel covering the top bar and blocking
+  clicks on its icon buttons (Settings, Network Scanner, ...), most
+  noticeable on first launch.
+- Fixed drag-and-drop not working on Windows — Tauri's OS-level
+  drag-drop capture was silently blocking the browser's native
+  drag-and-drop that pane-splitting and quick-command reordering rely
+  on.
+
 ## v0.1.1 — 2026-07-06
 
 No app-facing changes — this bump exists only to move past v0.1.0, whose
