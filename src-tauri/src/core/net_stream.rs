@@ -182,6 +182,9 @@ impl DataStream for TcpServerStream {
         }
 
         let listener = TcpListener::bind(("0.0.0.0", self.port))?;
+        if self.port == 0 {
+            self.port = listener.local_addr()?.port();
+        }
         listener.set_nonblocking(true)?;
 
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
@@ -331,6 +334,9 @@ impl DataStream for UdpDataStream {
         }
 
         let socket = UdpSocket::bind(("0.0.0.0", self.local_port))?;
+        if self.local_port == 0 {
+            self.local_port = socket.local_addr()?.port();
+        }
         socket.set_broadcast(true)?;
         socket.set_read_timeout(Some(POLL_TIMEOUT))?;
         let reader_socket = socket.try_clone()?;
@@ -419,9 +425,9 @@ mod tests {
     // accept/read/write/close path rather than just error branches.
     #[test]
     fn tcp_client_and_server_round_trip() {
-        let port = 18271;
-        let mut server = TcpServerStream::new(port);
+        let mut server = TcpServerStream::new(0);
         server.open().unwrap();
+        let port = server.port;
 
         let mut client = TcpClientStream::new("127.0.0.1", port);
         let deadline = Instant::now() + Duration::from_secs(2);
@@ -464,22 +470,13 @@ mod tests {
 
     #[test]
     fn udp_round_trip() {
-        let port_a = 18272;
-        let port_b = 18273;
-        let mut a = UdpDataStream::new(
-            "a".to_string(),
-            EventBus::new(),
-            port_a,
-            Some(("127.0.0.1".to_string(), port_b)),
-        );
-        let mut b = UdpDataStream::new(
-            "b".to_string(),
-            EventBus::new(),
-            port_b,
-            Some(("127.0.0.1".to_string(), port_a)),
-        );
+        let mut a = UdpDataStream::new("a".to_string(), EventBus::new(), 0, None);
+        let mut b = UdpDataStream::new("b".to_string(), EventBus::new(), 0, None);
         a.open().unwrap();
         b.open().unwrap();
+
+        a.remote = Some(("127.0.0.1".to_string(), b.local_port));
+        b.remote = Some(("127.0.0.1".to_string(), a.local_port));
 
         a.write(b"ping").unwrap();
         let deadline = Instant::now() + Duration::from_secs(2);

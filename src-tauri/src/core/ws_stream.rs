@@ -138,10 +138,13 @@ impl DataStream for WsClientStream {
         let (host, port) = host_port_from_url(&self.url)?;
         let tcp = TcpStream::connect((host.as_str(), port))?;
         tcp.set_nodelay(true).ok();
+        tcp.set_read_timeout(Some(POLL_TIMEOUT))?;
+        tcp.set_write_timeout(Some(POLL_TIMEOUT))?;
 
         let (ws, _response) =
             tungstenite::client(&self.url, tcp).map_err(|e| io::Error::other(e.to_string()))?;
         ws.get_ref().set_read_timeout(Some(POLL_TIMEOUT))?;
+        ws.get_ref().set_write_timeout(Some(POLL_TIMEOUT))?;
         let socket = Arc::new(Mutex::new(ws));
         self.socket = Some(socket.clone());
 
@@ -274,6 +277,9 @@ impl DataStream for WsServerStream {
         }
 
         let listener = TcpListener::bind(("0.0.0.0", self.port))?;
+        if self.port == 0 {
+            self.port = listener.local_addr()?.port();
+        }
         listener.set_nonblocking(true)?;
 
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
@@ -287,8 +293,11 @@ impl DataStream for WsServerStream {
             while !stop_flag.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((tcp, _addr)) => {
-                        // Handshake on a still-blocking stream (no timeout
-                        // yet) — see module docs.
+                        // Handshake on a still-blocking stream. Apply a socket
+                        // timeout so a stalled or malformed websocket handshake
+                        // doesn't hang the acceptor thread forever.
+                        let _ = tcp.set_read_timeout(Some(POLL_TIMEOUT));
+                        let _ = tcp.set_write_timeout(Some(POLL_TIMEOUT));
                         let ws = match tungstenite::accept(tcp) {
                             Ok(ws) => ws,
                             Err(_) => continue, // failed handshake; keep listening
@@ -412,9 +421,9 @@ mod tests {
     // net_stream.rs's TCP/UDP tests: fully exercisable without hardware.
     #[test]
     fn ws_client_and_server_round_trip() {
-        let port = 18281;
-        let mut server = WsServerStream::new("server".to_string(), EventBus::new(), port);
+        let mut server = WsServerStream::new("server".to_string(), EventBus::new(), 0);
         server.open().unwrap();
+        let port = server.port;
 
         let mut client = WsClientStream::new(
             "client".to_string(),
