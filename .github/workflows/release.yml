@@ -39,15 +39,17 @@ jobs:
 
       - run: npm ci
 
-      - name: Check signing secrets
+      - name: Load signing credentials
         shell: bash
         run: |
           if [ -n "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" ]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY=${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" >> "$GITHUB_ENV"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}" >> "$GITHUB_ENV"
             echo "TAURI_SIGNING_AVAILABLE=true" >> "$GITHUB_ENV"
-            echo "Tauri updater signing secrets detected."
+            echo "Tauri updater signing credentials loaded from GitHub secrets."
           else
             echo "TAURI_SIGNING_AVAILABLE=false" >> "$GITHUB_ENV"
-            echo "Tauri updater signing secrets not configured; building unsigned bundles only."
+            echo "Tauri updater signing credentials not found; building unsigned bundles only."
           fi
 
       - name: Build and publish signed release
@@ -55,13 +57,25 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ env.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'edt ${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
+
+      - name: Disable updater artifact signing for unsigned build
+        if: env.TAURI_SIGNING_AVAILABLE != 'true'
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          config.bundle.createUpdaterArtifacts = false;
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+          NODE
 
       - name: Build unsigned bundles
         if: env.TAURI_SIGNING_AVAILABLE != 'true'
