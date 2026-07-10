@@ -274,6 +274,27 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
+            <h3>Project Profiles</h3>
+            <p>
+              The folder icon in the top bar (<b>Open project</b>) and the disk icon next to it (
+              <b>Save project</b>) save/restore the whole workspace to a <code>.edtproj</code> file
+              on disk — every open tab's connection, its filters/triggers/script, the Snap Layout
+              arrangement, and the Plotter's config (source tab, extractors, math channels,
+              thresholds, chart type — not the plotted data itself, which repopulates once the
+              source tab reconnects). Unlike the Profile/Script/Preset pickers above, this is a real
+              file you can move between machines or hand to a teammate working on the same device,
+              not something tucked away in local app storage.
+            </p>
+            <p>
+              Opening a project reconnects every saved connection under a new tab and closes
+              whatever was open before — you'll be asked to confirm if you have tabs open already.
+              SSH connections pause for a password prompt each time (passwords are never written to
+              the file); a connection that fails or whose password prompt you cancel is simply left
+              out of the restored layout rather than blocking the rest.
+            </p>
+          </section>
+
+          <section className="guide-section">
             <h3>Search &amp; Bookmarks</h3>
             <p>
               Press <kbd>Ctrl+F</kbd> to open an in-buffer regex search bar. <kbd>Enter</kbd> /{' '}

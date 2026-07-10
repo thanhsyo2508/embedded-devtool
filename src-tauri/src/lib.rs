@@ -80,6 +80,14 @@ fn write_binary_file(path: String, data: Vec<u8>) -> Result<(), String> {
     std::fs::write(&path, data).map_err(|e| e.to_string())
 }
 
+/// Read side of write_text_file — currently only used to load a saved
+/// project profile (.edtproj), picked via the same open-dialog pattern as
+/// STM32/ESP32's file-open flows.
+#[tauri::command]
+fn read_text_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct MdnsServiceDto {
@@ -1233,6 +1241,7 @@ pub fn run() {
             append_trigger_log,
             write_text_file,
             write_binary_file,
+            read_text_file,
             mdns_scan,
             detect_local_subnet,
             common_scan_ports,
@@ -1314,5 +1323,20 @@ mod tests {
         write_binary_file(path_str.clone(), vec![0x89, 0x50, 0x4e, 0x47]).unwrap();
         assert_eq!(std::fs::read(&path).unwrap(), vec![0x89, 0x50, 0x4e, 0x47]);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_text_file_round_trips_with_write_text_file() {
+        let path = std::env::temp_dir().join("edt-test-read-text.edtproj");
+        let path_str = path.to_string_lossy().to_string();
+        write_text_file(path_str.clone(), "{\"version\":1}".to_string()).unwrap();
+        assert_eq!(read_text_file(path_str.clone()).unwrap(), "{\"version\":1}");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn read_text_file_errors_on_missing_path() {
+        let path = std::env::temp_dir().join("edt-test-read-text-missing.edtproj");
+        assert!(read_text_file(path.to_string_lossy().to_string()).is_err());
     }
 }

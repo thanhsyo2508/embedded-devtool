@@ -1,9 +1,15 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import './App.css'
 import { useTabsStore } from './state/tabsStore'
 import { useLayoutStore } from './state/layoutStore'
-import { findPane } from './lib/layoutTree'
+import { findPane, makePane, mapTabIds, removeTab } from './lib/layoutTree'
+import {
+  buildProjectProfile,
+  connectionConfigToOpenRequest,
+  type ProjectProfileFile,
+} from './lib/projectProfile'
 import { FONT_SIZE_PX, useSettingsStore } from './state/settingsStore'
 import { useFlashStore } from './state/flashStore'
 import { useStm32Store } from './state/stm32Store'
@@ -18,7 +24,9 @@ import { NetScanPanel } from './components/NetScanPanel'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
 import { useWsStore } from './state/wsStore'
-import { ChartIcon, GearIcon, GlobeIcon, ZapIcon } from './components/icons'
+import { ChartIcon, DiskIcon, FolderIcon, GearIcon, GlobeIcon, ZapIcon } from './components/icons'
+
+const PROJECT_FILE_FILTERS = [{ name: 'EDT Project', extensions: ['edtproj'] }]
 
 function App() {
   const wireEventsOnce = useTabsStore((s) => s.wireEventsOnce)
@@ -31,6 +39,12 @@ function App() {
   const closeTab = useTabsStore((s) => s.closeTab)
   const clearLines = useTabsStore((s) => s.clearLines)
   const togglePause = useTabsStore((s) => s.togglePause)
+  const openTab = useTabsStore((s) => s.openTab)
+  const setFilters = useTabsStore((s) => s.setFilters)
+  const setTriggers = useTabsStore((s) => s.setTriggers)
+  const setScriptCode = useTabsStore((s) => s.setScriptCode)
+  const setLineEnding = useTabsStore((s) => s.setLineEnding)
+  const setChecksumMode = useTabsStore((s) => s.setChecksumMode)
   const [showConnect, setShowConnect] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
@@ -41,12 +55,19 @@ function App() {
   const keepAwake = useSettingsStore((s) => s.keepAwake)
   const plotVisible = usePlotStore((s) => s.visible)
   const setPlotVisible = usePlotStore((s) => s.setVisible)
+  const plotSourceTabId = usePlotStore((s) => s.sourceTabId)
+  const plotExtractors = usePlotStore((s) => s.extractors)
+  const plotMathChannels = usePlotStore((s) => s.mathChannels)
+  const plotThresholds = usePlotStore((s) => s.thresholds)
+  const plotChartType = usePlotStore((s) => s.chartType)
+  const plotLoadConfig = usePlotStore((s) => s.loadConfig)
 
   const layoutRoot = useLayoutStore((s) => s.root)
   const focusedPaneId = useLayoutStore((s) => s.focusedPaneId)
   const openTabInFocusedPane = useLayoutStore((s) => s.openTabInFocusedPane)
   const setActiveTabInPane = useLayoutStore((s) => s.setActiveTabInPane)
   const layoutCloseTab = useLayoutStore((s) => s.closeTab)
+  const loadLayout = useLayoutStore((s) => s.loadLayout)
 
   useEffect(() => {
     wireEventsOnce()
@@ -85,6 +106,116 @@ function App() {
   const focusedTab = focusedPane
     ? (tabs.find((t) => t.id === focusedPane.activeTabId) ?? null)
     : null
+
+  const handleSaveProject = async () => {
+    const hasPlotterConfig =
+      plotSourceTabId !== null ||
+      plotExtractors.length > 0 ||
+      plotMathChannels.length > 0 ||
+      plotThresholds.length > 0
+    const sourceIndex = plotSourceTabId ? tabs.findIndex((t) => t.id === plotSourceTabId) : -1
+    const profile = buildProjectProfile(
+      tabs,
+      layoutRoot,
+      hasPlotterConfig
+        ? {
+            sourceTabIndex: sourceIndex >= 0 ? sourceIndex : null,
+            extractors: plotExtractors,
+            mathChannels: plotMathChannels,
+            thresholds: plotThresholds,
+            chartType: plotChartType,
+          }
+        : null,
+    )
+    const path = await save({ filters: PROJECT_FILE_FILTERS, defaultPath: 'workspace.edtproj' })
+    if (!path) return
+    try {
+      await invoke('write_text_file', { path, contents: JSON.stringify(profile, null, 2) })
+    } catch (err) {
+      window.alert(`Could not save project: ${String(err)}`)
+    }
+  }
+
+  // Reopens every saved connection under a freshly assigned id (runtime ids
+  // aren't stable across restarts), restoring per-tab filters/triggers/
+  // scripts and rebuilding the Snap Layout tree from the saved placeholder
+  // ids — see lib/projectProfile's module docs. SSH tabs pause for a
+  // password prompt (never saved to disk); a tab that fails to (re)connect
+  // or whose SSH prompt is cancelled is dropped from the restored layout
+  // instead of leaving a dangling reference to a tab that doesn't exist.
+  const handleOpenProject = async () => {
+    const path = await open({ filters: PROJECT_FILE_FILTERS, multiple: false })
+    if (!path || Array.isArray(path)) return
+
+    let profile: ProjectProfileFile
+    try {
+      const contents = await invoke<string>('read_text_file', { path })
+      profile = JSON.parse(contents) as ProjectProfileFile
+    } catch (err) {
+      window.alert(`Could not read project file: ${String(err)}`)
+      return
+    }
+
+    // Opening a project replaces the whole layout, so any tab still open
+    // from before wouldn't be reachable through the UI afterward even
+    // though its connection stays alive underneath — close them first
+    // rather than leaking invisible connections.
+    if (hasAnyTabs) {
+      if (!window.confirm('Opening a project closes every tab currently open. Continue?')) return
+      await Promise.all(tabs.map((t) => closeTab(t.id)))
+    }
+
+    const idByIndex = new Map<number, string>()
+    const failedIndices: number[] = []
+    for (let i = 0; i < profile.tabs.length; i++) {
+      const tabConfig = profile.tabs[i]
+      const newId = `${tabConfig.connectionConfig.kind}-${Date.now()}-${i}`
+      let sshPassword: string | undefined
+      if (tabConfig.connectionConfig.kind === 'ssh') {
+        const cfg = tabConfig.connectionConfig
+        const entered = window.prompt(`SSH password for ${cfg.username}@${cfg.host}:${cfg.port}`)
+        if (entered === null) {
+          failedIndices.push(i)
+          continue
+        }
+        sshPassword = entered
+      }
+      try {
+        await openTab(connectionConfigToOpenRequest(tabConfig.connectionConfig, newId, sshPassword))
+      } catch {
+        failedIndices.push(i)
+        continue
+      }
+      setFilters(newId, tabConfig.filters)
+      setTriggers(newId, tabConfig.triggers)
+      setScriptCode(newId, tabConfig.scriptCode)
+      setLineEnding(newId, tabConfig.lineEnding)
+      setChecksumMode(newId, tabConfig.checksumMode)
+      idByIndex.set(i, newId)
+    }
+
+    let layout = profile.layout
+    for (const i of failedIndices) {
+      layout = removeTab(layout, String(i)) ?? makePane([])
+    }
+    loadLayout(mapTabIds(layout, (index) => idByIndex.get(Number(index)) ?? index))
+    if (idByIndex.size > 0) setShowConnect(false)
+
+    if (profile.plotter) {
+      const sourceTabId =
+        profile.plotter.sourceTabIndex !== null
+          ? (idByIndex.get(profile.plotter.sourceTabIndex) ?? null)
+          : null
+      plotLoadConfig({ ...profile.plotter, sourceTabId })
+      setPlotVisible(true)
+    }
+
+    if (failedIndices.length > 0) {
+      window.alert(
+        `${failedIndices.length} of ${profile.tabs.length} connection(s) could not be reopened.`,
+      )
+    }
+  }
 
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
   // Shortcuts that target "the current tab" now act on the focused pane's
@@ -183,6 +314,25 @@ function App() {
     <div className="app">
       <div className="app-topbar">
         <div className="app-topbar-spacer" />
+        <button
+          type="button"
+          className="icon-button settings-trigger"
+          aria-label="Open project"
+          title="Open project (.edtproj)"
+          onClick={() => void handleOpenProject()}
+        >
+          <FolderIcon />
+        </button>
+        <button
+          type="button"
+          className="icon-button settings-trigger"
+          aria-label="Save project"
+          title="Save project (.edtproj)"
+          disabled={!hasAnyTabs}
+          onClick={() => void handleSaveProject()}
+        >
+          <DiskIcon />
+        </button>
         <button
           type="button"
           className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}

@@ -29,6 +29,9 @@ interface LayoutState {
   moveTabToPane: (tabId: string, targetPaneId: string) => void
   splitPaneWithTab: (targetPaneId: string, tabId: string, zone: DropZone) => void
   resizeSplit: (splitId: string, index: number, sizeA: number, sizeB: number) => void
+  /** Replaces the whole tree wholesale — for restoring a saved project
+   * profile's layout, once its tabs are open under their new runtime ids. */
+  loadLayout: (root: LayoutNode) => void
 }
 
 const initialPane = makePane([])
@@ -98,4 +101,6 @@ export const useLayoutStore = create<LayoutState>((set) => ({
         return { ...split, sizes }
       }),
     })),
+
+  loadLayout: (root) => set({ root, focusedPaneId: firstPaneId(root) }),
 }))

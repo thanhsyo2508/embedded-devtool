@@ -3,6 +3,7 @@ import {
   findPane,
   findPaneForTab,
   makePane,
+  mapTabIds,
   moveTab,
   removeTab,
   splitAt,
@@ -230,5 +231,39 @@ describe('moveTab', () => {
       sizes: [1, 1],
     }
     expect(moveTab(tree, 'missing', rightPane.id)).toBe(tree)
+  })
+})
+
+describe('mapTabIds', () => {
+  it('relabels every tabId and activeTabId through the mapper', () => {
+    const leftPane: LayoutNode = { type: 'pane', id: 'p1', tabIds: ['a', 'b'], activeTabId: 'b' }
+    const rightPane: LayoutNode = { type: 'pane', id: 'p2', tabIds: ['c'], activeTabId: 'c' }
+    const tree: LayoutNode = {
+      type: 'split',
+      id: 'split-1',
+      direction: 'row',
+      children: [leftPane, rightPane],
+      sizes: [1, 1],
+    }
+    const relabeled = mapTabIds(tree, (id) => `new-${id}`)
+    if (relabeled.type !== 'split') throw new Error('expected split')
+    expect(relabeled.children[0]).toEqual({
+      type: 'pane',
+      id: 'p1',
+      tabIds: ['new-a', 'new-b'],
+      activeTabId: 'new-b',
+    })
+    expect(relabeled.children[1]).toEqual({
+      type: 'pane',
+      id: 'p2',
+      tabIds: ['new-c'],
+      activeTabId: 'new-c',
+    })
+  })
+
+  it('leaves a null activeTabId as null', () => {
+    const pane: LayoutNode = { type: 'pane', id: 'p1', tabIds: [], activeTabId: null }
+    const relabeled = mapTabIds(pane, (id) => `new-${id}`)
+    expect(relabeled).toEqual(pane)
   })
 })

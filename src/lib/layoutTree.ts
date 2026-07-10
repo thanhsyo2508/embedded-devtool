@@ -135,6 +135,21 @@ export function removeTab(node: LayoutNode, tabId: string): LayoutNode | null {
   return { ...node, children: nextChildren, sizes: nextSizes }
 }
 
+/** Rebuilds the tree with every tab id run through `mapper` — used to swap
+ * real (runtime-assigned) tab ids for stable placeholder ids when saving a
+ * project profile to disk, and back again when reopening one. Pure/total:
+ * never drops or reorders panes, just relabels the ids inside them. */
+export function mapTabIds(node: LayoutNode, mapper: (tabId: string) => string): LayoutNode {
+  if (node.type === 'pane') {
+    return {
+      ...node,
+      tabIds: node.tabIds.map(mapper),
+      activeTabId: node.activeTabId === null ? null : mapper(node.activeTabId),
+    }
+  }
+  return { ...node, children: node.children.map((child) => mapTabIds(child, mapper)) }
+}
+
 /** Moves `tabId` out of its current pane and appends it to `targetPaneId`,
  * collapsing the source pane/split as `removeTab` would. No-ops if the tab
  * isn't found or is already the sole tab in the target pane. Returns

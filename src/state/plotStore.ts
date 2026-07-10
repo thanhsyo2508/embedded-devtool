@@ -100,6 +100,16 @@ interface PlotState {
   setFftWindow: (w: FftWindow) => void
   setShowStats: (v: boolean) => void
   reset: () => void
+  /** Restores a saved project profile's plotter config (source tab,
+   * extractors, math channels, thresholds, chart type) — no plotted data,
+   * that repopulates once the source tab reconnects and starts ingesting. */
+  loadConfig: (config: {
+    sourceTabId: string | null
+    extractors: Extractor[]
+    mathChannels: MathChannelDef[]
+    thresholds: ThresholdLine[]
+    chartType: ChartType
+  }) => void
   ingest: (tab: TabState) => void
   ingestScriptPoint: (streamId: string, channel: string, value: number) => void
   addExtractor: () => void
@@ -148,6 +158,17 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   setFftWindow: (fftWindow) => set({ fftWindow }),
   setShowStats: (showStats) => set({ showStats }),
   reset: () => set({ ...emptyData }),
+
+  loadConfig: ({ sourceTabId, extractors, mathChannels, thresholds, chartType }) =>
+    set({
+      sourceTabId,
+      extractors,
+      mathChannels,
+      thresholds,
+      chartType,
+      hiddenChannels: [],
+      ...emptyData,
+    }),
 
   addExtractor: () =>
     set((state) => ({
