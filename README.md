@@ -27,6 +27,7 @@ Existing tools each cover one slice: PlatformIO (build/flash, weak monitor), Coo
 - **STM32 flashing:** auto-detects an installed `STM32_Programmer_CLI`, flashes over ST-Link (SWD) or UART bootloader, mass erase, option-byte read/write with an RDP confirmation guard.
 - **Realtime plotter:** up to 8 channels, auto-parses CSV/space-separated/`key:value`/Arduino-plotter-style lines plus user-defined regex extractors, line/area/step/bar/point chart types, freeze/resume, zoom/pan, an FFT spectrum view (Hann/Hamming/rectangular windows), computed math channels (A±B, A×B, A÷B, moving average, derivative, RMS), threshold lines with edge-triggered beep alerts, a live min/max/avg/peak-to-peak/frequency stats strip, CSV/PNG export, wired to any monitor tab, Lua script, or Modbus poll rule as its data source.
 - **Auto-update:** checks GitHub Releases for a newer version from Settings, downloads, and relaunches — releases are built and signed via a GitHub Actions workflow triggered by a version tag.
+- **Headless CLI (`edt-cli`):** a separate binary for scripting/CI use, starting with `edt-cli monitor --port COM3 --baud 115200 [--timeout 60]` — opens a serial port and streams its raw output to stdout until timeout or Ctrl+C. Built via `cargo build --release --bin edt-cli --features cli` from `src-tauri`; not bundled with the GUI installer.
 - Dark/light/system theme, global keyboard shortcuts, persisted settings, an in-app User Guide with worked examples for every feature.
 
 Not yet built: a plugin system — see the roadmap docs above for later-phase items.

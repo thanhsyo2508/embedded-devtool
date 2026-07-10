@@ -40,3 +40,16 @@ russh = { version = "0.62.2", default-features = false, features = ["flate2", "r
 tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "macros", "time"] }
 tauri-plugin-clipboard-manager = "2"
 
+# Only pulled in for the `edt-cli` binary (via the `cli` feature below) —
+# optional so a normal GUI build never compiles or links them.
+clap = { version = "4", features = ["derive"], optional = true }
+ctrlc = { version = "3", optional = true }
+
+[features]
+cli = ["dep:clap", "dep:ctrlc"]
+
+[[bin]]
+name = "edt-cli"
+path = "src/bin/edt-cli.rs"
+required-features = ["cli"]
+
