@@ -4,6 +4,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import {
   MAX_LINES_OPTIONS,
+  PLOT_MAX_POINTS_OPTIONS,
   useSettingsStore,
   type Encoding,
   type FontSize,
@@ -87,6 +88,20 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             onChange={(e) => settings.setMaxLinesPerTab(Number(e.target.value))}
           >
             {MAX_LINES_OPTIONS.map((n) => (
+              <option key={n} value={n}>
+                {n.toLocaleString()}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="settings-row">
+          <span>Plotter buffer size (points/channel)</span>
+          <select
+            value={settings.plotMaxPoints}
+            onChange={(e) => settings.setPlotMaxPoints(Number(e.target.value))}
+          >
+            {PLOT_MAX_POINTS_OPTIONS.map((n) => (
               <option key={n} value={n}>
                 {n.toLocaleString()}
               </option>

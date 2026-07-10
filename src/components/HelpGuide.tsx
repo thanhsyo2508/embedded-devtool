@@ -448,7 +448,10 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               Toggle the chart icon in the top bar (<kbd>Ctrl+Shift+P</kbd>) and pick a source tab.
               Lines are auto-parsed as CSV (<code>1.2,3.4</code>), space-separated, or{' '}
               <code>key:value</code> pairs (e.g. <code>temp:24.5,hum:51.2</code>) — up to 8
-              channels.
+              channels. Each channel keeps a sliding window of the most recent points, dropping the
+              oldest once full; <b>Settings → Plotter buffer size</b> controls how many
+              (1,000–500,000, default 50,000) — raise it if you're watching a long-running session
+              and don't want early data pushed out.
             </p>
             <p>
               <b>Example — extract a value that isn't in a recognized format:</b> a log line like{' '}

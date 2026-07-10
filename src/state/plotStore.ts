@@ -2,9 +2,9 @@ import { create } from 'zustand'
 import type { TabState } from './tabsStore'
 import type { FftWindow } from '../lib/fft'
 import type { MathChannelDef } from '../lib/plotMath'
+import { useSettingsStore } from './settingsStore'
 
 const MAX_CHANNELS = 8
-const MAX_POINTS = 5_000
 
 /// Tries key:value / key=value pairs first (handles Arduino-plotter-style
 /// "temp:24.5,hum:51.2" and free-form "temp=24.5 hum=51.2" logging equally);
@@ -272,7 +272,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       }
     }
 
-    const overflow = timestamps.length - MAX_POINTS
+    const overflow = timestamps.length - useSettingsStore.getState().plotMaxPoints
     const trimmedTimestamps = overflow > 0 ? timestamps.slice(overflow) : timestamps
     const trimmedChannelData: Record<string, (number | null)[]> = {}
     for (const ch of channelOrder) {
@@ -314,7 +314,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       arr.push(ch === channel ? value : (arr[arr.length - 1] ?? null))
     }
 
-    const overflow = timestamps.length - MAX_POINTS
+    const overflow = timestamps.length - useSettingsStore.getState().plotMaxPoints
     const trimmedTimestamps = overflow > 0 ? timestamps.slice(overflow) : timestamps
     const trimmedChannelData: Record<string, (number | null)[]> = {}
     for (const ch of channelOrder) {
