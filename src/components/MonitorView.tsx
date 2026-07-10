@@ -247,7 +247,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                 return (
                   <div
                     key={line.seq}
-                    className={`logline level-${line.level ?? 'none'}${isCurrentSearchMatch ? ' current-match' : ''}`}
+                    className={`logline level-${line.level ?? 'none'} dir-${line.direction}${isCurrentSearchMatch ? ' current-match' : ''}`}
                     style={{
                       position: 'absolute',
                       top: 0,
@@ -267,6 +267,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                     {tab.timestampMode !== 'off' && (
                       <span className="t">{formatTimestamp(tab, line.atMs)}</span>
                     )}
+                    <span className="dir-arrow">{line.direction === 'tx' ? '»' : '«'}</span>
                     {tab.viewMode !== 'ascii' && (
                       <span className="hex">{bytesToHex(line.bytes)}</span>
                     )}

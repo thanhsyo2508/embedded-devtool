@@ -93,6 +93,12 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
                 The bar at the bottom of the monitor shows live bytes/s, lines/s, error count, and
                 uptime for the tab.
               </li>
+              <li>
+                Everything you send (Send panel, quick commands, macros, scripts) is echoed into the
+                log as its own line — marked with a <b>»</b> and shown in the accent color, vs{' '}
+                <b>«</b> for lines received from the device — so a request and its reply both show
+                up in the same buffer, in order.
+              </li>
             </ul>
             <p>
               Enable <b>Auto-reconnect</b> when connecting over serial to have the tab reopen

@@ -781,6 +781,20 @@ body,
   text-overflow: ellipsis;
 }
 
+.logline .dir-arrow {
+  flex: none;
+  width: 10px;
+  color: var(--text-muted);
+}
+
+.logline.dir-tx .dir-arrow {
+  color: var(--accent);
+}
+
+.logline.dir-tx .msg {
+  color: var(--accent);
+}
+
 .logline .msg {
   color: var(--text);
   overflow: hidden;

@@ -59,6 +59,10 @@ export interface LogLine {
   bytes: number[]
   text: string
   level: LogLevel | null
+  /** 'tx' for a line the Send panel/quick command/macro/script wrote out,
+   * 'rx' for everything read back from the device — lets the monitor show
+   * both directions in one buffer instead of only what came in. */
+  direction: 'rx' | 'tx'
 }
 
 export type FilterMode = 'include' | 'exclude'
@@ -380,6 +384,7 @@ function appendBytesToTab(
       bytes: lineBytes,
       text,
       level: detectLogLevel(text),
+      direction: 'rx',
     }
   })
 
@@ -396,6 +401,7 @@ function appendBytesToTab(
       bytes: remaining,
       text,
       level: detectLogLevel(text),
+      direction: 'rx',
     })
     remaining = []
     pendingAtMs = null
@@ -435,6 +441,7 @@ function commitPendingLine(tab: TabState, encoding: Encoding, maxLinesPerTab: nu
     bytes: tab.pendingBytes,
     text,
     level,
+    direction: 'rx',
   }
   const mergedLines = [...tab.lines, line]
   const trimmed =
@@ -975,10 +982,40 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     if (tab.connectionKind === 'serial') await writeSerialPort(id, outgoing)
     else await writeNetworkStream(id, outgoing)
     const now = Date.now()
+    // Echo what was actually written (including any appended checksum) as
+    // its own 'tx' line so the monitor shows both directions, not just what
+    // came back — atMs uses performance.now() to share the same clock base
+    // as received lines (see appendBytesToTab), so delta timestamps line up.
+    const { encoding, maxLinesPerTab } = useSettingsStore.getState()
+    const atMs = performance.now()
+    const txText = bytesToText(outgoing, encoding)
     set((state) => ({
       tabs: state.tabs.map((t) => {
-        if (t.id !== id || historyEntry.length === 0) return t
-        const withHistory = { ...t, sendHistory: [historyEntry, ...t.sendHistory].slice(0, 100) }
+        if (t.id !== id) return t
+        const txLine: LogLine = {
+          seq: t.nextSeq,
+          atMs,
+          bytes: outgoing,
+          text: txText,
+          level: null,
+          direction: 'tx',
+        }
+        const mergedLines = [...t.lines, txLine]
+        const trimmedLines =
+          mergedLines.length > maxLinesPerTab
+            ? mergedLines.slice(mergedLines.length - maxLinesPerTab)
+            : mergedLines
+        const withTx = {
+          ...t,
+          lines: trimmedLines,
+          nextSeq: t.nextSeq + 1,
+          firstLineAtMs: t.firstLineAtMs ?? atMs,
+        }
+        if (historyEntry.length === 0) return withTx
+        const withHistory = {
+          ...withTx,
+          sendHistory: [historyEntry, ...withTx.sendHistory].slice(0, 100),
+        }
         if (!t.macroRecording) return withHistory
         const delayMs = t.macroLastStepAtMs === null ? 0 : now - t.macroLastStepAtMs
         return {
