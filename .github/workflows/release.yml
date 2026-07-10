@@ -86,3 +86,32 @@ jobs:
       - name: Build unsigned bundles
         if: env.TAURI_SIGNING_AVAILABLE != 'true'
         run: npm run tauri build
+
+      # edt-cli isn't bundled inside the installer (no PATH registration,
+      # no Tauri sidecar wiring yet) -- it's a separate download attached to
+      # the same release, one per platform.
+      - name: Build edt-cli
+        run: cargo build --release --manifest-path src-tauri/Cargo.toml --bin edt-cli --features cli
+
+      - name: Attach edt-cli to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The unsigned build path above only builds locally -- it never
+          # creates a GitHub Release (only tauri-action, in the signed
+          # path, does) -- so there may be nothing to upload to yet.
+          if ! gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            echo "No GitHub Release exists for this tag (unsigned build path doesn't publish one) -- skipping edt-cli upload."
+            exit 0
+          fi
+          if [ "${{ matrix.platform }}" = "windows-latest" ]; then
+            src="src-tauri/target/release/edt-cli.exe"
+            dest="edt-cli-windows-x64.exe"
+          else
+            src="src-tauri/target/release/edt-cli"
+            os_name="$([ "${{ matrix.platform }}" = "macos-latest" ] && echo macos || echo linux)"
+            dest="edt-cli-${os_name}-$(uname -m)"
+          fi
+          cp "$src" "$dest"
+          gh release upload "${{ github.ref_name }}" "$dest" --clobber
