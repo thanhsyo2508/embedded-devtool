@@ -182,7 +182,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             <p>
               While an SSH tab is focused, <kbd>Ctrl+W</kbd> and <kbd>Ctrl+L</kbd> go to the shell
               (delete word / clear screen) instead of being caught as the app's close-tab /
-              clear-log shortcuts.
+              clear-log shortcuts. Paste with <kbd>Ctrl+V</kbd> or right-click — both read from the
+              system clipboard directly rather than relying on the browser's native paste, which
+              isn't reliable inside the app's webview.
             </p>
             <p>
               Two current limitations worth knowing: authentication is password-only (no key-based

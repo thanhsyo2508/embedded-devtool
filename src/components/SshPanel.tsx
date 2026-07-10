@@ -1,9 +1,16 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import '@xterm/xterm/css/xterm.css'
 import type { TabState } from '../state/tabsStore'
 import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
+
+function pasteFromClipboard(term: Terminal) {
+  void readText().then((text) => {
+    if (text) term.paste(text)
+  })
+}
 
 /** SSH is a real interactive PTY, not the line-oriented text every other
  * tab kind shows — this renders it with an actual terminal emulator
@@ -29,10 +36,35 @@ export function SshPanel({ tab }: { tab: TabState }) {
     term.loadAddon(fitAddon)
     term.open(container)
     fitAddon.fit()
+    // Without this, a freshly opened/switched-to tab doesn't have keyboard
+    // focus at all — keystrokes (and native Ctrl+V paste, which only fires
+    // on the focused element) silently go nowhere until the user clicks
+    // into the terminal first.
+    term.focus()
 
     const dataDisposable = term.onData((data) => {
       void writeNetworkStream(tab.id, Array.from(new TextEncoder().encode(data)))
     })
+
+    // Ctrl+V's native browser paste depends on OS/webview clipboard
+    // permissions that aren't reliable inside Tauri's webview, so paste
+    // explicitly through the clipboard-manager plugin instead — same as
+    // right-click, which is the more common paste gesture in terminal apps
+    // (PuTTY, most Linux terminals) anyway.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.type !== 'keydown') return true
+      const isPaste = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v'
+      if (!isPaste) return true
+      event.preventDefault()
+      pasteFromClipboard(term)
+      return false
+    })
+
+    const handleContextMenu = (event: MouseEvent) => {
+      event.preventDefault()
+      pasteFromClipboard(term)
+    }
+    container.addEventListener('contextmenu', handleContextMenu)
 
     void sshResize(tab.id, term.cols, term.rows).catch(() => {})
 
@@ -49,6 +81,7 @@ export function SshPanel({ tab }: { tab: TabState }) {
 
     return () => {
       dataDisposable.dispose()
+      container.removeEventListener('contextmenu', handleContextMenu)
       resizeObserver.disconnect()
       void unlistenPromise.then((unlisten) => unlisten())
       term.dispose()
