@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { readText } from '@tauri-apps/plugin-clipboard-manager'
+import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import '@xterm/xterm/css/xterm.css'
 import type { TabState } from '../state/tabsStore'
 import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
@@ -46,6 +46,14 @@ export function SshPanel({ tab }: { tab: TabState }) {
       void writeNetworkStream(tab.id, Array.from(new TextEncoder().encode(data)))
     })
 
+    // Copy-on-select (PuTTY / most Linux terminals' convention) — Ctrl+C is
+    // already spoken for (sends SIGINT to the remote shell), so there's no
+    // keyboard copy shortcut; selecting text is the only gesture for it.
+    const selectionDisposable = term.onSelectionChange(() => {
+      const selection = term.getSelection()
+      if (selection) void writeText(selection)
+    })
+
     // Ctrl+V's native browser paste depends on OS/webview clipboard
     // permissions that aren't reliable inside Tauri's webview, so paste
     // explicitly through the clipboard-manager plugin instead — same as
@@ -81,6 +89,7 @@ export function SshPanel({ tab }: { tab: TabState }) {
 
     return () => {
       dataDisposable.dispose()
+      selectionDisposable.dispose()
       container.removeEventListener('contextmenu', handleContextMenu)
       resizeObserver.disconnect()
       void unlistenPromise.then((unlisten) => unlisten())

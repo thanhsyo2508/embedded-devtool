@@ -184,7 +184,16 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               (delete word / clear screen) instead of being caught as the app's close-tab /
               clear-log shortcuts. Paste with <kbd>Ctrl+V</kbd> or right-click — both read from the
               system clipboard directly rather than relying on the browser's native paste, which
-              isn't reliable inside the app's webview.
+              isn't reliable inside the app's webview. Selecting text copies it automatically (no
+              keyboard shortcut needed, since <kbd>Ctrl+C</kbd> sends SIGINT to the remote shell
+              instead) — double-click selects a word, triple-click a whole line.
+            </p>
+            <p>
+              A terminal has no concept of "click to move the cursor mid-command" the way a text
+              editor does — the remote shell (not this app) owns the command line you're typing, so
+              editing it works the same as any other terminal: <kbd>Home</kbd>/<kbd>End</kbd>,{' '}
+              <kbd>Ctrl+←</kbd>/<kbd>Ctrl+→</kbd> to jump by word, and <kbd>Ctrl+A</kbd>/
+              <kbd>Ctrl+E</kbd> to jump to the start/end of the line.
             </p>
             <p>
               Two current limitations worth knowing: authentication is password-only (no key-based
