@@ -1396,6 +1396,71 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.flash-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.flash-batch-ports {
+  flex: 1;
+  min-height: 100px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flash-batch-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.flash-batch-row:hover {
+  background: var(--panel);
+}
+
+.flash-batch-row input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
+
+.flash-batch-port {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flash-batch-status {
+  flex: none;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.flash-batch-status.status-flashing {
+  color: var(--accent);
+}
+
+.flash-batch-status.status-done {
+  color: var(--ok);
+}
+
+.flash-batch-status.status-error {
+  color: var(--err);
+}
+
 .flash-ob-text {
   max-height: 160px;
   flex: none;

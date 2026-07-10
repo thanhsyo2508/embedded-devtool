@@ -4,8 +4,10 @@ import { listSerialPorts, type PortInfo } from '../api/serial'
 import { useFlashStore } from '../state/flashStore'
 import { ChipIcon, FolderIcon, GearIcon, PlusIcon, TrashIcon, XIcon, ZapIcon } from './icons'
 import { Stm32Body } from './Stm32Body'
+import { FlashBatchPanel } from './FlashBatchPanel'
 
 type Target = 'esp32' | 'stm32'
+type FlashMode = 'single' | 'batch'
 
 const BAUD_OPTIONS = [115_200, 230_400, 460_800, 921_600]
 
@@ -17,6 +19,7 @@ function formatBytes(n: number): string {
 
 export function FlashPanel({ onClose }: { onClose: () => void }) {
   const [target, setTarget] = useState<Target>('esp32')
+  const [mode, setMode] = useState<FlashMode>('single')
   const [ports, setPorts] = useState<PortInfo[]>([])
   const {
     portName,
@@ -79,6 +82,9 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
   }
 
   const progressPct = progressTotal > 0 ? Math.round((progressCurrent / progressTotal) * 100) : 0
+  const parsedSegments = segments
+    .filter((s) => s.path)
+    .map((s) => ({ offset: Number(s.offset), path: s.path }))
 
   return (
     <div className="settings-overlay" onClick={onClose}>
@@ -104,41 +110,56 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
 
         {target === 'esp32' && (
           <>
-            <div className="flash-connect-row">
-              <select value={portName} onChange={(e) => setPortName(e.target.value)}>
-                <option value="">Select port…</option>
-                {ports.map((p) => (
-                  <option key={p.portName} value={p.portName}>
-                    {p.portName}
-                    {p.product ? ` — ${p.product}` : ''}
-                  </option>
-                ))}
-              </select>
-              <select value={baudRate} onChange={(e) => setBaudRate(Number(e.target.value))}>
-                {BAUD_OPTIONS.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={!portName || detecting}
-                onClick={() => void detectChip()}
-              >
-                {detecting ? 'Detecting…' : 'Detect chip'}
-              </button>
+            <div className="seg">
+              <span className={mode === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
+                Single
+              </span>
+              <span className={mode === 'batch' ? 'on' : ''} onClick={() => setMode('batch')}>
+                Batch
+              </span>
             </div>
 
-            {chipInfo && (
-              <div className="port-details">
-                <ChipIcon className="port-details-icon" />
-                <div className="port-details-text">
-                  <span className="port-details-name">{chipInfo.chip}</span>
-                  {chipInfo.macAddress && <span className="mono">MAC {chipInfo.macAddress}</span>}
-                  <span>flash {formatBytes(chipInfo.flashSizeBytes)}</span>
+            {mode === 'single' && (
+              <>
+                <div className="flash-connect-row">
+                  <select value={portName} onChange={(e) => setPortName(e.target.value)}>
+                    <option value="">Select port…</option>
+                    {ports.map((p) => (
+                      <option key={p.portName} value={p.portName}>
+                        {p.portName}
+                        {p.product ? ` — ${p.product}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <select value={baudRate} onChange={(e) => setBaudRate(Number(e.target.value))}>
+                    {BAUD_OPTIONS.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!portName || detecting}
+                    onClick={() => void detectChip()}
+                  >
+                    {detecting ? 'Detecting…' : 'Detect chip'}
+                  </button>
                 </div>
-              </div>
+
+                {chipInfo && (
+                  <div className="port-details">
+                    <ChipIcon className="port-details-icon" />
+                    <div className="port-details-text">
+                      <span className="port-details-name">{chipInfo.chip}</span>
+                      {chipInfo.macAddress && (
+                        <span className="mono">MAC {chipInfo.macAddress}</span>
+                      )}
+                      <span>flash {formatBytes(chipInfo.flashSizeBytes)}</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flash-segments">
@@ -181,48 +202,56 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
               </button>
             </div>
 
-            {busy && progressTotal > 0 && (
-              <div className="flash-progress">
-                <div className="flash-progress-bar">
-                  <div className="flash-progress-fill" style={{ width: `${progressPct}%` }} />
+            {mode === 'single' && (
+              <>
+                {busy && progressTotal > 0 && (
+                  <div className="flash-progress">
+                    <div className="flash-progress-bar">
+                      <div className="flash-progress-fill" style={{ width: `${progressPct}%` }} />
+                    </div>
+                    <span className="mono">{progressPct}%</span>
+                  </div>
+                )}
+
+                <div className="flash-actions">
+                  <button type="button" onClick={() => void handleSaveProfile()}>
+                    Save profile
+                  </button>
+                  <button type="button" onClick={() => void handleLoadProfile()}>
+                    Load profile
+                  </button>
+                  <button
+                    type="button"
+                    className="flash-erase"
+                    disabled={!portName || busy}
+                    onClick={handleEraseFull}
+                  >
+                    <GearIcon /> Erase chip
+                  </button>
+                  <button
+                    type="button"
+                    className="connect-button flash-go"
+                    disabled={!portName || busy}
+                    onClick={() => void flash()}
+                  >
+                    <ZapIcon /> {busy ? 'Working…' : 'Flash'}
+                  </button>
                 </div>
-                <span className="mono">{progressPct}%</span>
-              </div>
+
+                <div className="flash-log">
+                  {log.length === 0 && <div className="flash-log-empty">No activity yet.</div>}
+                  {log.map((line, i) => (
+                    <div key={i} className="flash-log-line">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
-            <div className="flash-actions">
-              <button type="button" onClick={() => void handleSaveProfile()}>
-                Save profile
-              </button>
-              <button type="button" onClick={() => void handleLoadProfile()}>
-                Load profile
-              </button>
-              <button
-                type="button"
-                className="flash-erase"
-                disabled={!portName || busy}
-                onClick={handleEraseFull}
-              >
-                <GearIcon /> Erase chip
-              </button>
-              <button
-                type="button"
-                className="connect-button flash-go"
-                disabled={!portName || busy}
-                onClick={() => void flash()}
-              >
-                <ZapIcon /> {busy ? 'Working…' : 'Flash'}
-              </button>
-            </div>
-
-            <div className="flash-log">
-              {log.length === 0 && <div className="flash-log-empty">No activity yet.</div>}
-              {log.map((line, i) => (
-                <div key={i} className="flash-log-line">
-                  {line}
-                </div>
-              ))}
-            </div>
+            {mode === 'batch' && (
+              <FlashBatchPanel ports={ports} baudRate={baudRate} segments={parsedSegments} />
+            )}
           </>
         )}
       </div>

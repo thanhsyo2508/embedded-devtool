@@ -530,6 +530,12 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
               <li>Click Flash; Erase chip wipes everything first if needed.</li>
             </ol>
+            <p>
+              <b>Batch</b> (next to Single) flashes the same segments to several boards at once —
+              check every port to include, then <b>Flash N device(s)</b>. Each port flashes on its
+              own, in parallel, with its own live progress/status, so one board failing (or being
+              unplugged) doesn't stop or block the others.
+            </p>
           </section>
 
           <section className="guide-section">
