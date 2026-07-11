@@ -1,5 +1,6 @@
 pub mod core;
 pub mod flash;
+pub mod ftp;
 pub mod net;
 pub mod script;
 pub mod serial;
@@ -1340,6 +1341,178 @@ fn spawn_network_batch_emitter(app: AppHandle, network: Arc<NetworkManager>, eve
     });
 }
 
+// ---- FTP client ----
+//
+// Deliberately not a DataStream tab like TCP/UDP/WS/MQTT: FTP is a
+// stateful request/response file browser (current directory, sequential
+// commands on one control connection), not a byte stream, so it gets its
+// own command surface and its own frontend panel instead of MonitorView.
+
+#[tauri::command]
+fn ftp_connect(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    manager.connect(&id, &host, port, &username, &password)
+}
+
+#[tauri::command]
+fn ftp_disconnect(manager: tauri::State<Arc<ftp::FtpManager>>, id: String) {
+    manager.disconnect(&id);
+}
+
+#[tauri::command]
+fn ftp_list(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+) -> Result<Vec<ftp::FtpEntry>, String> {
+    manager.list(&id, &path)
+}
+
+#[tauri::command]
+fn ftp_pwd(manager: tauri::State<Arc<ftp::FtpManager>>, id: String) -> Result<String, String> {
+    manager.pwd(&id)
+}
+
+#[tauri::command]
+fn ftp_cwd(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    manager.cwd(&id, &path)
+}
+
+#[tauri::command]
+fn ftp_mkdir(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    manager.mkdir(&id, &path)
+}
+
+#[tauri::command]
+fn ftp_rmdir(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    manager.rmdir(&id, &path)
+}
+
+#[tauri::command]
+fn ftp_delete(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    manager.delete(&id, &path)
+}
+
+#[tauri::command]
+fn ftp_rename(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    manager.rename(&id, &from, &to)
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct FtpTransferDoneEvent {
+    id: String,
+    operation: &'static str,
+    success: bool,
+    message: String,
+}
+
+/// Downloads/uploads run on their own thread and report completion over
+/// "ftp://transferDone" — same reasoning as flash/OTA's done events, since
+/// a large file can take a while and the command shouldn't block the
+/// frontend's ability to do anything else meanwhile.
+#[tauri::command]
+fn ftp_download(
+    app: AppHandle,
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    remote_path: String,
+    local_path: String,
+) {
+    let manager = manager.inner().clone();
+    thread::spawn(move || {
+        let (success, message) = match manager.download(&id, &remote_path, &local_path) {
+            Ok(()) => (true, "Download complete".to_string()),
+            Err(e) => (false, e),
+        };
+        let _ = app.emit(
+            "ftp://transferDone",
+            FtpTransferDoneEvent {
+                id,
+                operation: "download",
+                success,
+                message,
+            },
+        );
+    });
+}
+
+#[tauri::command]
+fn ftp_upload(
+    app: AppHandle,
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    local_path: String,
+    remote_path: String,
+) {
+    let manager = manager.inner().clone();
+    thread::spawn(move || {
+        let (success, message) = match manager.upload(&id, &local_path, &remote_path) {
+            Ok(()) => (true, "Upload complete".to_string()),
+            Err(e) => (false, e),
+        };
+        let _ = app.emit(
+            "ftp://transferDone",
+            FtpTransferDoneEvent {
+                id,
+                operation: "upload",
+                success,
+                message,
+            },
+        );
+    });
+}
+
+// ---- FTP server ----
+
+#[tauri::command]
+fn ftp_server_start(
+    manager: tauri::State<Arc<ftp::FtpServerManager>>,
+    root_dir: String,
+    port: u16,
+    username: Option<String>,
+    password: Option<String>,
+) -> Result<(), String> {
+    manager.start(root_dir, port, username, password)
+}
+
+#[tauri::command]
+fn ftp_server_stop(manager: tauri::State<Arc<ftp::FtpServerManager>>) {
+    manager.stop();
+}
+
+#[tauri::command]
+fn ftp_server_is_running(manager: tauri::State<Arc<ftp::FtpServerManager>>) -> bool {
+    manager.is_running()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let event_bus = EventBus::new();
@@ -1350,6 +1523,8 @@ pub fn run() {
     serial::manager::spawn_hotplug_watcher(event_bus.clone());
 
     let scripts = Arc::new(ScriptManager::new());
+    let ftp_manager = Arc::new(ftp::FtpManager::new());
+    let ftp_server_manager = Arc::new(ftp::FtpServerManager::new());
 
     let manager_for_state = manager.clone();
     let network_for_state = network.clone();
@@ -1364,6 +1539,8 @@ pub fn run() {
         .manage(network_for_state)
         .manage(event_bus_for_state)
         .manage(scripts)
+        .manage(ftp_manager)
+        .manage(ftp_server_manager)
         .manage(KeepAwakeState(Mutex::new(None)))
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -1427,6 +1604,20 @@ pub fn run() {
             mqtt_subscribe,
             mqtt_unsubscribe,
             ws_send_text,
+            ftp_connect,
+            ftp_disconnect,
+            ftp_list,
+            ftp_pwd,
+            ftp_cwd,
+            ftp_mkdir,
+            ftp_rmdir,
+            ftp_delete,
+            ftp_rename,
+            ftp_download,
+            ftp_upload,
+            ftp_server_start,
+            ftp_server_stop,
+            ftp_server_is_running,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")

@@ -134,6 +134,12 @@
       "p2": "<b>Scan for OTA devices</b> browses the LAN via mDNS for the <code>_arduino._tcp</code> service (the same discovery ArduinoOTA itself advertises, and what the Arduino IDE's Network Ports menu uses) — click a result to fill in host and port. Otherwise enter the device's IP manually (port defaults to <code>3232</code>). Leave the password field blank if the sketch never called <code>ArduinoOTA.setPassword()</code>. Progress goes through an invite/authenticate handshake before any bytes transfer, then a single continuous upload — there's no per-segment offset to configure, the device's own OTA partition handling takes care of that.",
       "toastNote": "A toast notification in the bottom-right corner reports success/failure when this (or a batch flash, auto-flash-on-plug, or provisioning run) finishes, whether or not this panel is still open — you don't have to keep watching it."
     },
+    "ftp": {
+      "heading": "FTP Client/Server",
+      "p1": "The <b>Client</b> tab connects to any FTP server — an SD-card or SPIFFS/LittleFS file browser many ESP32/ESP8266 sketches expose, a NAS, or another computer — and lets you browse folders, upload, download, create folders, and delete files. Enter host/port/username/password and hit <b>Connect</b>; leave username as <code>anonymous</code> with a blank password for servers that don't require login. Only plain FTP is supported (no FTPS/TLS), which covers the vast majority of embedded-device FTP servers.",
+      "p2": "The <b>Server</b> tab runs a local FTP server so a device can read/write files on this computer instead — pick a root folder to share, a port, and optionally a username/password (leave username blank for anonymous access). Stop the server before changing its settings. Like the client, this is plain FTP only.",
+      "note": "Both sides handle one connection at a time for now — this is a file browser, not a byte-stream tab, so it doesn't appear in the tab strip alongside Serial/TCP/SSH."
+    },
     "flashStm32": {
       "heading": "Flash STM32",
       "intro": "Requires STM32CubeProgrammer installed — the panel detects it automatically.",
@@ -153,6 +159,7 @@
       "flashEsp32": "Flash ESP32",
       "flashEsp32Title": "Flash ESP32 (Ctrl+Shift+F)",
       "networkScanner": "Network Scanner",
+      "ftp": "FTP Client/Server",
       "settings": "Settings",
       "settingsTitle": "Settings (Ctrl+,)"
     },
@@ -270,7 +277,8 @@
     "provisionDone": "{{port}}: provisioning complete",
     "provisionError": "{{port}}: provisioning failed — {{message}}",
     "otaDone": "OTA update complete",
-    "otaError": "OTA update failed — {{message}}"
+    "otaError": "OTA update failed — {{message}}",
+    "ftpTransferError": "FTP transfer failed — {{message}}"
   },
   "ota": {
     "tabLabel": "OTA (WiFi)",
@@ -280,6 +288,29 @@
     "passwordPlaceholder": "leave blank if the device has none",
     "selectFirmwareTitle": "Select firmware .bin",
     "flashOverWifi": "Flash over WiFi"
+  },
+  "ftp": {
+    "title": "FTP Client/Server",
+    "clientTab": "Client",
+    "serverTab": "Server",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "newFolder": "New folder",
+    "newFolderPrompt": "New folder name:",
+    "upload": "Upload file",
+    "download": "Download",
+    "deleteConfirm": "Delete \"{{name}}\"? This cannot be undone.",
+    "name": "Name",
+    "size": "Size",
+    "modified": "Modified",
+    "emptyDir": "This folder is empty.",
+    "serverHint": "Runs a local plain-FTP server so a device can read/write files on this computer — leave username blank to allow anonymous access.",
+    "rootDir": "Root folder",
+    "selectRootDir": "Select a folder to share…",
+    "serverUsername": "Username (optional)",
+    "startServer": "Start server",
+    "stopServer": "Stop server",
+    "serverRunningHint": "Serving on port {{port}}. Stop the server before changing settings."
   },
   "flash": {
     "title": "Flash",

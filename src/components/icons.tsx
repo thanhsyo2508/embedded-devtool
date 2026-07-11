@@ -246,6 +246,34 @@ export function CopyIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ServerIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="7" rx="1.5" />
+      <rect x="3" y="13" width="18" height="7" rx="1.5" />
+      <path d="M7 7.5h.01M7 16.5h.01" />
+    </Icon>
+  )
+}
+
+export function UploadIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M12 20V6M6 11l6-6 6 6" />
+      <path d="M4 20h16" />
+    </Icon>
+  )
+}
+
+export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M12 4v14M6 13l6 6 6-6" />
+      <path d="M4 20h16" />
+    </Icon>
+  )
+}
+
 export function MagicWandIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

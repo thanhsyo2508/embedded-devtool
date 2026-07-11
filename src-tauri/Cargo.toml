@@ -51,6 +51,30 @@ md-5 = "0.10"
 sha2 = "0.10"
 pbkdf2 = "0.12"
 
+# FTP client/server. suppaftp is a blocking client (matches the rest of this
+# codebase's thread-per-connection style, no async needed) — plain FTP only
+# for now (no `secure`/TLS feature enabled), since that avoids pulling in
+# either OpenSSL or rustls for a first version and most embedded-device FTP
+# servers speak plain FTP anyway; FTPS can be added later behind a feature
+# flag without an API change on the frontend side.
+# libunftp is async/tokio-based for the server side; it gets its own
+# current-thread runtime per server instance, the same pattern already used
+# for SSH in core/ssh_stream.rs, rather than a shared global runtime.
+suppaftp = "10"
+# libunftp requires *some* rustls crypto backend at compile time even though
+# v1 never turns TLS on at runtime. `ring` is pure Rust (no cmake/C compiler
+# needed, unlike the default `aws_lc_rs`, which builds a bundled C crypto
+# library) — same "avoid native build deps for CI portability" reasoning as
+# elsewhere in this project, and already the crypto backend `russh` uses.
+# prometheus/proxy_protocol (metrics/proxy support) are default features
+# this app doesn't need, left off.
+libunftp = { version = "0.23", default-features = false, features = ["ring"] }
+unftp-sbe-fs = "0.4"
+# Needed directly (not just transitively via libunftp) to implement a
+# username/password Authenticator — see ftp/server.rs.
+unftp-core = "0.1"
+async-trait = "0.1"
+
 # Only pulled in for the `edt-cli` binary (via the `cli` feature below) —
 # optional so a normal GUI build never compiles or links them.
 clap = { version = "4", features = ["derive"], optional = true }

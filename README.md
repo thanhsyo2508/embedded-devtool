@@ -18,6 +18,7 @@ Existing tools each cover one slice: PlatformIO (build/flash, weak monitor), Coo
   - **SSH** — a real interactive terminal (PTY over `russh`, rendered with xterm.js) for password-authenticated shell access.
   - **TCP client/server**, plus a standalone **Network Scanner** (CIDR + common-port sweep, ARP/reverse-DNS host info, per-host deep scan) for finding LAN devices that don't advertise via mDNS.
   - Every transport still drives the same filters, triggers, macros, and plotter as a serial connection, since they all sit behind one shared data-stream abstraction; connection profiles, last-used config, and mDNS "Scan LAN" presets are scoped per protocol.
+- **FTP client/server:** a plain-FTP (RFC 959) client — connect, browse, upload, download, create folders, delete — for talking to a device's SD-card/SPIFFS file server, plus a local FTP server to share a folder on this machine with a device, with optional username/password (anonymous by default). A file browser rather than a byte stream, so it's its own panel instead of a tab.
 - **Multi-pane layout (Snap Layouts):** drag a tab to the edge of any pane to split the workspace and view tabs side by side, nestable and resizable like a code editor; drag a tab onto another pane to merge it back.
 - **RS485 / Modbus:** a Modbus RTU master (one-shot request builder plus repeating poll rules that feed the plotter) for testing RS485 sensors and devices, a Modbus slave emulator with editable coil/register maps for testing a master device, and Modbus TCP support over any TCP client tab.
 - **Lua scripting engine:** a sandboxed per-tab script with `on_data`/`send`/`send_hex`/`wait_for`/`log`/`alert`/`plot`/`timer`, for custom automation beyond filters/triggers.
@@ -37,6 +38,7 @@ Not yet built: a plugin system — see the roadmap docs above for later-phase it
 - **Framework:** Tauri 2.x (Rust backend + React/TypeScript WebView frontend)
 - **Serial:** `serialport-rs` · **ESP32 flash:** `espflash` (native Rust) · **STM32 flash:** wraps `STM32_Programmer_CLI`
 - **MQTT:** `rumqttc` (synchronous client) · **WebSocket:** `tungstenite` · **mDNS discovery:** `mdns-sd`
+- **FTP client:** `suppaftp` (blocking) · **FTP server:** `libunftp` + `unftp-sbe-fs` (async, own `tokio` runtime)
 - **Scripting:** `mlua` (sandboxed Lua 5.4) · **Modbus RTU/TCP:** hand-rolled TypeScript codec (CRC16 + frame encode/decode)
 - **Plotter:** uPlot · **Auto-update:** `tauri-plugin-updater` + GitHub Releases
 

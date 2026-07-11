@@ -377,6 +377,17 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
+            <h3>{t('help.ftp.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.ftp.p1" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.ftp.p2" components={G} />
+            </p>
+            <p>{t('help.ftp.note')}</p>
+          </section>
+
+          <section className="guide-section">
             <h3>{t('help.flashStm32.heading')}</h3>
             <p>{t('help.flashStm32.intro')}</p>
             <ul>

@@ -22,11 +22,20 @@ import { FlashPanel } from './components/FlashPanel'
 import { PlotDock } from './components/PlotDock'
 import { WorkspaceResizer } from './components/WorkspaceResizer'
 import { NetScanPanel } from './components/NetScanPanel'
+import { FtpPanel } from './components/FtpPanel'
 import { ToastStack } from './components/ToastStack'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
 import { useWsStore } from './state/wsStore'
-import { ChartIcon, DiskIcon, FolderIcon, GearIcon, GlobeIcon, ZapIcon } from './components/icons'
+import {
+  ChartIcon,
+  DiskIcon,
+  FolderIcon,
+  GearIcon,
+  GlobeIcon,
+  ServerIcon,
+  ZapIcon,
+} from './components/icons'
 
 const PROJECT_FILE_FILTERS = [{ name: 'EDT Project', extensions: ['edtproj'] }]
 
@@ -52,6 +61,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
   const [showNetScan, setShowNetScan] = useState(false)
+  const [showFtp, setShowFtp] = useState(false)
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
@@ -239,6 +249,7 @@ function App() {
         if (showSettings) setShowSettings(false)
         else if (showFlash) setShowFlash(false)
         else if (showNetScan) setShowNetScan(false)
+        else if (showFtp) setShowFtp(false)
         else if (showConnect && hasAnyTabs) setShowConnect(false)
         return
       }
@@ -308,6 +319,7 @@ function App() {
     showSettings,
     showFlash,
     showNetScan,
+    showFtp,
     hasAnyTabs,
     plotVisible,
     closeTab,
@@ -371,6 +383,15 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
+          aria-label={t('app.topbar.ftp')}
+          title={t('app.topbar.ftp')}
+          onClick={() => setShowFtp(true)}
+        >
+          <ServerIcon />
+        </button>
+        <button
+          type="button"
+          className="icon-button settings-trigger"
           aria-label={t('app.topbar.settings')}
           title={t('app.topbar.settingsTitle')}
           onClick={() => setShowSettings(true)}
@@ -401,6 +422,7 @@ function App() {
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showFlash && <FlashPanel onClose={() => setShowFlash(false)} />}
       {showNetScan && <NetScanPanel onClose={() => setShowNetScan(false)} />}
+      {showFtp && <FtpPanel onClose={() => setShowFtp(false)} />}
       <ToastStack />
     </div>
   )

@@ -134,6 +134,12 @@
       "p2": "<b>Quét thiết bị OTA</b> quét mạng LAN qua mDNS cho dịch vụ <code>_arduino._tcp</code> (đúng dịch vụ mà ArduinoOTA tự quảng bá, và cũng là thứ menu Network Ports của Arduino IDE dùng) — bấm vào 1 kết quả để tự điền host và port. Hoặc nhập IP thiết bị thủ công (port mặc định <code>3232</code>). Để trống mật khẩu nếu sketch chưa từng gọi <code>ArduinoOTA.setPassword()</code>. Tiến trình đi qua bước bắt tay mời/xác thực trước khi truyền byte nào, sau đó là 1 lần tải lên liên tục — không cần cấu hình offset theo từng segment, việc đó do chính phần xử lý partition OTA của thiết bị lo.",
       "toastNote": "1 thông báo toast ở góc dưới bên phải sẽ báo thành công/thất bại khi việc này (hoặc 1 lần batch flash, auto-flash-on-plug, hoặc provisioning) hoàn tất, bất kể panel này còn mở hay không — không cần phải canh chừng nó."
     },
+    "ftp": {
+      "heading": "FTP Client/Server",
+      "p1": "Tab <b>Client</b> kết nối tới bất kỳ FTP server nào — trình duyệt file thẻ SD hoặc SPIFFS/LittleFS mà nhiều sketch ESP32/ESP8266 cung cấp, 1 NAS, hoặc máy tính khác — cho phép duyệt thư mục, tải lên, tải xuống, tạo thư mục và xóa file. Nhập host/port/username/password rồi bấm <b>Kết nối</b>; để username là <code>anonymous</code> và mật khẩu trống với server không yêu cầu đăng nhập. Chỉ hỗ trợ FTP thường (không FTPS/TLS), đủ dùng cho phần lớn FTP server trên thiết bị nhúng.",
+      "p2": "Tab <b>Server</b> chạy 1 FTP server ngay trên máy này để thiết bị có thể đọc/ghi file — chọn thư mục gốc để chia sẻ, 1 port, và username/password tùy chọn (để trống username để cho phép truy cập ẩn danh). Dừng server trước khi đổi cấu hình. Cũng như client, chỉ hỗ trợ FTP thường.",
+      "note": "Cả 2 phía hiện chỉ xử lý 1 kết nối tại 1 thời điểm — đây là trình duyệt file, không phải tab dạng byte-stream, nên không xuất hiện trong dải tab cùng Serial/TCP/SSH."
+    },
     "flashStm32": {
       "heading": "Nạp STM32",
       "intro": "Cần cài STM32CubeProgrammer — panel tự động nhận diện nó.",
@@ -153,6 +159,7 @@
       "flashEsp32": "Nạp ESP32",
       "flashEsp32Title": "Nạp ESP32 (Ctrl+Shift+F)",
       "networkScanner": "Quét mạng",
+      "ftp": "FTP Client/Server",
       "settings": "Cài đặt",
       "settingsTitle": "Cài đặt (Ctrl+,)"
     },
@@ -270,7 +277,8 @@
     "provisionDone": "{{port}}: cấu hình xong",
     "provisionError": "{{port}}: cấu hình lỗi — {{message}}",
     "otaDone": "Cập nhật OTA hoàn tất",
-    "otaError": "Cập nhật OTA lỗi — {{message}}"
+    "otaError": "Cập nhật OTA lỗi — {{message}}",
+    "ftpTransferError": "Truyền FTP lỗi — {{message}}"
   },
   "ota": {
     "tabLabel": "OTA (WiFi)",
@@ -280,6 +288,29 @@
     "passwordPlaceholder": "để trống nếu thiết bị không đặt mật khẩu",
     "selectFirmwareTitle": "Chọn file firmware .bin",
     "flashOverWifi": "Nạp qua WiFi"
+  },
+  "ftp": {
+    "title": "FTP Client/Server",
+    "clientTab": "Client",
+    "serverTab": "Server",
+    "connect": "Kết nối",
+    "disconnect": "Ngắt kết nối",
+    "newFolder": "Thư mục mới",
+    "newFolderPrompt": "Tên thư mục mới:",
+    "upload": "Tải lên file",
+    "download": "Tải xuống",
+    "deleteConfirm": "Xóa \"{{name}}\"? Hành động này không thể hoàn tác.",
+    "name": "Tên",
+    "size": "Kích thước",
+    "modified": "Sửa đổi",
+    "emptyDir": "Thư mục này trống.",
+    "serverHint": "Chạy một FTP server (không mã hóa) trên máy này để thiết bị đọc/ghi file — để trống username để cho phép truy cập ẩn danh (anonymous).",
+    "rootDir": "Thư mục gốc",
+    "selectRootDir": "Chọn thư mục để chia sẻ…",
+    "serverUsername": "Username (tùy chọn)",
+    "startServer": "Khởi động server",
+    "stopServer": "Dừng server",
+    "serverRunningHint": "Đang phục vụ trên cổng {{port}}. Dừng server trước khi đổi cấu hình."
   },
   "flash": {
     "title": "Nạp firmware",
