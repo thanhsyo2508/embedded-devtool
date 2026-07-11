@@ -120,3 +120,39 @@ export function onFlashProgress(cb: (event: FlashProgressEvent) => void): Promis
 export function onFlashDone(cb: (event: FlashDoneEvent) => void): Promise<UnlistenFn> {
   return listen<FlashDoneEvent>('flash://done', (event) => cb(event.payload))
 }
+
+// ---- ESP32 OTA-over-WiFi (espota protocol) ----
+
+export type OtaProgress =
+  | { phase: 'inviting' }
+  | { phase: 'authenticating' }
+  | { phase: 'waitingForDevice' }
+  | { phase: 'writing'; current: number; total: number }
+
+export interface OtaProgressEvent {
+  id: string
+  phase: OtaProgress['phase']
+  current?: number
+  total?: number
+}
+
+/** Flashes a device over WiFi via the ArduinoOTA protocol — no serial port
+ * involved, so this doesn't touch PortManager at all. `password` is the
+ * plaintext ArduinoOTA password (empty string if the device has none). */
+export function otaFlashEsp32(
+  id: string,
+  host: string,
+  port: number,
+  password: string,
+  firmwarePath: string,
+): Promise<void> {
+  return invoke('ota_flash_esp32', { id, host, port, password, firmwarePath })
+}
+
+export function onOtaProgress(cb: (event: OtaProgressEvent) => void): Promise<UnlistenFn> {
+  return listen<OtaProgressEvent>('ota://progress', (event) => cb(event.payload))
+}
+
+export function onOtaDone(cb: (event: FlashDoneEvent) => void): Promise<UnlistenFn> {
+  return listen<FlashDoneEvent>('ota://done', (event) => cb(event.payload))
+}

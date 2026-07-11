@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { closeSerialPort, onSerialData, openSerialPort, writeSerialPort } from '../api/serial'
 import { LINE_ENDING_BYTES, type LineEnding } from './tabsStore'
+import i18n from '../i18n'
+import { useToastStore } from './toastStore'
 
 // Serial-command provisioning: a short scripted sequence of writes (and
 // optional wait-for-response gates) run automatically the moment a newly
@@ -185,9 +187,18 @@ export const useProvisionStore = create<ProvisionState>()(
               }
               updateDevice(portName, { status: 'done' })
               appendDeviceLog(portName, '✓ Workflow complete')
+              useToastStore
+                .getState()
+                .addToast('success', i18n.t('toast.provisionDone', { port: portName }))
             } catch (err) {
               updateDevice(portName, { status: 'error' })
               appendDeviceLog(portName, `✗ ${String(err)}`)
+              useToastStore
+                .getState()
+                .addToast(
+                  'error',
+                  i18n.t('toast.provisionError', { port: portName, message: String(err) }),
+                )
             } finally {
               await closeSerialPort(sessionId).catch(() => {})
             }

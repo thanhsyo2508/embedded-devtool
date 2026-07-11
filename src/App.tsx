@@ -22,6 +22,7 @@ import { FlashPanel } from './components/FlashPanel'
 import { PlotDock } from './components/PlotDock'
 import { WorkspaceResizer } from './components/WorkspaceResizer'
 import { NetScanPanel } from './components/NetScanPanel'
+import { ToastStack } from './components/ToastStack'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
 import { useWsStore } from './state/wsStore'
@@ -400,6 +401,7 @@ function App() {
       {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
       {showFlash && <FlashPanel onClose={() => setShowFlash(false)} />}
       {showNetScan && <NetScanPanel onClose={() => setShowNetScan(false)} />}
+      <ToastStack />
     </div>
   )
 }

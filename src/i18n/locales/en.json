@@ -128,6 +128,12 @@
       "autoFlash": "<b>Auto-flash on plug</b> (in Batch mode) skips the checkbox step entirely: once armed, any newly plugged device that looks like an ESP32 (by its USB serial chip — CP210x, CH340, FTDI, or Espressif's native USB) is flashed immediately with the current baud rate and segments, no per-device confirmation. Meant for repetitive production flashing — plug the next board, it flashes itself. It skips a port that's already open in another tab, and the VID/PID check is only a pre-filter: flashing a non-ESP32 device fails harmlessly at the chip handshake rather than writing anything. Leave it off unless you're actively flashing a batch — it stays armed for as long as the Flash panel is open.",
       "provision": "<b>Provision</b> (third mode, next to Batch) is separate from flashing — it sends a scripted sequence of plain serial commands to an already-flashed device instead of writing firmware. Build a list of steps (each one a command, a line ending, and either \"wait for response\" with a match string/timeout or a fixed delay), pick a baud rate, then either <b>Run now</b> on a currently-plugged port or arm <b>Auto-run on plug</b> so the workflow fires by itself the moment a matching device is connected — handy for commissioning many boards with the same WiFi credentials/device ID/config commands in a row. Steps and baud rate are remembered across restarts; arming is not, for the same reason auto-flash isn't remembered either."
     },
+    "ota": {
+      "heading": "OTA Update (WiFi)",
+      "p1": "The <b>OTA (WiFi)</b> target in the flash panel flashes a device over WiFi using the ArduinoOTA protocol — no USB cable, no serial port. The device must already be running firmware built with <code>ArduinoOTA.h</code> (any Arduino/PlatformIO Arduino-framework sketch that calls <code>ArduinoOTA.begin()</code>); this doesn't work against a device that's never been flashed with OTA support at least once over USB first.",
+      "p2": "<b>Scan for OTA devices</b> browses the LAN via mDNS for the <code>_arduino._tcp</code> service (the same discovery ArduinoOTA itself advertises, and what the Arduino IDE's Network Ports menu uses) — click a result to fill in host and port. Otherwise enter the device's IP manually (port defaults to <code>3232</code>). Leave the password field blank if the sketch never called <code>ArduinoOTA.setPassword()</code>. Progress goes through an invite/authenticate handshake before any bytes transfer, then a single continuous upload — there's no per-segment offset to configure, the device's own OTA partition handling takes care of that.",
+      "toastNote": "A toast notification in the bottom-right corner reports success/failure when this (or a batch flash, auto-flash-on-plug, or provisioning run) finishes, whether or not this panel is still open — you don't have to keep watching it."
+    },
     "flashStm32": {
       "heading": "Flash STM32",
       "intro": "Requires STM32CubeProgrammer installed — the panel detects it automatically.",
@@ -256,6 +262,24 @@
     "include": "Include",
     "exclude": "Exclude",
     "lineCount": "{{visible}} / {{total}} lines"
+  },
+  "toast": {
+    "dismiss": "Dismiss",
+    "batchFlashDone": "{{port}}: flash complete",
+    "batchFlashError": "{{port}}: flash failed — {{message}}",
+    "provisionDone": "{{port}}: provisioning complete",
+    "provisionError": "{{port}}: provisioning failed — {{message}}",
+    "otaDone": "OTA update complete",
+    "otaError": "OTA update failed — {{message}}"
+  },
+  "ota": {
+    "tabLabel": "OTA (WiFi)",
+    "hint": "Flashes a device over WiFi using the ArduinoOTA protocol — the device must already be running firmware built with ArduinoOTA.h (Arduino/PlatformIO Arduino-framework projects). No serial port or USB cable involved.",
+    "scanForDevices": "Scan for OTA devices",
+    "password": "OTA password",
+    "passwordPlaceholder": "leave blank if the device has none",
+    "selectFirmwareTitle": "Select firmware .bin",
+    "flashOverWifi": "Flash over WiFi"
   },
   "flash": {
     "title": "Flash",

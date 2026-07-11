@@ -18,8 +18,9 @@ import {
 import { Stm32Body } from './Stm32Body'
 import { FlashBatchPanel } from './FlashBatchPanel'
 import { ProvisionPanel } from './ProvisionPanel'
+import { OtaPanel } from './OtaPanel'
 
-type Target = 'esp32' | 'stm32'
+type Target = 'esp32' | 'stm32' | 'ota'
 type FlashMode = 'single' | 'batch' | 'provision'
 
 const BAUD_OPTIONS = [115_200, 230_400, 460_800, 921_600]
@@ -189,8 +190,12 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
           <span className={target === 'stm32' ? 'on' : ''} onClick={() => setTarget('stm32')}>
             STM32
           </span>
+          <span className={target === 'ota' ? 'on' : ''} onClick={() => setTarget('ota')}>
+            {t('ota.tabLabel')}
+          </span>
         </div>
         {target === 'stm32' && <Stm32Body />}
+        {target === 'ota' && <OtaPanel />}
 
         {target === 'esp32' && (
           <>

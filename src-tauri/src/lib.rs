@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::event_bus::{Event, EventBus, WsFrameKind};
 use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
+use crate::flash::esp32_ota::{self, OtaProgress};
 use crate::flash::partition_table::{self, PartitionEntry};
 use crate::flash::profile::{self, FlashProfile};
 use crate::flash::stm32::{self, Interface as StmInterface, McuInfo as StmMcuInfo};
@@ -792,6 +793,78 @@ fn read_esp32_flash(
     });
 }
 
+// ---- ESP32 OTA-over-WiFi (espota protocol) ----
+//
+// Separate event names from the serial flash flow above ("ota://progress" /
+// "ota://done") since the phases don't line up with segment-based writes —
+// there's an invite/auth handshake before any bytes move, then one
+// continuous transfer instead of per-segment writes.
+
+#[derive(Serialize, Clone)]
+#[serde(tag = "phase", rename_all = "camelCase")]
+enum OtaProgressPhase {
+    Inviting,
+    Authenticating,
+    WaitingForDevice,
+    Writing { current: usize, total: usize },
+}
+
+impl From<OtaProgress> for OtaProgressPhase {
+    fn from(p: OtaProgress) -> Self {
+        match p {
+            OtaProgress::Inviting => OtaProgressPhase::Inviting,
+            OtaProgress::Authenticating => OtaProgressPhase::Authenticating,
+            OtaProgress::WaitingForDevice => OtaProgressPhase::WaitingForDevice,
+            OtaProgress::Writing { current, total } => OtaProgressPhase::Writing { current, total },
+        }
+    }
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct OtaProgressEvent {
+    id: String,
+    #[serde(flatten)]
+    progress: OtaProgressPhase,
+}
+
+#[tauri::command]
+fn ota_flash_esp32(
+    app: AppHandle,
+    id: String,
+    host: String,
+    port: u16,
+    password: String,
+    firmware_path: String,
+) {
+    thread::spawn(move || {
+        let app_for_progress = app.clone();
+        let id_for_progress = id.clone();
+        let result = esp32_ota::ota_flash(&host, port, &password, &firmware_path, |progress| {
+            let _ = app_for_progress.emit(
+                "ota://progress",
+                OtaProgressEvent {
+                    id: id_for_progress.clone(),
+                    progress: progress.into(),
+                },
+            );
+        });
+        let (success, message) = match result {
+            Ok(()) => (true, "OTA update complete".to_string()),
+            Err(e) => (false, e),
+        };
+        let _ = app.emit(
+            "ota://done",
+            FlashDoneEvent {
+                id,
+                operation: "ota",
+                success,
+                message,
+            },
+        );
+    });
+}
+
 #[tauri::command]
 fn save_flash_profile(path: String, profile: FlashProfile) -> Result<(), String> {
     profile::save_profile(std::path::Path::new(&path), &profile)
@@ -1329,6 +1402,7 @@ pub fn run() {
             erase_esp32_flash,
             erase_esp32_region,
             read_esp32_flash,
+            ota_flash_esp32,
             save_flash_profile,
             load_flash_profile,
             find_stm32_cli,

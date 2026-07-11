@@ -366,6 +366,17 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
+            <h3>{t('help.ota.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.ota.p1" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.ota.p2" components={G} />
+            </p>
+            <p>{t('help.ota.toastNote')}</p>
+          </section>
+
+          <section className="guide-section">
             <h3>{t('help.flashStm32.heading')}</h3>
             <p>{t('help.flashStm32.intro')}</p>
             <ul>

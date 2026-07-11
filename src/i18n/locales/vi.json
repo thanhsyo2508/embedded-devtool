@@ -128,6 +128,12 @@
       "autoFlash": "<b>Auto-flash on plug</b> (ở chế độ Batch) bỏ qua hẳn bước tích chọn: khi đã bật, bất kỳ thiết bị nào vừa cắm vào trông giống ESP32 (theo chip USB serial — CP210x, CH340, FTDI, hoặc USB gốc của Espressif) sẽ được nạp ngay với baud rate và segment hiện tại, không cần xác nhận từng thiết bị. Dành cho nạp sản xuất lặp đi lặp lại — cắm board tiếp theo, nó tự nạp. Nó bỏ qua 1 cổng đang mở ở tab khác, và việc kiểm tra VID/PID chỉ là bộ lọc sơ bộ: nạp nhầm 1 thiết bị không phải ESP32 sẽ tự thất bại an toàn ở bước bắt tay chip chứ không ghi gì cả. Chỉ bật khi đang thực sự nạp hàng loạt — nó vẫn bật miễn là panel Flash còn mở.",
       "provision": "<b>Provision</b> (chế độ thứ 3, cạnh Batch) tách biệt với việc nạp firmware — nó gửi 1 chuỗi lệnh serial thuần đã kịch bản hóa tới 1 thiết bị đã nạp sẵn thay vì ghi firmware. Dựng 1 danh sách bước (mỗi bước gồm 1 lệnh, 1 ký tự xuống dòng, và hoặc \"chờ phản hồi\" với chuỗi khớp/timeout hoặc 1 delay cố định), chọn baud rate, rồi hoặc <b>Run now</b> trên 1 cổng đang cắm sẵn hoặc bật <b>Auto-run on plug</b> để workflow tự chạy ngay khi 1 thiết bị khớp được kết nối — tiện để cấu hình nhiều board cùng WiFi credentials/device ID/lệnh cấu hình liên tiếp. Các bước và baud rate được nhớ qua các lần khởi động lại; trạng thái bật thì không, cùng lý do như auto-flash không được nhớ."
     },
+    "ota": {
+      "heading": "Cập nhật OTA (WiFi)",
+      "p1": "Chế độ <b>OTA (WiFi)</b> trong panel nạp sẽ nạp firmware qua Wi-Fi bằng giao thức ArduinoOTA — không cần cáp USB, không cần cổng serial. Thiết bị phải đang chạy firmware build với <code>ArduinoOTA.h</code> (bất kỳ sketch Arduino/PlatformIO framework Arduino nào gọi <code>ArduinoOTA.begin()</code>); tính năng này không hoạt động với thiết bị chưa từng được nạp hỗ trợ OTA qua USB ít nhất 1 lần trước đó.",
+      "p2": "<b>Quét thiết bị OTA</b> quét mạng LAN qua mDNS cho dịch vụ <code>_arduino._tcp</code> (đúng dịch vụ mà ArduinoOTA tự quảng bá, và cũng là thứ menu Network Ports của Arduino IDE dùng) — bấm vào 1 kết quả để tự điền host và port. Hoặc nhập IP thiết bị thủ công (port mặc định <code>3232</code>). Để trống mật khẩu nếu sketch chưa từng gọi <code>ArduinoOTA.setPassword()</code>. Tiến trình đi qua bước bắt tay mời/xác thực trước khi truyền byte nào, sau đó là 1 lần tải lên liên tục — không cần cấu hình offset theo từng segment, việc đó do chính phần xử lý partition OTA của thiết bị lo.",
+      "toastNote": "1 thông báo toast ở góc dưới bên phải sẽ báo thành công/thất bại khi việc này (hoặc 1 lần batch flash, auto-flash-on-plug, hoặc provisioning) hoàn tất, bất kể panel này còn mở hay không — không cần phải canh chừng nó."
+    },
     "flashStm32": {
       "heading": "Nạp STM32",
       "intro": "Cần cài STM32CubeProgrammer — panel tự động nhận diện nó.",
@@ -256,6 +262,24 @@
     "include": "Gồm",
     "exclude": "Loại trừ",
     "lineCount": "{{visible}} / {{total}} dòng"
+  },
+  "toast": {
+    "dismiss": "Đóng",
+    "batchFlashDone": "{{port}}: nạp xong",
+    "batchFlashError": "{{port}}: nạp lỗi — {{message}}",
+    "provisionDone": "{{port}}: cấu hình xong",
+    "provisionError": "{{port}}: cấu hình lỗi — {{message}}",
+    "otaDone": "Cập nhật OTA hoàn tất",
+    "otaError": "Cập nhật OTA lỗi — {{message}}"
+  },
+  "ota": {
+    "tabLabel": "OTA (WiFi)",
+    "hint": "Nạp firmware qua Wi-Fi bằng giao thức ArduinoOTA — thiết bị phải đang chạy firmware build với ArduinoOTA.h (project Arduino/PlatformIO framework Arduino). Không cần cổng serial hay cáp USB.",
+    "scanForDevices": "Quét thiết bị OTA",
+    "password": "Mật khẩu OTA",
+    "passwordPlaceholder": "để trống nếu thiết bị không đặt mật khẩu",
+    "selectFirmwareTitle": "Chọn file firmware .bin",
+    "flashOverWifi": "Nạp qua WiFi"
   },
   "flash": {
     "title": "Nạp firmware",

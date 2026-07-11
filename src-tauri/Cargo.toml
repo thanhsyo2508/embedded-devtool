@@ -44,6 +44,13 @@ russh = { version = "0.62.2", default-features = false, features = ["flate2", "r
 tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "macros", "time"] }
 tauri-plugin-clipboard-manager = "2"
 
+# ESP32 OTA-over-WiFi (espota protocol) — MD5 for the legacy challenge and
+# the firmware checksum, SHA256+PBKDF2 for the current challenge protocol
+# (ESP32 Arduino core 3.3.1+). See flash/esp32_ota.rs's module doc.
+md-5 = "0.10"
+sha2 = "0.10"
+pbkdf2 = "0.12"
+
 # Only pulled in for the `edt-cli` binary (via the `cli` feature below) —
 # optional so a normal GUI build never compiles or links them.
 clap = { version = "4", features = ["derive"], optional = true }
