@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { onUsbPlugged, type PortInfo } from '../api/serial'
 import type { FlashSegmentReq } from '../api/flash'
 import { useFlashBatchStore, type BatchDevice } from '../state/flashBatchStore'
@@ -19,6 +20,7 @@ export function FlashBatchPanel({
   baudRate: number
   segments: FlashSegmentReq[]
 }) {
+  const { t } = useTranslation()
   const devices = useFlashBatchStore((s) => s.devices)
   const wireEventsOnce = useFlashBatchStore((s) => s.wireEventsOnce)
   const setSelectedPorts = useFlashBatchStore((s) => s.setSelectedPorts)
@@ -72,9 +74,9 @@ export function FlashBatchPanel({
           : 0
       return `${pct}%`
     }
-    if (device.status === 'done') return '✓ Done'
-    if (device.status === 'error') return `✗ ${device.message}`
-    return 'Queued'
+    if (device.status === 'done') return t('flashBatch.statusDone')
+    if (device.status === 'error') return t('flashBatch.statusError', { message: device.message })
+    return t('flashBatch.statusQueued')
   }
 
   return (
@@ -85,16 +87,15 @@ export function FlashBatchPanel({
           checked={autoFlashArmed}
           onChange={(e) => setAutoFlashArmed(e.target.checked)}
         />
-        Auto-flash on plug (ESP32-like devices flash immediately, no confirmation)
+        {t('flashBatch.autoFlashLabel')}
       </label>
       {autoFlashArmed && segments.length === 0 && (
-        <div className="flash-batch-autoflash-warn">
-          Armed, but no firmware segments configured yet — nothing will flash until you add at least
-          one.
-        </div>
+        <div className="flash-batch-autoflash-warn">{t('flashBatch.autoFlashNoSegments')}</div>
       )}
       <div className="flash-batch-ports">
-        {ports.length === 0 && <div className="flash-log-empty">No serial ports detected.</div>}
+        {ports.length === 0 && (
+          <div className="flash-log-empty">{t('flashBatch.noPortsDetected')}</div>
+        )}
         {ports.map((p) => {
           const device = devices.find((d) => d.portName === p.portName)
           return (
@@ -124,7 +125,8 @@ export function FlashBatchPanel({
         disabled={devices.length === 0 || segments.length === 0 || busy}
         onClick={() => flashAll(baudRate, segments)}
       >
-        <ZapIcon /> {busy ? 'Flashing…' : `Flash ${devices.length} device(s)`}
+        <ZapIcon />{' '}
+        {busy ? t('flashBatch.flashing') : t('flashBatch.flashNDevices', { count: devices.length })}
       </button>
     </div>
   )

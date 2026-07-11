@@ -1,17 +1,14 @@
 import { save } from '@tauri-apps/plugin-dialog'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState, type TriggerActionType } from '../state/tabsStore'
 import { useTriggerPresetsStore } from '../state/triggerPresetsStore'
 import { FolderIcon, PlusIcon, TrashIcon } from './icons'
 import { LibraryRow } from './LibraryRow'
 
-const ACTION_TYPES: { value: TriggerActionType; label: string }[] = [
-  { value: 'bookmark', label: 'Bookmark line' },
-  { value: 'send', label: 'Send' },
-  { value: 'sound', label: 'Play sound' },
-  { value: 'file', label: 'Write to file' },
-]
+const ACTION_TYPES: TriggerActionType[] = ['bookmark', 'send', 'sound', 'file']
 
 export function TriggerBar({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const addTrigger = useTabsStore((s) => s.addTrigger)
   const removeTrigger = useTabsStore((s) => s.removeTrigger)
   const updateTrigger = useTabsStore((s) => s.updateTrigger)
@@ -22,14 +19,14 @@ export function TriggerBar({ tab }: { tab: TabState }) {
   const deletePreset = useTriggerPresetsStore((s) => s.remove)
 
   const browseForFile = async (triggerId: string) => {
-    const path = await save({ title: 'Trigger log file' })
+    const path = await save({ title: t('triggerBar.logFileDialogTitle') })
     if (path) updateTrigger(tab.id, triggerId, { action: { filePath: path } })
   }
 
   return (
     <div className="filter-bar">
       <LibraryRow
-        label="Preset"
+        label={t('filterBar.presetLabel')}
         items={presets}
         onLoad={(p) => setTriggers(tab.id, p.triggers)}
         onSave={(name) => savePreset(name, { triggers: tab.triggers })}
@@ -46,7 +43,7 @@ export function TriggerBar({ tab }: { tab: TabState }) {
           </label>
           <input
             type="text"
-            placeholder="regex pattern"
+            placeholder={t('filterBar.regexPlaceholder')}
             value={trigger.pattern}
             onChange={(e) => updateTrigger(tab.id, trigger.id, { pattern: e.target.value })}
           />
@@ -59,8 +56,8 @@ export function TriggerBar({ tab }: { tab: TabState }) {
             }
           >
             {ACTION_TYPES.map((a) => (
-              <option key={a.value} value={a.value}>
-                {a.label}
+              <option key={a} value={a}>
+                {t(`triggerBar.action.${a}`)}
               </option>
             ))}
           </select>
@@ -69,7 +66,7 @@ export function TriggerBar({ tab }: { tab: TabState }) {
             <>
               <input
                 type="text"
-                placeholder="text/hex to send"
+                placeholder={t('triggerBar.sendPlaceholder')}
                 value={trigger.action.sendText}
                 onChange={(e) =>
                   updateTrigger(tab.id, trigger.id, { action: { sendText: e.target.value } })
@@ -85,7 +82,7 @@ export function TriggerBar({ tab }: { tab: TabState }) {
                     })
                   }
                 />
-                hex
+                {t('send.hex')}
               </label>
             </>
           )}
@@ -101,7 +98,7 @@ export function TriggerBar({ tab }: { tab: TabState }) {
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Choose file"
+                aria-label={t('triggerBar.chooseFile')}
                 onClick={() => void browseForFile(trigger.id)}
               >
                 <FolderIcon />
@@ -112,7 +109,7 @@ export function TriggerBar({ tab }: { tab: TabState }) {
           <button
             type="button"
             className="icon-button"
-            aria-label="Remove trigger"
+            aria-label={t('triggerBar.removeTrigger')}
             onClick={() => removeTrigger(tab.id, trigger.id)}
           >
             <TrashIcon />
@@ -121,7 +118,7 @@ export function TriggerBar({ tab }: { tab: TabState }) {
       ))}
       <div className="filter-actions">
         <button type="button" onClick={() => addTrigger(tab.id)}>
-          <PlusIcon /> Add trigger
+          <PlusIcon /> {t('triggerBar.addTrigger')}
         </button>
       </div>
     </div>

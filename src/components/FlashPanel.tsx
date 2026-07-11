@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
+import { useTranslation } from 'react-i18next'
 import { listSerialPorts, onUsbPlugged, onUsbUnplugged, type PortInfo } from '../api/serial'
 import { bundledBootApp0Path, parseEsp32PartitionTable, type PartitionEntry } from '../api/flash'
 import { useFlashStore, type FlashSegmentRow } from '../state/flashStore'
@@ -30,6 +31,7 @@ function formatBytes(n: number): string {
 }
 
 export function FlashPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
   const [target, setTarget] = useState<Target>('esp32')
   const [mode, setMode] = useState<FlashMode>('single')
   const [ports, setPorts] = useState<PortInfo[]>([])
@@ -78,8 +80,8 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
 
   const browseForFile = async (index: number) => {
     const picked = await open({
-      title: 'Select firmware .bin',
-      filters: [{ name: 'Firmware', extensions: ['bin'] }],
+      title: t('flash.selectFirmwareTitle'),
+      filters: [{ name: t('flash.firmwareFilterName'), extensions: ['bin'] }],
     })
     if (typeof picked === 'string') {
       updateSegment(index, { path: picked })
@@ -88,22 +90,22 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
 
   const handleSaveProfile = async () => {
     const path = await save({
-      title: 'Save flash profile',
-      filters: [{ name: 'Flash profile', extensions: ['json'] }],
+      title: t('flash.saveProfileTitle'),
+      filters: [{ name: t('flash.profileFilterName'), extensions: ['json'] }],
     })
     if (path) void saveProfile(path)
   }
 
   const handleLoadProfile = async () => {
     const path = await open({
-      title: 'Load flash profile',
-      filters: [{ name: 'Flash profile', extensions: ['json'] }],
+      title: t('flash.loadProfileTitle'),
+      filters: [{ name: t('flash.profileFilterName'), extensions: ['json'] }],
     })
     if (typeof path === 'string') void loadProfile(path)
   }
 
   const handleEraseFull = () => {
-    if (window.confirm('Erase the entire chip? This cannot be undone.')) {
+    if (window.confirm(t('flash.eraseConfirm'))) {
       void eraseFull()
     }
   }
@@ -115,9 +117,9 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
   // that varies with flash size/partition scheme (see esp32SegmentDetect.ts).
   const handleSmartAdd = async () => {
     const picked = await open({
-      title: 'Select ESP32 build files (bootloader, partitions, firmware, filesystem image…)',
+      title: t('flash.smartAddDialogTitle'),
       multiple: true,
-      filters: [{ name: 'Firmware', extensions: ['bin'] }],
+      filters: [{ name: t('flash.firmwareFilterName'), extensions: ['bin'] }],
     })
     const filePaths = Array.isArray(picked) ? picked : picked ? [picked] : []
     if (filePaths.length === 0) return
@@ -130,9 +132,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
         try {
           partitions = await parseEsp32PartitionTable(partitionFile)
         } catch (err) {
-          window.alert(
-            `Could not parse partition table, offsets left blank where unsure: ${String(err)}`,
-          )
+          window.alert(t('flash.partitionParseError', { error: String(err) }))
         }
       }
 
@@ -153,9 +153,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
 
       const unmatchedCount = detected.filter((s) => s.source === 'unmatched').length
       if (unmatchedCount > 0) {
-        window.alert(
-          `${unmatchedCount} file(s) couldn't be matched to a known offset — fill those in manually. This usually means the file didn't have a recognizable name, or its role was ambiguous (e.g. multiple app/OTA files without one you selected being an exact match).`,
-        )
+        window.alert(t('flash.unmatchedWarning', { count: unmatchedCount }))
       }
     } finally {
       setSmartAdding(false)
@@ -172,9 +170,14 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
       <div className="flash-panel" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <span className="settings-title">
-            <ZapIcon /> Flash
+            <ZapIcon /> {t('flash.title')}
           </span>
-          <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t('common.close')}
+            onClick={onClose}
+          >
             <XIcon />
           </button>
         </div>
@@ -193,16 +196,16 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
           <>
             <div className="seg">
               <span className={mode === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
-                Single
+                {t('flash.single')}
               </span>
               <span className={mode === 'batch' ? 'on' : ''} onClick={() => setMode('batch')}>
-                Batch
+                {t('flash.batch')}
               </span>
               <span
                 className={mode === 'provision' ? 'on' : ''}
                 onClick={() => setMode('provision')}
               >
-                Provision
+                {t('flash.provision')}
               </span>
             </div>
 
@@ -214,7 +217,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     value={portName}
                     onChange={(e) => setPortName(e.target.value)}
                   >
-                    <option value="">Select port…</option>
+                    <option value="">{t('flash.selectPort')}</option>
                     {ports.map((p) => (
                       <option key={p.portName} value={p.portName}>
                         {p.portName}
@@ -234,7 +237,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     disabled={!portName || detecting}
                     onClick={() => void detectChip()}
                   >
-                    {detecting ? 'Detecting…' : 'Detect chip'}
+                    {detecting ? t('flash.detecting') : t('flash.detectChip')}
                   </button>
                 </div>
 
@@ -246,7 +249,9 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                       {chipInfo.macAddress && (
                         <span className="mono">MAC {chipInfo.macAddress}</span>
                       )}
-                      <span>flash {formatBytes(chipInfo.flashSizeBytes)}</span>
+                      <span>
+                        {t('flash.flashSize', { size: formatBytes(chipInfo.flashSizeBytes) })}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -266,14 +271,14 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     <input
                       className="flash-path"
                       value={seg.path}
-                      placeholder="No file selected"
+                      placeholder={t('flash.noFileSelected')}
                       readOnly
                     />
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label="Browse"
-                      title="Browse"
+                      aria-label={t('common.browse')}
+                      title={t('common.browse')}
                       onClick={() => void browseForFile(i)}
                     >
                       <FolderIcon />
@@ -281,8 +286,8 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     <button
                       type="button"
                       className="icon-button"
-                      aria-label="Remove segment"
-                      title="Remove"
+                      aria-label={t('flash.removeSegment')}
+                      title={t('common.remove')}
                       onClick={() => removeSegment(i)}
                     >
                       <TrashIcon />
@@ -291,16 +296,16 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                 ))}
                 <div className="flash-segments-actions">
                   <button type="button" className="flash-add-segment" onClick={addSegment}>
-                    <PlusIcon /> Add segment
+                    <PlusIcon /> {t('flash.addSegment')}
                   </button>
                   <button
                     type="button"
                     className="flash-add-segment"
                     disabled={smartAdding}
                     onClick={() => void handleSmartAdd()}
-                    title="Pick build output files and auto-fill offsets — reads the real partition table when you include one, instead of guessing"
+                    title={t('flash.smartAddTitle')}
                   >
-                    <MagicWandIcon /> {smartAdding ? 'Detecting…' : 'Smart add…'}
+                    <MagicWandIcon /> {smartAdding ? t('flash.detecting') : t('flash.smartAdd')}
                   </button>
                 </div>
               </div>
@@ -319,10 +324,10 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
 
                 <div className="flash-actions">
                   <button type="button" onClick={() => void handleSaveProfile()}>
-                    Save profile
+                    {t('flash.saveProfile')}
                   </button>
                   <button type="button" onClick={() => void handleLoadProfile()}>
-                    Load profile
+                    {t('flash.loadProfile')}
                   </button>
                   <button
                     type="button"
@@ -330,7 +335,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     disabled={!portName || busy}
                     onClick={handleEraseFull}
                   >
-                    <GearIcon /> Erase chip
+                    <GearIcon /> {t('flash.eraseChip')}
                   </button>
                   <button
                     type="button"
@@ -338,12 +343,14 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     disabled={!portName || busy}
                     onClick={() => void flash()}
                   >
-                    <ZapIcon /> {busy ? 'Working…' : 'Flash'}
+                    <ZapIcon /> {busy ? t('flash.working') : t('flash.flash')}
                   </button>
                 </div>
 
                 <div className="flash-log">
-                  {log.length === 0 && <div className="flash-log-empty">No activity yet.</div>}
+                  {log.length === 0 && (
+                    <div className="flash-log-empty">{t('flash.noActivity')}</div>
+                  )}
                   {log.map((line, i) => (
                     <div key={i} className="flash-log-line">
                       {line}

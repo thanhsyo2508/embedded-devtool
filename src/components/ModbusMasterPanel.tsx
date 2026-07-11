@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { FUNCTION_CODES, READ_FUNCTION_CODES, type ModbusFunctionCode } from '../lib/modbus'
 import { PlusIcon, TrashIcon } from './icons'
@@ -8,14 +10,14 @@ const READ_FUNCTION_CODE_OPTIONS = FUNCTION_CODES.filter((f) =>
   READ_FUNCTION_CODES.includes(f.value),
 )
 
-function quantityOrValueLabel(functionCode: ModbusFunctionCode): string {
+function quantityOrValueLabel(t: TFunction, functionCode: ModbusFunctionCode): string {
   switch (functionCode) {
     case 0x05:
-      return 'Coil value (0/1)'
+      return t('modbus.coilValue')
     case 0x06:
-      return 'Register value'
+      return t('modbus.registerValue')
     default:
-      return 'Quantity'
+      return t('modbus.quantity')
   }
 }
 
@@ -28,6 +30,7 @@ function parseValues(text: string): number[] {
 }
 
 export function ModbusMasterPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const sendModbusRequest = useTabsStore((s) => s.sendModbusRequest)
   const clearLog = useTabsStore((s) => s.clearModbusMasterLog)
   const addPoll = useTabsStore((s) => s.addModbusPoll)
@@ -60,7 +63,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
   }
 
   const disabledReason = tab.modbusSlave.enabled
-    ? 'Disabled while the Modbus Slave emulator is listening on this tab'
+    ? t('modbus.disabledWhileSlaveListening')
     : undefined
 
   return (
@@ -68,7 +71,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
       <div className="filter-row">
         <label className="field-group">
           <span className="field-caption">
-            {tab.connectionKind === 'tcp-client' ? 'Unit ID' : 'Slave address'}
+            {tab.connectionKind === 'tcp-client' ? t('modbus.unitId') : t('modbus.slaveAddress')}
           </span>
           <input
             type="number"
@@ -77,7 +80,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
           />
         </label>
         <label className="field-group">
-          <span className="field-caption">Function</span>
+          <span className="field-caption">{t('modbus.function')}</span>
           <select
             value={functionCode}
             onChange={(e) => setFunctionCode(Number(e.target.value) as ModbusFunctionCode)}
@@ -92,7 +95,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
       </div>
       <div className="filter-row">
         <label className="field-group">
-          <span className="field-caption">Start address</span>
+          <span className="field-caption">{t('modbus.startAddress')}</span>
           <input
             type="number"
             value={startAddr}
@@ -100,7 +103,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
           />
         </label>
         <label className="field-group">
-          <span className="field-caption">{quantityOrValueLabel(functionCode)}</span>
+          <span className="field-caption">{quantityOrValueLabel(t, functionCode)}</span>
           <input
             type="number"
             value={quantityOrValue}
@@ -111,7 +114,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
       {WRITE_MULTIPLE_CODES.includes(functionCode) && (
         <label className="field-group">
           <span className="field-caption">
-            Values ({functionCode === 0x0f ? '0/1 per coil' : 'per register'}, comma-separated)
+            {functionCode === 0x0f ? t('modbus.valuesPerCoil') : t('modbus.valuesPerRegister')}
           </span>
           <input
             type="text"
@@ -123,7 +126,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
       )}
       <div className="filter-row">
         <label className="field-group">
-          <span className="field-caption">Timeout (ms)</span>
+          <span className="field-caption">{t('modbus.timeoutMs')}</span>
           <input
             type="number"
             value={timeoutMs}
@@ -138,20 +141,22 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
           title={disabledReason}
           onClick={() => void handleSend()}
         >
-          {sending ? 'Sending…' : 'Send'}
+          {sending ? t('modbus.sending') : t('modbus.send')}
         </button>
         <button
           type="button"
           className="icon-button"
-          aria-label="Clear log"
-          title="Clear log"
+          aria-label={t('modbus.clearLog')}
+          title={t('modbus.clearLog')}
           onClick={() => clearLog(tab.id)}
         >
           <TrashIcon />
         </button>
       </div>
       <div className="modbus-log">
-        {tab.modbusMasterLog.length === 0 && <p className="modbus-log-empty">No requests yet.</p>}
+        {tab.modbusMasterLog.length === 0 && (
+          <p className="modbus-log-empty">{t('modbus.noRequestsYet')}</p>
+        )}
         {tab.modbusMasterLog
           .slice()
           .reverse()
@@ -163,7 +168,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
           ))}
       </div>
 
-      <h4>Poll rules</h4>
+      <h4>{t('modbus.pollRules')}</h4>
       {tab.modbusMasterPolls.map((rule) => (
         <div className="filter-row" key={rule.id}>
           <input
@@ -175,7 +180,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
             type="text"
             className="mono"
             value={rule.label}
-            title="Label — also used as the plotter channel name"
+            title={t('modbus.labelTitle')}
             onChange={(e) => updatePoll(tab.id, rule.id, { label: e.target.value })}
           />
           <select
@@ -195,19 +200,19 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
           <input
             type="number"
             value={rule.startAddr}
-            title="Start address"
+            title={t('modbus.startAddress')}
             onChange={(e) => updatePoll(tab.id, rule.id, { startAddr: Number(e.target.value) })}
           />
           <input
             type="number"
             value={rule.intervalMs}
-            title="Interval (ms)"
+            title={t('modbus.intervalMs')}
             onChange={(e) => updatePoll(tab.id, rule.id, { intervalMs: Number(e.target.value) })}
           />
           <button
             type="button"
             className="icon-button"
-            aria-label="Remove poll rule"
+            aria-label={t('modbus.removePollRule')}
             onClick={() => removePoll(tab.id, rule.id)}
           >
             <TrashIcon />
@@ -216,7 +221,7 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
       ))}
       <div className="filter-actions">
         <button type="button" onClick={() => addPoll(tab.id)}>
-          <PlusIcon /> Add poll rule
+          <PlusIcon /> {t('modbus.addPollRule')}
         </button>
       </div>
     </div>

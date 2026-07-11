@@ -1,6 +1,7 @@
 import Editor from 'react-simple-code-editor'
 import { highlight, languages } from 'prismjs'
 import 'prismjs/components/prism-lua'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { useScriptLibraryStore } from '../state/scriptLibraryStore'
 import { PlayIcon, StopIcon, TrashIcon } from './icons'
@@ -19,6 +20,7 @@ function formatConsoleTime(atMs: number): string {
 }
 
 export function ScriptPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const setScriptCode = useTabsStore((s) => s.setScriptCode)
   const runScript = useTabsStore((s) => s.runScript)
   const stopScript = useTabsStore((s) => s.stopScript)
@@ -31,7 +33,7 @@ export function ScriptPanel({ tab }: { tab: TabState }) {
     <div className="script-panel">
       <div className="script-editor">
         <LibraryRow
-          label="Script"
+          label={t('script.libraryLabel')}
           items={scripts}
           onLoad={(s) => setScriptCode(tab.id, s.code)}
           onSave={(name) => saveScript(name, { code: tab.scriptCode })}
@@ -55,32 +57,34 @@ export function ScriptPanel({ tab }: { tab: TabState }) {
             disabled={tab.scriptRunning || tab.scriptCode.trim().length === 0}
             onClick={() => void runScript(tab.id)}
           >
-            <PlayIcon /> Run
+            <PlayIcon /> {t('script.run')}
           </button>
           <button
             type="button"
             disabled={!tab.scriptRunning}
             onClick={() => void stopScript(tab.id)}
           >
-            <StopIcon /> Stop
+            <StopIcon /> {t('script.stop')}
           </button>
-          {tab.scriptRunning && <span className="script-running-badge">running</span>}
+          {tab.scriptRunning && <span className="script-running-badge">{t('script.running')}</span>}
         </div>
       </div>
       <div className="script-console">
         <div className="script-console-header">
-          <span>Console</span>
+          <span>{t('script.console')}</span>
           <button
             type="button"
             className="icon-button"
-            aria-label="Clear console"
+            aria-label={t('script.clearConsole')}
             onClick={() => clearScriptConsole(tab.id)}
           >
             <TrashIcon />
           </button>
         </div>
         <div className="script-console-body">
-          {tab.scriptConsole.length === 0 && <div className="flash-log-empty">No output yet.</div>}
+          {tab.scriptConsole.length === 0 && (
+            <div className="flash-log-empty">{t('script.noOutputYet')}</div>
+          )}
           {tab.scriptConsole.map((entry, i) => (
             <div key={i} className={`script-console-line script-${entry.kind}`}>
               <span className="mono">{formatConsoleTime(entry.atMs)}</span>

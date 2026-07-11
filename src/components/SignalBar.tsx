@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { readSerialSignals, setSerialDtr, setSerialRts, type SignalState } from '../api/serial'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 
@@ -7,6 +8,7 @@ import { useTabsStore, type TabState } from '../state/tabsStore'
 // not a live readout (unlike CTS/DSR/RI/CD, which are real inputs polled
 // from the device below).
 export function SignalBar({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const disconnectTab = useTabsStore((s) => s.disconnectTab)
   const reconnectTab = useTabsStore((s) => s.reconnectTab)
   const [dtr, setDtr] = useState(false)
@@ -62,7 +64,7 @@ export function SignalBar({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={`signal-toggle ${dtr ? 'on' : ''}`}
-            title="Data Terminal Ready (writable — click to toggle)"
+            title={t('signalBar.dtrTitle')}
             onClick={toggleDtr}
           >
             DTR
@@ -70,27 +72,35 @@ export function SignalBar({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={`signal-toggle ${rts ? 'on' : ''}`}
-            title={
-              rs485Active
-                ? 'Controlled automatically by RS485 half-duplex mode'
-                : 'Request To Send (writable — click to toggle)'
-            }
+            title={rs485Active ? t('signalBar.rtsAutoTitle') : t('signalBar.rtsManualTitle')}
             disabled={rs485Active}
             onClick={toggleRts}
           >
             RTS
           </button>
           <span className="signal-divider" />
-          <span className={`signal-light ${signals?.cts ? 'on' : ''}`} title="Clear To Send">
+          <span
+            className={`signal-light ${signals?.cts ? 'on' : ''}`}
+            title={t('signalBar.ctsTitle')}
+          >
             CTS
           </span>
-          <span className={`signal-light ${signals?.dsr ? 'on' : ''}`} title="Data Set Ready">
+          <span
+            className={`signal-light ${signals?.dsr ? 'on' : ''}`}
+            title={t('signalBar.dsrTitle')}
+          >
             DSR
           </span>
-          <span className={`signal-light ${signals?.ri ? 'on' : ''}`} title="Ring Indicator">
+          <span
+            className={`signal-light ${signals?.ri ? 'on' : ''}`}
+            title={t('signalBar.riTitle')}
+          >
             RI
           </span>
-          <span className={`signal-light ${signals?.cd ? 'on' : ''}`} title="Carrier Detect">
+          <span
+            className={`signal-light ${signals?.cd ? 'on' : ''}`}
+            title={t('signalBar.cdTitle')}
+          >
             CD
           </span>
         </>
@@ -102,7 +112,7 @@ export function SignalBar({ tab }: { tab: TabState }) {
           className="disconnect-button"
           onClick={() => void disconnectTab(tab.id)}
         >
-          Disconnect
+          {t('signalBar.disconnect')}
         </button>
       ) : (
         <button
@@ -111,7 +121,7 @@ export function SignalBar({ tab }: { tab: TabState }) {
           disabled={reconnecting}
           onClick={handleReconnect}
         >
-          {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+          {reconnecting ? t('signalBar.reconnecting') : t('signalBar.reconnect')}
         </button>
       )}
     </div>

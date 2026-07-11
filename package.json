@@ -23,9 +23,11 @@
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "i18next": "^26.3.6",
     "prismjs": "^1.30.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-i18next": "^17.0.9",
     "react-simple-code-editor": "^0.14.1",
     "uplot": "^1.6.32",
     "zustand": "^5.0.14"

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
 import { applyFilters, compileFilter } from '../lib/filterLines'
 import { highlightMatches } from '../lib/highlight'
@@ -39,6 +40,7 @@ const VIEW_MODES: ViewMode[] = ['mixed', 'hex', 'ascii']
 const TIMESTAMP_MODES: TimestampMode[] = ['delta', 'abs', 'off']
 
 export function MonitorView({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const setViewMode = useTabsStore((s) => s.setViewMode)
   const setTimestampMode = useTabsStore((s) => s.setTimestampMode)
   const toggleLogging = useTabsStore((s) => s.toggleLogging)
@@ -116,7 +118,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   }
 
   const handleClear = () => {
-    if (window.confirm('Clear the log buffer for this tab?')) {
+    if (window.confirm(t('monitor.clearConfirm'))) {
       clearLines(tab.id)
     }
   }
@@ -210,26 +212,42 @@ export function MonitorView({ tab }: { tab: TabState }) {
           ))}
         </div>
         <button type="button" className={paused ? 'on' : ''} onClick={() => togglePause(tab.id)}>
-          {paused ? `Resume${pendingCount > 0 ? ` (+${pendingCount})` : ''}` : 'Pause'}
+          {paused
+            ? pendingCount > 0
+              ? t('monitor.resumeWithCount', { count: pendingCount })
+              : t('monitor.resume')
+            : t('monitor.pause')}
         </button>
         <button type="button" onClick={handleClear}>
-          Clear
+          {t('monitor.clear')}
         </button>
         {bookmarkedIndices.length > 0 && (
           <div className="bookmark-nav">
-            <button type="button" onClick={() => gotoBookmark(-1)} aria-label="Previous bookmark">
+            <button
+              type="button"
+              onClick={() => gotoBookmark(-1)}
+              aria-label={t('monitor.previousBookmark')}
+            >
               <BookmarkIcon />‹
             </button>
             <span className="mono">
               {bookmarkCursor + 1}/{bookmarkedIndices.length}
             </span>
-            <button type="button" onClick={() => gotoBookmark(1)} aria-label="Next bookmark">
+            <button
+              type="button"
+              onClick={() => gotoBookmark(1)}
+              aria-label={t('monitor.nextBookmark')}
+            >
               ›
             </button>
           </div>
         )}
-        <span className="line-count">{tab.lines.length.toLocaleString()} lines</span>
-        {tab.status === 'closed' && <span className="tab-disconnected">Disconnected</span>}
+        <span className="line-count">
+          {t('monitor.lineCount', { count: tab.lines.length.toLocaleString() })}
+        </span>
+        {tab.status === 'closed' && (
+          <span className="tab-disconnected">{t('monitor.disconnected')}</span>
+        )}
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
       </div>
 
@@ -259,7 +277,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                     <button
                       type="button"
                       className={`bookmark-toggle ${tab.bookmarks.includes(line.seq) ? 'on' : ''}`}
-                      aria-label="Toggle bookmark"
+                      aria-label={t('monitor.toggleBookmark')}
                       onClick={() => toggleBookmark(tab.id, line.seq)}
                     >
                       <BookmarkIcon />
@@ -290,7 +308,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <input
                 type="text"
                 autoFocus
-                placeholder="Search buffer…"
+                placeholder={t('monitor.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
@@ -300,16 +318,24 @@ export function MonitorView({ tab }: { tab: TabState }) {
                   ? `${searchIndex + 1}/${searchMatchIndices.length}`
                   : '0/0'}
               </span>
-              <button type="button" onClick={() => gotoSearchMatch(-1)} aria-label="Previous match">
+              <button
+                type="button"
+                onClick={() => gotoSearchMatch(-1)}
+                aria-label={t('monitor.previousMatch')}
+              >
                 ‹
               </button>
-              <button type="button" onClick={() => gotoSearchMatch(1)} aria-label="Next match">
+              <button
+                type="button"
+                onClick={() => gotoSearchMatch(1)}
+                aria-label={t('monitor.nextMatch')}
+              >
                 ›
               </button>
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Close search"
+                aria-label={t('monitor.closeSearch')}
                 onClick={() => setSearchOpen(false)}
               >
                 <XIcon />
@@ -350,7 +376,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
           {!autoScroll && !paused && (
             <button type="button" className="jump-bottom" onClick={() => setAutoScroll(true)}>
-              ↓ jump to bottom
+              ↓ {t('monitor.jumpToBottom')}
             </button>
           )}
         </div>
@@ -359,8 +385,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={openPanel === 'filters' || tab.filters.length > 0 ? 'on' : ''}
-            title="Filters"
-            aria-label="Filters"
+            title={t('monitor.filters')}
+            aria-label={t('monitor.filters')}
             onClick={() => togglePanel('filters')}
           >
             <FilterIcon />
@@ -371,8 +397,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={openPanel === 'triggers' || tab.triggers.length > 0 ? 'on' : ''}
-            title="Triggers"
-            aria-label="Triggers"
+            title={t('monitor.triggers')}
+            aria-label={t('monitor.triggers')}
             onClick={() => togglePanel('triggers')}
           >
             <TargetIcon />
@@ -383,8 +409,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={openPanel === 'script' || tab.scriptRunning ? 'on' : ''}
-            title={tab.scriptRunning ? 'Script (running)' : 'Script'}
-            aria-label="Script"
+            title={tab.scriptRunning ? t('monitor.scriptRunning') : t('monitor.script')}
+            aria-label={t('monitor.script')}
             onClick={() => togglePanel('script')}
           >
             <CodeIcon />
@@ -392,8 +418,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
           <button
             type="button"
             className={`${openPanel === 'macro' || tab.macroSteps.length > 0 ? 'on' : ''} ${tab.macroRecording ? 'macro-recording' : ''}`}
-            title={tab.macroRecording ? 'Macro (recording)' : 'Macro'}
-            aria-label="Macro"
+            title={tab.macroRecording ? t('monitor.macroRecording') : t('monitor.macro')}
+            aria-label={t('monitor.macro')}
             onClick={() => togglePanel('macro')}
           >
             <RepeatIcon />
@@ -409,8 +435,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
               className={
                 openPanel === 'modbus-master' || tab.modbusMasterPolls.length > 0 ? 'on' : ''
               }
-              title="Modbus Master"
-              aria-label="Modbus Master"
+              title={t('monitor.modbusMaster')}
+              aria-label={t('monitor.modbusMaster')}
               onClick={() => togglePanel('modbus-master')}
             >
               <GaugeIcon />
@@ -423,8 +449,12 @@ export function MonitorView({ tab }: { tab: TabState }) {
             <button
               type="button"
               className={openPanel === 'modbus-slave' || tab.modbusSlave.enabled ? 'on' : ''}
-              title={tab.modbusSlave.enabled ? 'Modbus Slave (listening)' : 'Modbus Slave'}
-              aria-label="Modbus Slave"
+              title={
+                tab.modbusSlave.enabled
+                  ? t('monitor.modbusSlaveListening')
+                  : t('monitor.modbusSlave')
+              }
+              aria-label={t('monitor.modbusSlave')}
               onClick={() => togglePanel('modbus-slave')}
             >
               <ChipIcon />
@@ -436,8 +466,12 @@ export function MonitorView({ tab }: { tab: TabState }) {
               type="button"
               className={`log-toggle ${tab.isLogging ? 'on' : ''}`}
               disabled={logBusy}
-              title={tab.isLogging ? `Logging to ${tab.logDir ?? '…'}` : 'Log to file'}
-              aria-label="Log to file"
+              title={
+                tab.isLogging
+                  ? t('monitor.loggingTo', { dir: tab.logDir ?? '…' })
+                  : t('monitor.logToFile')
+              }
+              aria-label={t('monitor.logToFile')}
               onClick={handleToggleLogging}
             >
               <DiskIcon />

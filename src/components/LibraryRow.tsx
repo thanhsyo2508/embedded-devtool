@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { DiskIcon, TrashIcon } from './icons'
 import type { LibraryItem } from '../state/createLibraryStore'
 
@@ -19,6 +20,7 @@ export function LibraryRow<T extends LibraryItem>({
   onSave: (name: string) => void
   onDelete: (id: string) => void
 }) {
+  const { t } = useTranslation()
   const [selectedId, setSelectedId] = useState('')
 
   const handleLoad = (id: string) => {
@@ -29,14 +31,19 @@ export function LibraryRow<T extends LibraryItem>({
 
   const handleSave = () => {
     const current = items.find((i) => i.id === selectedId)
-    const name = window.prompt(`${label} name?`, current?.name ?? '')
+    const name = window.prompt(t('library.namePrompt', { label }), current?.name ?? '')
     if (name) onSave(name)
   }
 
   const handleDelete = () => {
     if (!selectedId) return
     const current = items.find((i) => i.id === selectedId)
-    if (!window.confirm(`Delete ${label.toLowerCase()} "${current?.name ?? ''}"?`)) return
+    if (
+      !window.confirm(
+        t('library.deleteConfirm', { label: label.toLowerCase(), name: current?.name ?? '' }),
+      )
+    )
+      return
     onDelete(selectedId)
     setSelectedId('')
   }
@@ -54,8 +61,8 @@ export function LibraryRow<T extends LibraryItem>({
       <button
         type="button"
         className="icon-button"
-        aria-label={`Save ${label}`}
-        title={`Save ${label}`}
+        aria-label={t('library.save', { label })}
+        title={t('library.save', { label })}
         onClick={handleSave}
       >
         <DiskIcon />
@@ -63,8 +70,8 @@ export function LibraryRow<T extends LibraryItem>({
       <button
         type="button"
         className="icon-button"
-        aria-label={`Delete ${label}`}
-        title={`Delete ${label}`}
+        aria-label={t('library.delete', { label })}
+        title={t('library.delete', { label })}
         disabled={!selectedId}
         onClick={handleDelete}
       >

@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import i18n from '../i18n'
 
 export type Encoding = 'utf-8' | 'ascii'
 export type NewlineMode = 'crlf' | 'cr' | 'lf'
 export type FontSize = 'small' | 'medium' | 'large'
 export type Theme = 'system' | 'dark' | 'light'
+export type Language = 'en' | 'vi'
 
 export const FONT_SIZE_PX: Record<FontSize, string> = {
   small: '11px',
@@ -26,6 +28,7 @@ interface SettingsState {
   fontSize: FontSize
   theme: Theme
   keepAwake: boolean
+  language: Language
   setEncoding: (v: Encoding) => void
   setMaxLinesPerTab: (v: number) => void
   setPlotMaxPoints: (v: number) => void
@@ -33,6 +36,7 @@ interface SettingsState {
   setFontSize: (v: FontSize) => void
   setTheme: (v: Theme) => void
   setKeepAwake: (v: boolean) => void
+  setLanguage: (v: Language) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -45,6 +49,7 @@ export const useSettingsStore = create<SettingsState>()(
       fontSize: 'medium',
       theme: 'system',
       keepAwake: false,
+      language: 'en',
       setEncoding: (encoding) => set({ encoding }),
       setMaxLinesPerTab: (maxLinesPerTab) => set({ maxLinesPerTab }),
       setPlotMaxPoints: (plotMaxPoints) => set({ plotMaxPoints }),
@@ -52,6 +57,10 @@ export const useSettingsStore = create<SettingsState>()(
       setFontSize: (fontSize) => set({ fontSize }),
       setTheme: (theme) => set({ theme }),
       setKeepAwake: (keepAwake) => set({ keepAwake }),
+      setLanguage: (language) => {
+        set({ language })
+        void i18n.changeLanguage(language)
+      },
     }),
     { name: 'edt-settings' },
   ),

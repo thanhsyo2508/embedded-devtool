@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { TabState } from '../state/tabsStore'
 import { useWsStore, type WsFrameRecord } from '../state/wsStore'
 import { decodeText, looksBinary, toHexDump } from '../lib/payloadFormat'
@@ -11,6 +12,7 @@ import { TrashIcon } from './icons'
 const EMPTY_FRAMES: WsFrameRecord[] = []
 
 export function WsPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const frames = useWsStore((s) => s.framesByTab[tab.id] ?? EMPTY_FRAMES)
   const clearFrames = useWsStore((s) => s.clearFrames)
   const sendText = useWsStore((s) => s.sendText)
@@ -35,41 +37,41 @@ export function WsPanel({ tab }: { tab: TabState }) {
   return (
     <div className="ws-panel">
       <div className="toolbar">
-        <span className="line-count">
-          {frames.length} frame{frames.length === 1 ? '' : 's'}
-        </span>
+        <span className="line-count">{t('ws.frameCount', { count: frames.length })}</span>
         <button type="button" onClick={() => clearFrames(tab.id)} disabled={frames.length === 0}>
-          <TrashIcon /> Clear
+          <TrashIcon /> {t('monitor.clear')}
         </button>
         <div className="seg">
           <span className={view === 'auto' ? 'on' : ''} onClick={() => setView('auto')}>
-            Text
+            {t('mqtt.text')}
           </span>
           <span className={view === 'hex' ? 'on' : ''} onClick={() => setView('hex')}>
-            Hex
+            {t('mqtt.hexLabel')}
           </span>
         </div>
-        {tab.status === 'closed' && <span className="tab-disconnected">Disconnected</span>}
+        {tab.status === 'closed' && (
+          <span className="tab-disconnected">{t('monitor.disconnected')}</span>
+        )}
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
       </div>
 
       <div className="packet-log">
         {frames.length === 0 ? (
-          <p className="mdns-empty">No frames received yet.</p>
+          <p className="mdns-empty">{t('ws.noFramesYet')}</p>
         ) : (
           [...frames].reverse().map((frame, i) => {
             const asHex = view === 'hex' || (frame.kind === 'binary' && looksBinary(frame.data))
             return (
               <div key={frames.length - i} className="packet-entry">
                 <div className="packet-meta">
-                  <span className={`ws-frame-kind ${frame.kind}`}>{frame.kind}</span>
-                  <span>{relativeTime(frame.atMs, now)}</span>
-                  <span>
-                    {frame.data.length} byte{frame.data.length === 1 ? '' : 's'}
+                  <span className={`ws-frame-kind ${frame.kind}`}>
+                    {t(`ws.kind.${frame.kind}`)}
                   </span>
+                  <span>{relativeTime(frame.atMs, now)}</span>
+                  <span>{t('mqtt.byteCount', { count: frame.data.length })}</span>
                 </div>
                 <pre className="mqtt-payload-view mono">
-                  {(asHex ? toHexDump(frame.data) : decodeText(frame.data)) || '(empty)'}
+                  {(asHex ? toHexDump(frame.data) : decodeText(frame.data)) || t('mqtt.empty')}
                 </pre>
               </div>
             )
@@ -81,7 +83,7 @@ export function WsPanel({ tab }: { tab: TabState }) {
         <input
           type="text"
           value={text}
-          placeholder="Send a Text frame…"
+          placeholder={t('ws.sendTextPlaceholder')}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           disabled={tab.status !== 'open'}
@@ -91,7 +93,7 @@ export function WsPanel({ tab }: { tab: TabState }) {
           onClick={handleSend}
           disabled={tab.status !== 'open' || text.length === 0 || sending}
         >
-          Send text
+          {t('ws.sendText')}
         </button>
       </div>
     </div>

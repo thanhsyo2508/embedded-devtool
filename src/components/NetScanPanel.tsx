@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useNetScanStore, type NetScanRow } from '../state/netScanStore'
 import { DeepScanModal } from './DeepScanModal'
 import { GlobeIcon, RefreshIcon, SearchIcon, XIcon } from './icons'
@@ -9,6 +10,7 @@ function ipSortKey(ip: string): number {
 }
 
 export function NetScanPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
   const commonPorts = useNetScanStore((s) => s.commonPorts)
   const cidr = useNetScanStore((s) => s.cidr)
   const scanning = useNetScanStore((s) => s.scanning)
@@ -42,9 +44,14 @@ export function NetScanPanel({ onClose }: { onClose: () => void }) {
         <div className="netscan-panel" onClick={(e) => e.stopPropagation()}>
           <div className="settings-header">
             <span className="settings-title">
-              <GlobeIcon /> Network Scanner
+              <GlobeIcon /> {t('netScan.title')}
             </span>
-            <button type="button" className="icon-button" aria-label="Close" onClick={onClose}>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t('common.close')}
+              onClick={onClose}
+            >
               <XIcon />
             </button>
           </div>
@@ -60,13 +67,13 @@ export function NetScanPanel({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               className="icon-button"
-              title="Detect local subnet"
+              title={t('netScan.detectSubnet')}
               onClick={() => void detectSubnet()}
             >
               <RefreshIcon />
             </button>
             <button type="button" disabled={scanning || !cidr} onClick={() => void startScan()}>
-              {scanning ? 'Scanning…' : 'Scan'}
+              {scanning ? t('netScan.scanning') : t('netScan.scan')}
             </button>
           </div>
 
@@ -76,20 +83,20 @@ export function NetScanPanel({ onClose }: { onClose: () => void }) {
                 <tr>
                   <th>IP</th>
                   <th>MAC</th>
-                  <th>Name</th>
+                  <th>{t('netScan.name')}</th>
                   {commonPorts.map(([port, name]) => (
                     <th key={port} title={name}>
                       {port}
                     </th>
                   ))}
-                  <th>Deep scan</th>
+                  <th>{t('netScan.deepScan')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rowList.length === 0 && (
                   <tr>
                     <td className="netscan-empty" colSpan={commonPorts.length + 4}>
-                      {scanning ? 'Scanning…' : 'No hosts found yet.'}
+                      {scanning ? t('netScan.scanning') : t('netScan.noHostsFound')}
                     </td>
                   </tr>
                 )}
@@ -107,7 +114,7 @@ export function NetScanPanel({ onClose }: { onClose: () => void }) {
                       <button
                         type="button"
                         className="icon-button"
-                        title={`Deep scan ${row.ip}`}
+                        title={t('netScan.deepScanIp', { ip: row.ip })}
                         onClick={() => openDeepScan(row.ip)}
                       >
                         <SearchIcon />

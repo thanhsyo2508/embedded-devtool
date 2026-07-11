@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { useFilterPresetsStore } from '../state/filterPresetsStore'
 import { compileFilter } from '../lib/filterLines'
@@ -6,6 +7,7 @@ import { PlusIcon, TrashIcon } from './icons'
 import { LibraryRow } from './LibraryRow'
 
 export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: number }) {
+  const { t } = useTranslation()
   const addFilter = useTabsStore((s) => s.addFilter)
   const removeFilter = useTabsStore((s) => s.removeFilter)
   const updateFilterPattern = useTabsStore((s) => s.updateFilterPattern)
@@ -27,7 +29,7 @@ export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: 
   return (
     <div className="filter-bar">
       <LibraryRow
-        label="Preset"
+        label={t('filterBar.presetLabel')}
         items={presets}
         onLoad={(p) => setFilters(tab.id, p.filters)}
         onSave={(name) => savePreset(name, { filters: tab.filters })}
@@ -45,12 +47,12 @@ export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: 
                 onChange={() => toggleFilterEnabled(tab.id, filter.id)}
               />
             </label>
-            <span className={`mode-tag ${filter.mode}`}>{filter.mode}</span>
+            <span className={`mode-tag ${filter.mode}`}>{t(`filterBar.mode.${filter.mode}`)}</span>
             <input
               type="text"
               className={invalid ? 'invalid' : ''}
               value={filter.pattern}
-              placeholder="regex pattern"
+              placeholder={t('filterBar.regexPlaceholder')}
               onChange={(e) => updateFilterPattern(tab.id, filter.id, e.target.value)}
             />
             {filter.enabled && !invalid && (
@@ -59,7 +61,7 @@ export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: 
             <button
               type="button"
               className="icon-button"
-              aria-label="Remove filter"
+              aria-label={t('filterBar.removeFilter')}
               onClick={() => removeFilter(tab.id, filter.id)}
             >
               <TrashIcon />
@@ -69,13 +71,16 @@ export function FilterBar({ tab, visibleCount }: { tab: TabState; visibleCount: 
       })}
       <div className="filter-actions">
         <button type="button" onClick={() => addFilter(tab.id, 'include')}>
-          <PlusIcon /> Include
+          <PlusIcon /> {t('filterBar.include')}
         </button>
         <button type="button" onClick={() => addFilter(tab.id, 'exclude')}>
-          <PlusIcon /> Exclude
+          <PlusIcon /> {t('filterBar.exclude')}
         </button>
         <span className="line-count">
-          {visibleCount.toLocaleString()} / {tab.lines.length.toLocaleString()} lines
+          {t('filterBar.lineCount', {
+            visible: visibleCount.toLocaleString(),
+            total: tab.lines.length.toLocaleString(),
+          })}
         </span>
       </div>
     </div>

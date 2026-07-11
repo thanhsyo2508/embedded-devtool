@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { TabState } from '../state/tabsStore'
 import { useUdpStore, type UdpDatagramRecord } from '../state/udpStore'
 import { decodeText, looksBinary, toHexDump } from '../lib/payloadFormat'
@@ -11,6 +12,7 @@ import { TrashIcon } from './icons'
 const EMPTY_DATAGRAMS: UdpDatagramRecord[] = []
 
 export function UdpPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const datagrams = useUdpStore((s) => s.datagramsByTab[tab.id] ?? EMPTY_DATAGRAMS)
   const clearDatagrams = useUdpStore((s) => s.clearDatagrams)
   const [view, setView] = useState<'auto' | 'hex'>('auto')
@@ -24,31 +26,31 @@ export function UdpPanel({ tab }: { tab: TabState }) {
   return (
     <div className="udp-panel">
       <div className="toolbar">
-        <span className="line-count">
-          {datagrams.length} packet{datagrams.length === 1 ? '' : 's'}
-        </span>
+        <span className="line-count">{t('udp.packetCount', { count: datagrams.length })}</span>
         <button
           type="button"
           onClick={() => clearDatagrams(tab.id)}
           disabled={datagrams.length === 0}
         >
-          <TrashIcon /> Clear
+          <TrashIcon /> {t('monitor.clear')}
         </button>
         <div className="seg">
           <span className={view === 'auto' ? 'on' : ''} onClick={() => setView('auto')}>
-            Text
+            {t('mqtt.text')}
           </span>
           <span className={view === 'hex' ? 'on' : ''} onClick={() => setView('hex')}>
-            Hex
+            {t('mqtt.hexLabel')}
           </span>
         </div>
-        {tab.status === 'closed' && <span className="tab-disconnected">Disconnected</span>}
+        {tab.status === 'closed' && (
+          <span className="tab-disconnected">{t('monitor.disconnected')}</span>
+        )}
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
       </div>
 
       <div className="packet-log">
         {datagrams.length === 0 ? (
-          <p className="mdns-empty">No datagrams received yet.</p>
+          <p className="mdns-empty">{t('udp.noDatagramsYet')}</p>
         ) : (
           [...datagrams].reverse().map((pkt, i) => {
             const asHex = view === 'hex' || looksBinary(pkt.data)
@@ -57,12 +59,10 @@ export function UdpPanel({ tab }: { tab: TabState }) {
                 <div className="packet-meta">
                   <span className="mono packet-from">{pkt.from}</span>
                   <span>{relativeTime(pkt.atMs, now)}</span>
-                  <span>
-                    {pkt.data.length} byte{pkt.data.length === 1 ? '' : 's'}
-                  </span>
+                  <span>{t('mqtt.byteCount', { count: pkt.data.length })}</span>
                 </div>
                 <pre className="mqtt-payload-view mono">
-                  {(asHex ? toHexDump(pkt.data) : decodeText(pkt.data)) || '(empty)'}
+                  {(asHex ? toHexDump(pkt.data) : decodeText(pkt.data)) || t('mqtt.empty')}
                 </pre>
               </div>
             )

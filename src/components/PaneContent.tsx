@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { DropZone, PaneNode } from '../lib/layoutTree'
 import { useLayoutStore } from '../state/layoutStore'
 import { useTabsStore } from '../state/tabsStore'
@@ -17,6 +18,7 @@ function zoneFromPointer(e: React.DragEvent<HTMLDivElement>): DropZone {
 }
 
 export function PaneContent({ pane, onAddClick }: { pane: PaneNode; onAddClick: () => void }) {
+  const { t } = useTranslation()
   const allTabs = useTabsStore((s) => s.tabs)
   const closeTab = useTabsStore((s) => s.closeTab)
   const focusedPaneId = useLayoutStore((s) => s.focusedPaneId)
@@ -65,7 +67,11 @@ export function PaneContent({ pane, onAddClick }: { pane: PaneNode; onAddClick: 
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {activeTab ? <TabContent tab={activeTab} /> : <div className="pane-empty">No tab open</div>}
+        {activeTab ? (
+          <TabContent tab={activeTab} />
+        ) : (
+          <div className="pane-empty">{t('layout.noTabOpen')}</div>
+        )}
         {dropZone && <div className={`drop-zone-overlay zone-${dropZone}`} />}
       </div>
     </div>

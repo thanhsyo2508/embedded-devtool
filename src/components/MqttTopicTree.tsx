@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import type { MqttTreeNode } from '../lib/mqttTree'
 import type { MqttTopicEntry } from '../state/mqttStore'
 
@@ -20,6 +21,7 @@ function TreeRow({
   onSelect,
   forceExpand,
 }: RowProps) {
+  const { t } = useTranslation()
   const hasChildren = node.children.length > 0
   const isExpanded = forceExpand || expanded.has(node.fullTopic)
   const hasMessage = node.entry !== null
@@ -53,7 +55,7 @@ function TreeRow({
         {hasMessage && (
           <>
             {latest?.retain && (
-              <span className="mqtt-tree-badge" title="Retained">
+              <span className="mqtt-tree-badge" title={t('mqtt.retained')}>
                 R
               </span>
             )}
@@ -94,8 +96,9 @@ export function MqttTopicTree({
   onSelect: (path: string) => void
   forceExpand: boolean
 }) {
+  const { t } = useTranslation()
   if (root.children.length === 0) {
-    return <p className="mdns-empty">No messages received yet.</p>
+    return <p className="mdns-empty">{t('mqtt.noMessagesYet')}</p>
   }
   return (
     <div className="mqtt-tree">

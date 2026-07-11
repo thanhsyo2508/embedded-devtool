@@ -1,4 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type LineEnding, type TabState } from '../state/tabsStore'
 import { parseHex } from '../lib/hex'
 import { CHECKSUM_MODES, type ChecksumMode } from '../lib/crc'
@@ -6,6 +7,7 @@ import { CHECKSUM_MODES, type ChecksumMode } from '../lib/crc'
 type SendMode = 'text' | 'hex'
 
 export function SendPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const send = useTabsStore((s) => s.send)
   const sendBytes = useTabsStore((s) => s.sendBytes)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
@@ -51,24 +53,24 @@ export function SendPanel({ tab }: { tab: TabState }) {
     <div className="send-panel">
       <div className="seg">
         <span className={mode === 'text' ? 'on' : ''} onClick={() => setMode('text')}>
-          text
+          {t('send.text')}
         </span>
         <span className={mode === 'hex' ? 'on' : ''} onClick={() => setMode('hex')}>
-          hex
+          {t('send.hex')}
         </span>
       </div>
       <select
         value={tab.lineEnding}
         onChange={(e) => setLineEnding(tab.id, e.target.value as LineEnding)}
       >
-        <option value="none">None</option>
+        <option value="none">{t('common.none')}</option>
         <option value="cr">CR</option>
         <option value="lf">LF</option>
         <option value="crlf">CRLF</option>
       </select>
       <select
         value={tab.checksumMode}
-        title="Appends a checksum to every sent message (suppresses the line ending above when active)"
+        title={t('send.checksumTitle')}
         onChange={(e) => setChecksumMode(tab.id, e.target.value as ChecksumMode)}
       >
         {CHECKSUM_MODES.map((c) => (
@@ -81,7 +83,7 @@ export function SendPanel({ tab }: { tab: TabState }) {
         type="text"
         className={hexInvalid ? 'invalid' : ''}
         value={text}
-        placeholder={mode === 'hex' ? 'e.g. 01 02 FF' : 'Type a command and press Enter'}
+        placeholder={mode === 'hex' ? t('send.hexPlaceholder') : t('send.textPlaceholder')}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         disabled={tab.status !== 'open'}
@@ -91,7 +93,7 @@ export function SendPanel({ tab }: { tab: TabState }) {
         onClick={doSend}
         disabled={tab.status !== 'open' || text.length === 0 || hexInvalid}
       >
-        Send
+        {t('send.button')}
       </button>
     </div>
   )

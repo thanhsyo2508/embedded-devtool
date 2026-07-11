@@ -3,6 +3,7 @@ import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
+import { useTranslation } from 'react-i18next'
 import { usePlotStore, type ChartType } from '../state/plotStore'
 import { useTabsStore } from '../state/tabsStore'
 import { computeSpectrum, type FftWindow } from '../lib/fft'
@@ -22,19 +23,8 @@ const PALETTE = [
   '#5c6470',
 ]
 
-const CHART_TYPES: { value: ChartType; label: string }[] = [
-  { value: 'line', label: 'Line' },
-  { value: 'area', label: 'Area' },
-  { value: 'step', label: 'Step' },
-  { value: 'bars', label: 'Bars' },
-  { value: 'points', label: 'Points' },
-]
-
-const FFT_WINDOWS: { value: FftWindow; label: string }[] = [
-  { value: 'none', label: 'Rectangular' },
-  { value: 'hann', label: 'Hann' },
-  { value: 'hamming', label: 'Hamming' },
-]
+const CHART_TYPE_VALUES: ChartType[] = ['line', 'area', 'step', 'bars', 'points']
+const FFT_WINDOW_VALUES: FftWindow[] = ['none', 'hann', 'hamming']
 
 /** Display-key prefix for math channels. Real channel names always match
  * `[a-zA-Z_]\w*` (see plotStore's parseLine/extractors), so this prefix can
@@ -85,6 +75,7 @@ function formatStat(v: number): string {
 const LEGEND_RESERVE_PX = 30
 
 export function PlotDock() {
+  const { t } = useTranslation()
   const tabs = useTabsStore((s) => s.tabs)
   const {
     sourceTabId,
@@ -124,7 +115,7 @@ export function PlotDock() {
     updateThreshold,
     toggleThresholdEnabled,
   } = usePlotStore()
-  const sourceTab = tabs.find((t) => t.id === sourceTabId) ?? null
+  const sourceTab = tabs.find((tab) => tab.id === sourceTabId) ?? null
   const [openPanel, setOpenPanel] = useState<'extractors' | 'math' | 'thresholds' | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
@@ -223,7 +214,7 @@ export function PlotDock() {
     }
     const firstAtMs = timestamps[0] ?? 0
     return [
-      timestamps.map((t) => (t - firstAtMs) / 1000),
+      timestamps.map((ms) => (ms - firstAtMs) / 1000),
       ...displayOrder.map((ch) => displayData[ch] ?? []),
     ]
   }
@@ -372,7 +363,7 @@ export function PlotDock() {
   const exportCsv = async () => {
     if (timestamps.length === 0) return
     const path = await save({
-      title: 'Export plot data',
+      title: t('plot.exportDataTitle'),
       filters: [{ name: 'CSV', extensions: ['csv'] }],
     })
     if (!path) return
@@ -397,7 +388,7 @@ export function PlotDock() {
     const plot = plotRef.current
     if (!plot) return
     const path = await save({
-      title: 'Export plot image',
+      title: t('plot.exportImageTitle'),
       filters: [{ name: 'PNG', extensions: ['png'] }],
     })
     if (!path) return
@@ -423,7 +414,7 @@ export function PlotDock() {
     <div className="plot-dock" style={{ height: dockHeight }}>
       <div className="toolbar">
         <select value={sourceTabId ?? ''} onChange={(e) => setSourceTabId(e.target.value || null)}>
-          <option value="">Select source tab…</option>
+          <option value="">{t('plot.selectSourceTab')}</option>
           {tabs.map((tab) => (
             <option key={tab.id} value={tab.id}>
               {tab.connectionLabel}
@@ -432,9 +423,9 @@ export function PlotDock() {
         </select>
         {!fftMode && (
           <select value={chartType} onChange={(e) => setChartType(e.target.value as ChartType)}>
-            {CHART_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {CHART_TYPE_VALUES.map((ct) => (
+              <option key={ct} value={ct}>
+                {t(`plot.chartType.${ct}`)}
               </option>
             ))}
           </select>
@@ -442,7 +433,7 @@ export function PlotDock() {
         <button
           type="button"
           className={fftMode ? 'on' : ''}
-          title="Frequency-domain view (FFT of the current buffer)"
+          title={t('plot.fftTitle')}
           onClick={() => setFftMode(!fftMode)}
           disabled={!sourceTabId}
         >
@@ -451,12 +442,12 @@ export function PlotDock() {
         {fftMode && (
           <select
             value={fftWindow}
-            title="FFT window function"
+            title={t('plot.fftWindowTitle')}
             onChange={(e) => setFftWindow(e.target.value as FftWindow)}
           >
-            {FFT_WINDOWS.map((w) => (
-              <option key={w.value} value={w.value}>
-                {w.label}
+            {FFT_WINDOW_VALUES.map((w) => (
+              <option key={w} value={w}>
+                {t(`plot.fftWindow.${w}`)}
               </option>
             ))}
           </select>
@@ -467,49 +458,52 @@ export function PlotDock() {
           onClick={() => setFrozen(!frozen)}
           disabled={!sourceTabId}
         >
-          {frozen ? 'Resume' : 'Freeze'}
+          {frozen ? t('plot.resume') : t('plot.freeze')}
         </button>
         <button type="button" onClick={resetZoom} disabled={!sourceTabId}>
-          Reset zoom
+          {t('plot.resetZoom')}
         </button>
         <button type="button" onClick={reset} disabled={!sourceTabId}>
-          Clear
+          {t('monitor.clear')}
         </button>
         <button
           type="button"
           className={openPanel === 'extractors' || extractors.length > 0 ? 'on' : ''}
           onClick={() => togglePanel('extractors')}
         >
-          <FilterIcon /> Extractors{extractors.length > 0 ? ` (${extractors.length})` : ''}
+          <FilterIcon /> {t('plot.extractors')}
+          {extractors.length > 0 ? ` (${extractors.length})` : ''}
         </button>
         <button
           type="button"
           className={openPanel === 'math' || mathChannels.length > 0 ? 'on' : ''}
-          title="Derived channels computed from existing ones"
+          title={t('plot.mathTitle')}
           onClick={() => togglePanel('math')}
         >
-          Math{mathChannels.length > 0 ? ` (${mathChannels.length})` : ''}
+          {t('plot.math')}
+          {mathChannels.length > 0 ? ` (${mathChannels.length})` : ''}
         </button>
         <button
           type="button"
           className={openPanel === 'thresholds' || thresholds.length > 0 ? 'on' : ''}
-          title="Horizontal alert levels — beep when a channel crosses one upward"
+          title={t('plot.levelsTitle')}
           onClick={() => togglePanel('thresholds')}
         >
-          Levels{thresholds.length > 0 ? ` (${thresholds.length})` : ''}
+          {t('plot.levels')}
+          {thresholds.length > 0 ? ` (${thresholds.length})` : ''}
         </button>
         <button
           type="button"
           className={showStats ? 'on' : ''}
-          title="Per-channel min/max/avg/peak-to-peak/frequency"
+          title={t('plot.statsTitle')}
           onClick={() => setShowStats(!showStats)}
           disabled={fftMode}
         >
-          Stats
+          {t('plot.stats')}
         </button>
         <button
           type="button"
-          title="Export the whole buffer (including math channels) as CSV"
+          title={t('plot.csvTitle')}
           onClick={() => void exportCsv()}
           disabled={timestamps.length === 0}
         >
@@ -517,17 +511,19 @@ export function PlotDock() {
         </button>
         <button
           type="button"
-          title="Export the chart as a PNG image (legend not included)"
+          title={t('plot.pngTitle')}
           onClick={() => void exportPng()}
           disabled={timestamps.length === 0}
         >
           PNG
         </button>
-        <span className="line-count">{timestamps.length.toLocaleString()} pts</span>
+        <span className="line-count">
+          {t('plot.pointCount', { count: timestamps.length.toLocaleString() })}
+        </span>
         <button
           type="button"
           className="icon-button"
-          aria-label="Close plotter"
+          aria-label={t('plot.closePlotter')}
           onClick={() => setVisible(false)}
         >
           <XIcon />
@@ -547,7 +543,7 @@ export function PlotDock() {
               </label>
               <input
                 type="text"
-                placeholder="regex with one capture group, e.g. temp=(\d+\.\d+)"
+                placeholder={t('plot.extractorPatternPlaceholder')}
                 value={extractor.pattern}
                 onChange={(e) => updateExtractor(extractor.id, { pattern: e.target.value })}
               />
@@ -555,14 +551,14 @@ export function PlotDock() {
               <input
                 type="text"
                 className="extractor-channel"
-                placeholder="channel name"
+                placeholder={t('plot.channelNamePlaceholder')}
                 value={extractor.channel}
                 onChange={(e) => updateExtractor(extractor.id, { channel: e.target.value })}
               />
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Remove extractor"
+                aria-label={t('plot.removeExtractor')}
                 onClick={() => removeExtractor(extractor.id)}
               >
                 <TrashIcon />
@@ -571,7 +567,7 @@ export function PlotDock() {
           ))}
           <div className="filter-actions">
             <button type="button" onClick={addExtractor}>
-              <PlusIcon /> Add extractor
+              <PlusIcon /> {t('plot.addExtractor')}
             </button>
           </div>
         </div>
@@ -593,7 +589,7 @@ export function PlotDock() {
                 <input
                   type="text"
                   className="extractor-channel"
-                  placeholder="label"
+                  placeholder={t('plot.labelPlaceholder')}
                   value={m.label}
                   onChange={(e) => updateMathChannel(m.id, { label: e.target.value })}
                 />
@@ -611,7 +607,7 @@ export function PlotDock() {
                 </select>
                 <select
                   value={m.sourceA}
-                  title="Source channel A"
+                  title={t('plot.sourceChannelA')}
                   onChange={(e) => updateMathChannel(m.id, { sourceA: e.target.value })}
                 >
                   <option value="">A…</option>
@@ -624,7 +620,7 @@ export function PlotDock() {
                 {opInfo?.binary && (
                   <select
                     value={m.sourceB ?? ''}
-                    title="Source channel B"
+                    title={t('plot.sourceChannelB')}
                     onChange={(e) => updateMathChannel(m.id, { sourceB: e.target.value })}
                   >
                     <option value="">B…</option>
@@ -639,7 +635,7 @@ export function PlotDock() {
                   <input
                     type="number"
                     className="math-window"
-                    title="Window (samples)"
+                    title={t('plot.windowSamples')}
                     value={m.window ?? 10}
                     onChange={(e) =>
                       updateMathChannel(m.id, { window: Math.max(1, Number(e.target.value)) })
@@ -649,7 +645,7 @@ export function PlotDock() {
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label="Remove math channel"
+                  aria-label={t('plot.removeMathChannel')}
                   onClick={() => removeMathChannel(m.id)}
                 >
                   <TrashIcon />
@@ -659,7 +655,7 @@ export function PlotDock() {
           })}
           <div className="filter-actions">
             <button type="button" onClick={addMathChannel}>
-              <PlusIcon /> Add math channel
+              <PlusIcon /> {t('plot.addMathChannel')}
             </button>
           </div>
         </div>
@@ -667,21 +663,21 @@ export function PlotDock() {
 
       {openPanel === 'thresholds' && (
         <div className="filter-bar">
-          {thresholds.map((t) => (
-            <div className="filter-row" key={t.id}>
+          {thresholds.map((th) => (
+            <div className="filter-row" key={th.id}>
               <label className="checkbox-field">
                 <input
                   type="checkbox"
-                  checked={t.enabled}
-                  onChange={() => toggleThresholdEnabled(t.id)}
+                  checked={th.enabled}
+                  onChange={() => toggleThresholdEnabled(th.id)}
                 />
               </label>
               <select
-                value={t.channel}
-                title="Channel to watch"
-                onChange={(e) => updateThreshold(t.id, { channel: e.target.value })}
+                value={th.channel}
+                title={t('plot.channelToWatch')}
+                onChange={(e) => updateThreshold(th.id, { channel: e.target.value })}
               >
-                <option value="">Channel…</option>
+                <option value="">{t('plot.channelPlaceholder')}</option>
                 {displayOrder.map((ch) => (
                   <option key={ch} value={ch}>
                     {ch}
@@ -691,15 +687,15 @@ export function PlotDock() {
               <span>&gt;</span>
               <input
                 type="number"
-                title="Alert level"
-                value={t.value}
-                onChange={(e) => updateThreshold(t.id, { value: Number(e.target.value) })}
+                title={t('plot.alertLevel')}
+                value={th.value}
+                onChange={(e) => updateThreshold(th.id, { value: Number(e.target.value) })}
               />
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Remove threshold"
-                onClick={() => removeThreshold(t.id)}
+                aria-label={t('plot.removeThreshold')}
+                onClick={() => removeThreshold(th.id)}
               >
                 <TrashIcon />
               </button>
@@ -707,7 +703,7 @@ export function PlotDock() {
           ))}
           <div className="filter-actions">
             <button type="button" onClick={addThreshold}>
-              <PlusIcon /> Add level
+              <PlusIcon /> {t('plot.addLevel')}
             </button>
           </div>
         </div>
@@ -740,12 +736,16 @@ export function PlotDock() {
               {m ? (
                 <>
                   {' '}
-                  min {formatStat(m.min)} · max {formatStat(m.max)} · avg {formatStat(m.avg)} · p-p{' '}
-                  {formatStat(m.peakToPeak)} ·{' '}
-                  {m.frequencyHz !== null ? `${formatStat(m.frequencyHz)} Hz` : '— Hz'}
+                  {t('plot.statLine', {
+                    min: formatStat(m.min),
+                    max: formatStat(m.max),
+                    avg: formatStat(m.avg),
+                    pp: formatStat(m.peakToPeak),
+                    freq: m.frequencyHz !== null ? `${formatStat(m.frequencyHz)} Hz` : '— Hz',
+                  })}
                 </>
               ) : (
-                ' no data'
+                ` ${t('plot.noData')}`
               )}
             </span>
           ))}

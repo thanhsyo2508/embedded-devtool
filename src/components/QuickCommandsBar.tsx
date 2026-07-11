@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { useQuickCommandProfilesStore, type QuickCommand } from '../state/quickCommandProfilesStore'
 import { parseHex } from '../lib/hex'
@@ -14,6 +15,7 @@ function newCommandId(): string {
 // not wrapping) so it doesn't eat vertical space the way a full editable
 // list (à la FilterBar) would once a profile has more than a few commands.
 export function QuickCommandsBar({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const profiles = useQuickCommandProfilesStore((s) => s.items)
   const saveProfile = useQuickCommandProfilesStore((s) => s.save)
   const deleteProfile = useQuickCommandProfilesStore((s) => s.remove)
@@ -47,7 +49,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
   }
 
   const handleNewProfile = () => {
-    const name = window.prompt('Quick command profile name?')
+    const name = window.prompt(t('quickCommands.newProfilePrompt'))
     if (!name) return
     saveProfile(name, { commands: [] })
     const created = useQuickCommandProfilesStore.getState().items.find((p) => p.name === name)
@@ -56,7 +58,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
 
   const handleDeleteProfile = () => {
     if (!profile) return
-    if (!window.confirm(`Delete quick command profile "${profile.name}"?`)) return
+    if (!window.confirm(t('quickCommands.deleteProfileConfirm', { name: profile.name }))) return
     deleteProfile(profile.id)
     setQuickCommandProfile(tab.id, null)
   }
@@ -125,7 +127,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
           value={profile?.id ?? ''}
           onChange={(e) => setQuickCommandProfile(tab.id, e.target.value || null)}
         >
-          <option value="">Quick commands…</option>
+          <option value="">{t('quickCommands.selectPlaceholder')}</option>
           {profiles.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -135,8 +137,8 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
         <button
           type="button"
           className="icon-button"
-          aria-label="New quick command profile"
-          title="New profile"
+          aria-label={t('quickCommands.newProfile')}
+          title={t('quickCommands.newProfile')}
           onClick={handleNewProfile}
         >
           <PlusIcon />
@@ -145,8 +147,8 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
           <button
             type="button"
             className="icon-button"
-            aria-label="Delete quick command profile"
-            title={`Delete profile "${profile.name}"`}
+            aria-label={t('quickCommands.deleteProfile')}
+            title={t('quickCommands.deleteProfileTitle', { name: profile.name })}
             onClick={handleDeleteProfile}
           >
             <TrashIcon />
@@ -169,7 +171,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
                 <button
                   type="button"
                   className="quick-command-edit"
-                  aria-label="Edit command"
+                  aria-label={t('quickCommands.editCommand')}
                   onClick={(e) => {
                     e.stopPropagation()
                     startEdit(cmd)
@@ -180,7 +182,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
                 <button
                   type="button"
                   className="quick-command-remove"
-                  aria-label="Remove command"
+                  aria-label={t('quickCommands.removeCommand')}
                   onClick={(e) => {
                     e.stopPropagation()
                     removeCommand(cmd.id)
@@ -198,7 +200,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
                 setAdding(true)
               }}
             >
-              <PlusIcon /> Add
+              <PlusIcon /> {t('common.add')}
             </button>
           </div>
         )}
@@ -207,14 +209,14 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
         <div className="quick-command-form">
           <input
             type="text"
-            placeholder="Label (optional)"
+            placeholder={t('quickCommands.labelOptional')}
             value={formLabel}
             onChange={(e) => setFormLabel(e.target.value)}
           />
           <input
             type="text"
             className={formHexInvalid ? 'invalid' : ''}
-            placeholder={formHex ? 'e.g. 01 02 FF' : 'Command text'}
+            placeholder={formHex ? t('send.hexPlaceholder') : t('quickCommands.commandText')}
             value={formText}
             onChange={(e) => setFormText(e.target.value)}
           />
@@ -224,17 +226,17 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
               checked={formHex}
               onChange={(e) => setFormHex(e.target.checked)}
             />
-            hex
+            {t('send.hex')}
           </label>
           <button
             type="button"
             onClick={submitForm}
             disabled={formText.trim().length === 0 || formHexInvalid}
           >
-            {editingId ? 'Save' : 'Add'}
+            {editingId ? t('common.save') : t('common.add')}
           </button>
           <button type="button" onClick={resetForm}>
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       )}

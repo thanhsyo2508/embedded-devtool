@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { PlusIcon, TrashIcon } from './icons'
 
@@ -13,6 +14,7 @@ function RegisterTable({
   onSet: (addr: number, value: number) => void
   onRemove: (addr: number) => void
 }) {
+  const { t } = useTranslation()
   const [newAddr, setNewAddr] = useState(0)
   const [newValue, setNewValue] = useState(0)
 
@@ -34,8 +36,8 @@ function RegisterTable({
           <button
             type="button"
             className="icon-button"
-            aria-label="Remove register"
-            title="Remove register"
+            aria-label={t('modbus.removeRegister')}
+            title={t('modbus.removeRegister')}
             onClick={() => onRemove(addr)}
           >
             <TrashIcon />
@@ -46,17 +48,17 @@ function RegisterTable({
         <input
           type="number"
           value={newAddr}
-          placeholder="Address"
+          placeholder={t('modbus.address')}
           onChange={(e) => setNewAddr(Number(e.target.value))}
         />
         <input
           type="number"
           value={newValue}
-          placeholder="Value"
+          placeholder={t('modbus.value')}
           onChange={(e) => setNewValue(Number(e.target.value))}
         />
         <button type="button" onClick={() => onSet(newAddr, newValue)}>
-          <PlusIcon /> Add
+          <PlusIcon /> {t('common.add')}
         </button>
       </div>
     </div>
@@ -69,6 +71,7 @@ function RegisterTable({
 // is closed, exactly like Filters/Triggers keep matching regardless of
 // whether their panel is open.
 export function ModbusSlavePanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const setEnabled = useTabsStore((s) => s.setModbusSlaveEnabled)
   const setAddress = useTabsStore((s) => s.setModbusSlaveAddress)
   const setRegister = useTabsStore((s) => s.setModbusRegister)
@@ -82,7 +85,7 @@ export function ModbusSlavePanel({ tab }: { tab: TabState }) {
     <div className="filter-bar">
       <div className="filter-row">
         <label className="field-group">
-          <span className="field-caption">Slave address</span>
+          <span className="field-caption">{t('modbus.slaveAddress')}</span>
           <input
             type="number"
             value={slave.slaveAddr}
@@ -94,34 +97,32 @@ export function ModbusSlavePanel({ tab }: { tab: TabState }) {
           className={slave.enabled ? 'on' : ''}
           onClick={() => setEnabled(tab.id, !slave.enabled)}
           disabled={tab.status !== 'open' || pollingActive}
-          title={
-            pollingActive ? 'Disabled while Modbus poll rules are enabled on this tab' : undefined
-          }
+          title={pollingActive ? t('modbus.disabledWhilePollingActive') : undefined}
         >
-          {slave.enabled ? 'Listening…' : 'Start listening'}
+          {slave.enabled ? t('modbus.listening') : t('modbus.startListening')}
         </button>
       </div>
 
       <RegisterTable
-        title="Coils"
+        title={t('modbus.coils')}
         registers={slave.coils}
         onSet={(addr, value) => setRegister(tab.id, 'coils', addr, value ? 1 : 0)}
         onRemove={(addr) => removeRegister(tab.id, 'coils', addr)}
       />
       <RegisterTable
-        title="Discrete inputs"
+        title={t('modbus.discreteInputs')}
         registers={slave.discreteInputs}
         onSet={(addr, value) => setRegister(tab.id, 'discreteInputs', addr, value ? 1 : 0)}
         onRemove={(addr) => removeRegister(tab.id, 'discreteInputs', addr)}
       />
       <RegisterTable
-        title="Holding registers"
+        title={t('modbus.holdingRegisters')}
         registers={slave.holdingRegisters}
         onSet={(addr, value) => setRegister(tab.id, 'holdingRegisters', addr, value)}
         onRemove={(addr) => removeRegister(tab.id, 'holdingRegisters', addr)}
       />
       <RegisterTable
-        title="Input registers"
+        title={t('modbus.inputRegisters')}
         registers={slave.inputRegisters}
         onSet={(addr, value) => setRegister(tab.id, 'inputRegisters', addr, value)}
         onRemove={(addr) => removeRegister(tab.id, 'inputRegisters', addr)}
@@ -131,14 +132,14 @@ export function ModbusSlavePanel({ tab }: { tab: TabState }) {
         <button
           type="button"
           className="icon-button"
-          aria-label="Clear log"
+          aria-label={t('modbus.clearLog')}
           onClick={() => clearLog(tab.id)}
         >
-          <TrashIcon /> Clear log
+          <TrashIcon /> {t('modbus.clearLog')}
         </button>
       </div>
       <div className="modbus-log">
-        {slave.log.length === 0 && <p className="modbus-log-empty">No requests yet.</p>}
+        {slave.log.length === 0 && <p className="modbus-log-empty">{t('modbus.noRequestsYet')}</p>}
         {slave.log
           .slice()
           .reverse()

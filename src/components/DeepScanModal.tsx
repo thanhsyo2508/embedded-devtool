@@ -1,7 +1,9 @@
+import { useTranslation } from 'react-i18next'
 import { useNetScanStore } from '../state/netScanStore'
 import { SearchIcon, XIcon } from './icons'
 
 export function DeepScanModal() {
+  const { t } = useTranslation()
   const deepScanIp = useNetScanStore((s) => s.deepScanIp)
   const deepScanFrom = useNetScanStore((s) => s.deepScanFrom)
   const deepScanTo = useNetScanStore((s) => s.deepScanTo)
@@ -20,16 +22,21 @@ export function DeepScanModal() {
       <div className="netscan-deep-panel" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <span className="settings-title">
-            <SearchIcon /> Deep scan <span className="mono">{deepScanIp}</span>
+            <SearchIcon /> {t('netScan.deepScanTitle')} <span className="mono">{deepScanIp}</span>
           </span>
-          <button type="button" className="icon-button" aria-label="Close" onClick={closeDeepScan}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={t('common.close')}
+            onClick={closeDeepScan}
+          >
             <XIcon />
           </button>
         </div>
 
         <div className="field-row">
           <div className="field-group">
-            <span className="field-caption">From port</span>
+            <span className="field-caption">{t('netScan.fromPort')}</span>
             <input
               type="number"
               min={1}
@@ -39,7 +46,7 @@ export function DeepScanModal() {
             />
           </div>
           <div className="field-group">
-            <span className="field-caption">To port</span>
+            <span className="field-caption">{t('netScan.toPort')}</span>
             <input
               type="number"
               min={1}
@@ -53,17 +60,17 @@ export function DeepScanModal() {
             disabled={deepScanScanning || rangeInvalid}
             onClick={() => void runDeepScan()}
           >
-            {deepScanScanning ? 'Scanning…' : 'Scan'}
+            {deepScanScanning ? t('netScan.scanning') : t('netScan.scan')}
           </button>
         </div>
 
         {deepScanScanning && deepScanHits.length === 0 && (
           <p className="mdns-empty">
-            Scanning {deepScanFrom}–{deepScanTo}…
+            {t('netScan.scanningRange', { from: deepScanFrom, to: deepScanTo })}
           </p>
         )}
         {!deepScanScanning && deepScanHits.length === 0 && (
-          <p className="mdns-empty">No open ports found.</p>
+          <p className="mdns-empty">{t('netScan.noOpenPorts')}</p>
         )}
         {deepScanHits.length > 0 && (
           <div className="netscan-ports">

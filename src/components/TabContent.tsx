@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { TabState } from '../state/tabsStore'
 import { MonitorView } from './MonitorView'
 import { SendPanel } from './SendPanel'
@@ -12,15 +13,16 @@ import { SshPanel } from './SshPanel'
 // panes can show different tabs side by side, a single App-level toggle
 // would leak one pane's choice into every other pane showing a protocol tab.
 export function TabContent({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const [protocolView, setProtocolView] = useState<'specialized' | 'raw'>('specialized')
 
   const specializedViewLabel =
     tab.connectionKind === 'mqtt'
-      ? 'Topics'
+      ? t('tabContent.topics')
       : tab.connectionKind === 'udp'
-        ? 'Packets'
+        ? t('tabContent.packets')
         : tab.connectionKind === 'ws-client' || tab.connectionKind === 'ws-server'
-          ? 'Frames'
+          ? t('tabContent.frames')
           : null
 
   if (tab.connectionKind === 'ssh') {
@@ -43,7 +45,7 @@ export function TabContent({ tab }: { tab: TabState }) {
             className={protocolView === 'raw' ? 'on' : ''}
             onClick={() => setProtocolView('raw')}
           >
-            Raw log
+            {t('tabContent.rawLog')}
           </span>
         </div>
       )}

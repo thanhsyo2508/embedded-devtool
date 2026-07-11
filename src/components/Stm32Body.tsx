@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { useTranslation } from 'react-i18next'
 import { listSerialPorts, onUsbPlugged, onUsbUnplugged, type PortInfo } from '../api/serial'
 import { useStm32Store } from '../state/stm32Store'
 import { ChipIcon, FolderIcon, GearIcon, RefreshIcon, ZapIcon } from './icons'
@@ -8,6 +9,7 @@ import { ChipIcon, FolderIcon, GearIcon, RefreshIcon, ZapIcon } from './icons'
 const STM32CUBEPROG_URL = 'https://www.st.com/en/development-tools/stm32cubeprog.html'
 
 export function Stm32Body() {
+  const { t } = useTranslation()
   const [ports, setPorts] = useState<PortInfo[]>([])
   const portSelectRef = useRef<HTMLSelectElement>(null)
   const [obName, setObName] = useState('RDP')
@@ -68,14 +70,14 @@ export function Stm32Body() {
 
   const browseForFile = async () => {
     const picked = await open({
-      title: 'Select firmware .bin/.hex/.elf',
-      filters: [{ name: 'Firmware', extensions: ['bin', 'hex', 'elf'] }],
+      title: t('stm32.selectFirmwareTitle'),
+      filters: [{ name: t('flash.firmwareFilterName'), extensions: ['bin', 'hex', 'elf'] }],
     })
     if (typeof picked === 'string') setFilePath(picked)
   }
 
   const handleEraseFull = () => {
-    if (window.confirm('Mass erase the entire chip? This cannot be undone.')) {
+    if (window.confirm(t('stm32.massEraseConfirm'))) {
       void eraseFull()
     }
   }
@@ -83,16 +85,18 @@ export function Stm32Body() {
   const handleWriteOptionByte = () => {
     if (!obValue) return
     const isRdp = obName.trim().toUpperCase() === 'RDP'
-    const warning = isRdp
-      ? 'WARNING: changing RDP (readout protection) can PERMANENTLY lock debug access to this chip if set incorrectly. This cannot always be undone.\n\n'
-      : ''
-    if (window.confirm(`${warning}Write option byte ${obName}=${obValue}?`)) {
+    const warning = isRdp ? t('stm32.rdpWarning') : ''
+    if (
+      window.confirm(
+        `${warning}${t('stm32.writeOptionByteConfirm', { name: obName, value: obValue })}`,
+      )
+    ) {
       void writeOptionByte(obName, obValue)
     }
   }
 
   if (!cliChecked) {
-    return <p className="connect-error">Checking for STM32CubeProgrammer…</p>
+    return <p className="connect-error">{t('stm32.checkingCli')}</p>
   }
 
   if (!cliPath) {
@@ -101,19 +105,16 @@ export function Stm32Body() {
         <div className="port-details">
           <GearIcon className="port-details-icon" />
           <div className="port-details-text">
-            <span className="port-details-name">STM32_Programmer_CLI not found</span>
-            <span>
-              It cannot be bundled with EDT — ST's license does not permit redistributing it.
-              Install STM32CubeProgrammer, then recheck below.
-            </span>
+            <span className="port-details-name">{t('stm32.cliNotFound')}</span>
+            <span>{t('stm32.cliNotFoundDetail')}</span>
           </div>
         </div>
         <div className="flash-actions">
           <button type="button" onClick={() => void openUrl(STM32CUBEPROG_URL)}>
-            <GearIcon /> Download STM32CubeProgrammer
+            <GearIcon /> {t('stm32.downloadCli')}
           </button>
           <button type="button" onClick={() => void checkCli()}>
-            <RefreshIcon /> Recheck
+            <RefreshIcon /> {t('stm32.recheck')}
           </button>
         </div>
       </>
@@ -134,13 +135,13 @@ export function Stm32Body() {
           className={interfaceKind === 'swLink' ? 'on' : ''}
           onClick={() => setInterfaceKind('swLink')}
         >
-          ST-Link (SWD)
+          {t('stm32.stLink')}
         </span>
         <span
           className={interfaceKind === 'uart' ? 'on' : ''}
           onClick={() => setInterfaceKind('uart')}
         >
-          UART bootloader
+          {t('stm32.uartBootloader')}
         </span>
       </div>
 
@@ -151,7 +152,7 @@ export function Stm32Body() {
             value={uartPort}
             onChange={(e) => setUartPort(e.target.value)}
           >
-            <option value="">Select port…</option>
+            <option value="">{t('flash.selectPort')}</option>
             {ports.map((p) => (
               <option key={p.portName} value={p.portName}>
                 {p.portName}
@@ -171,27 +172,34 @@ export function Stm32Body() {
         disabled={(interfaceKind === 'uart' && !uartPort) || detecting}
         onClick={() => void detectMcu()}
       >
-        {detecting ? 'Connecting…' : 'Detect MCU'}
+        {detecting ? t('stm32.connecting') : t('stm32.detectMcu')}
       </button>
 
       {mcuInfo && (mcuInfo.deviceName ?? mcuInfo.deviceId) && (
         <div className="port-details">
           <ChipIcon className="port-details-icon" />
           <div className="port-details-text">
-            <span className="port-details-name">{mcuInfo.deviceName ?? 'Unknown device'}</span>
+            <span className="port-details-name">
+              {mcuInfo.deviceName ?? t('stm32.unknownDevice')}
+            </span>
             {mcuInfo.deviceId && <span className="mono">{mcuInfo.deviceId}</span>}
           </div>
         </div>
       )}
 
       <label className="field-group">
-        <span className="field-caption">Firmware file</span>
+        <span className="field-caption">{t('stm32.firmwareFile')}</span>
         <div className="field-row">
-          <input className="flash-path" value={filePath} placeholder="No file selected" readOnly />
+          <input
+            className="flash-path"
+            value={filePath}
+            placeholder={t('flash.noFileSelected')}
+            readOnly
+          />
           <button
             type="button"
             className="icon-button"
-            title="Browse"
+            title={t('common.browse')}
             onClick={() => void browseForFile()}
           >
             <FolderIcon />
@@ -201,23 +209,23 @@ export function Stm32Body() {
 
       <div className="field-grid">
         <label className="field-group">
-          <span className="field-caption">Address</span>
+          <span className="field-caption">{t('stm32.address')}</span>
           <input value={address} onChange={(e) => setAddress(e.target.value)} className="mono" />
         </label>
         <label className="checkbox-field" style={{ alignSelf: 'end' }}>
           <input type="checkbox" checked={verify} onChange={(e) => setVerify(e.target.checked)} />
-          <span>Verify</span>
+          <span>{t('stm32.verify')}</span>
         </label>
       </div>
 
       <label className="checkbox-field">
         <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} />
-        <span>Reset after flash</span>
+        <span>{t('stm32.resetAfterFlash')}</span>
       </label>
 
       <div className="flash-actions">
         <button type="button" className="flash-erase" disabled={busy} onClick={handleEraseFull}>
-          <GearIcon /> Mass erase
+          <GearIcon /> {t('stm32.massErase')}
         </button>
         <button
           type="button"
@@ -225,16 +233,16 @@ export function Stm32Body() {
           disabled={!filePath || busy}
           onClick={() => void flash()}
         >
-          <ZapIcon /> {busy ? 'Working…' : 'Flash'}
+          <ZapIcon /> {busy ? t('flash.working') : t('flash.flash')}
         </button>
       </div>
 
       <hr className="settings-divider" />
 
       <div className="settings-row">
-        <span>Option bytes</span>
+        <span>{t('stm32.optionBytes')}</span>
         <button type="button" onClick={() => void readOptionBytes()}>
-          Read
+          {t('stm32.read')}
         </button>
       </div>
       {optionBytesText && <div className="flash-log flash-ob-text">{optionBytesText}</div>}
@@ -242,20 +250,20 @@ export function Stm32Body() {
         <input
           value={obName}
           onChange={(e) => setObName(e.target.value)}
-          placeholder="Name (e.g. RDP)"
+          placeholder={t('stm32.obNamePlaceholder')}
         />
         <input
           value={obValue}
           onChange={(e) => setObValue(e.target.value)}
-          placeholder="Value (e.g. 0xBB)"
+          placeholder={t('stm32.obValuePlaceholder')}
         />
         <button type="button" className="flash-erase" onClick={handleWriteOptionByte}>
-          Write
+          {t('stm32.write')}
         </button>
       </div>
 
       <div className="flash-log">
-        {log.length === 0 && <div className="flash-log-empty">No activity yet.</div>}
+        {log.length === 0 && <div className="flash-log-empty">{t('flash.noActivity')}</div>}
         {log.map((line, i) => (
           <div key={i} className="flash-log-line">
             {line}

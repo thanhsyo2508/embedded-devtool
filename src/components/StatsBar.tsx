@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { TabState } from '../state/tabsStore'
 
 function formatUptime(ms: number): string {
@@ -15,6 +16,7 @@ function formatUptime(ms: number): string {
 // the cumulative counters once a second, so nothing needs to recompute on
 // every single incoming batch.
 export function StatsBar({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const [stats, setStats] = useState({ bytesPerSec: 0, linesPerSec: 0, uptimeMs: 0 })
   const prevRef = useRef({ bytes: tab.totalBytesReceived, lines: tab.totalLinesReceived })
 
@@ -33,10 +35,12 @@ export function StatsBar({ tab }: { tab: TabState }) {
 
   return (
     <div className="stats-bar">
-      <span>{stats.bytesPerSec.toLocaleString()} B/s</span>
-      <span>{stats.linesPerSec.toLocaleString()} lines/s</span>
-      <span className={tab.errorCount > 0 ? 'stat-error' : ''}>{tab.errorCount} errors</span>
-      <span>up {formatUptime(stats.uptimeMs)}</span>
+      <span>{t('statsBar.bytesPerSec', { count: stats.bytesPerSec.toLocaleString() })}</span>
+      <span>{t('statsBar.linesPerSec', { count: stats.linesPerSec.toLocaleString() })}</span>
+      <span className={tab.errorCount > 0 ? 'stat-error' : ''}>
+        {t('statsBar.errors', { count: tab.errorCount })}
+      </span>
+      <span>{t('statsBar.uptime', { time: formatUptime(stats.uptimeMs) })}</span>
     </div>
   )
 }

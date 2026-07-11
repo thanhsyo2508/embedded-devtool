@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { TabState } from '../state/tabsStore'
 import { useMqttStore, type MqttSubscription, type MqttTopicEntry } from '../state/mqttStore'
 import { useMqttPresetsStore, type MqttPublishFormat } from '../state/mqttPresetsStore'
@@ -50,8 +51,9 @@ function JsonText({ text }: { text: string }) {
 }
 
 function PayloadView({ payload, view }: { payload: number[]; view: 'auto' | 'hex' }) {
+  const { t } = useTranslation()
   if (view === 'hex') {
-    return <pre className="mqtt-payload-view mono">{toHexDump(payload) || '(empty)'}</pre>
+    return <pre className="mqtt-payload-view mono">{toHexDump(payload) || t('mqtt.empty')}</pre>
   }
   const pretty = tryPrettyJson(payload)
   if (pretty !== null) {
@@ -62,10 +64,11 @@ function PayloadView({ payload, view }: { payload: number[]; view: 'auto' | 'hex
     )
   }
   const text = decodeText(payload)
-  return <pre className="mqtt-payload-view mono">{text || '(empty)'}</pre>
+  return <pre className="mqtt-payload-view mono">{text || t('mqtt.empty')}</pre>
 }
 
 export function MqttPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const topics = useMqttStore((s) => s.topicsByTab[tab.id] ?? EMPTY_TOPICS)
   const subscriptions = useMqttStore((s) => s.subscriptionsByTab[tab.id] ?? EMPTY_SUBSCRIPTIONS)
   const clearTopics = useMqttStore((s) => s.clearTopics)
@@ -170,13 +173,13 @@ export function MqttPanel({ tab }: { tab: TabState }) {
   return (
     <div className="mqtt-panel">
       <div className="toolbar">
-        <span className="line-count">
-          {topicCount} topic{topicCount === 1 ? '' : 's'}
-        </span>
+        <span className="line-count">{t('mqtt.topicCount', { count: topicCount })}</span>
         <button type="button" onClick={() => clearTopics(tab.id)} disabled={topicCount === 0}>
-          <TrashIcon /> Clear
+          <TrashIcon /> {t('monitor.clear')}
         </button>
-        {tab.status === 'closed' && <span className="tab-disconnected">Disconnected</span>}
+        {tab.status === 'closed' && (
+          <span className="tab-disconnected">{t('monitor.disconnected')}</span>
+        )}
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
       </div>
 
@@ -187,7 +190,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
             <span className="mqtt-sub-qos">QoS {sub.qos}</span>
             <button
               type="button"
-              aria-label={`Unsubscribe ${sub.topic}`}
+              aria-label={t('mqtt.unsubscribe', { topic: sub.topic })}
               onClick={() => void removeSubscription(tab.id, sub.topic)}
             >
               <XIcon />
@@ -199,7 +202,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
             type="text"
             className="mono"
             value={newSubTopic}
-            placeholder="Subscribe to topic…"
+            placeholder={t('mqtt.subscribeToTopic')}
             onChange={(e) => setNewSubTopic(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddSubscription()}
             disabled={tab.status !== 'open'}
@@ -217,7 +220,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
           <button
             type="button"
             className="icon-button"
-            title="Add subscription"
+            title={t('mqtt.addSubscription')}
             disabled={tab.status !== 'open' || !newSubTopic}
             onClick={handleAddSubscription}
           >
@@ -232,7 +235,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
             <SearchIcon />
             <input
               type="text"
-              placeholder="Filter topics…"
+              placeholder={t('mqtt.filterTopics')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -251,7 +254,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
 
         <div className="mqtt-detail-pane">
           {!selectedEntry ? (
-            <p className="mdns-empty">Select a topic to see its messages.</p>
+            <p className="mdns-empty">{t('mqtt.selectTopicPrompt')}</p>
           ) : (
             <>
               <div className="mqtt-detail-header">
@@ -260,7 +263,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
                   <button
                     type="button"
                     className="icon-button"
-                    title="Copy topic"
+                    title={t('mqtt.copyTopic')}
                     onClick={() => copyToClipboard(selectedEntry.topic)}
                   >
                     <CopyIcon />
@@ -268,11 +271,11 @@ export function MqttPanel({ tab }: { tab: TabState }) {
                   {selectedLatest?.retain && (
                     <button
                       type="button"
-                      title="Publish an empty retained message to clear it"
+                      title={t('mqtt.clearRetainedTitle')}
                       disabled={tab.status !== 'open' || sending}
                       onClick={handleClearRetained}
                     >
-                      Clear retained
+                      {t('mqtt.clearRetained')}
                     </button>
                   )}
                   <div className="seg">
@@ -280,13 +283,13 @@ export function MqttPanel({ tab }: { tab: TabState }) {
                       className={payloadView === 'auto' ? 'on' : ''}
                       onClick={() => setPayloadView('auto')}
                     >
-                      Text
+                      {t('mqtt.text')}
                     </span>
                     <span
                       className={payloadView === 'hex' ? 'on' : ''}
                       onClick={() => setPayloadView('hex')}
                     >
-                      Hex
+                      {t('mqtt.hexLabel')}
                     </span>
                   </div>
                 </div>
@@ -297,14 +300,12 @@ export function MqttPanel({ tab }: { tab: TabState }) {
                     <div className="mqtt-history-meta">
                       <span>{relativeTime(msg.atMs, now)}</span>
                       <span>QoS {msg.qos}</span>
-                      {msg.retain && <span className="mqtt-tree-badge">Retained</span>}
-                      <span>
-                        {msg.payload.length} byte{msg.payload.length === 1 ? '' : 's'}
-                      </span>
+                      {msg.retain && <span className="mqtt-tree-badge">{t('mqtt.retained')}</span>}
+                      <span>{t('mqtt.byteCount', { count: msg.payload.length })}</span>
                       <button
                         type="button"
                         className="icon-button mqtt-copy-payload"
-                        title="Copy payload"
+                        title={t('mqtt.copyPayload')}
                         onClick={() => copyToClipboard(decodeText(msg.payload))}
                       >
                         <CopyIcon />
@@ -326,7 +327,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
 
       <div className="mqtt-publish">
         <LibraryRow
-          label="Preset"
+          label={t('filterBar.presetLabel')}
           items={presets}
           onLoad={(p) => {
             setPublishTopic(p.topic)
@@ -349,7 +350,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
         <div className="mqtt-publish-row">
           <label className="field-group">
             <span className="field-caption">
-              <MessageIcon /> Publish topic
+              <MessageIcon /> {t('mqtt.publishTopic')}
             </span>
             <input
               type="text"
@@ -370,7 +371,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
           </label>
           <label className="checkbox-field">
             <input type="checkbox" checked={retain} onChange={(e) => setRetain(e.target.checked)} />
-            <span>Retain</span>
+            <span>{t('mqtt.retain')}</span>
           </label>
         </div>
 
@@ -380,7 +381,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
               className={publishFormat === 'text' ? 'on' : ''}
               onClick={() => setPublishFormat('text')}
             >
-              Text
+              {t('mqtt.text')}
             </span>
             <span
               className={publishFormat === 'json' ? 'on' : ''}
@@ -392,20 +393,20 @@ export function MqttPanel({ tab }: { tab: TabState }) {
               className={publishFormat === 'hex' ? 'on' : ''}
               onClick={() => setPublishFormat('hex')}
             >
-              Hex
+              {t('mqtt.hexLabel')}
             </span>
           </div>
           {publishFormat === 'json' && (
             <button type="button" onClick={handleFormatJson} disabled={jsonError !== null}>
-              Format
+              {t('mqtt.format')}
             </button>
           )}
           {jsonError && <span className="mqtt-publish-error">{jsonError}</span>}
-          {hexInvalid && <span className="mqtt-publish-error">Invalid hex — e.g. 01 02 FF</span>}
+          {hexInvalid && <span className="mqtt-publish-error">{t('mqtt.invalidHex')}</span>}
         </div>
 
         <label className="field-group">
-          <span className="field-caption">Payload (Ctrl+Enter to publish)</span>
+          <span className="field-caption">{t('mqtt.payloadLabel')}</span>
           <textarea
             className={`mono mqtt-publish-payload ${publishInvalid ? 'invalid' : ''}`}
             value={publishText}
@@ -413,8 +414,8 @@ export function MqttPanel({ tab }: { tab: TabState }) {
               publishFormat === 'json'
                 ? '{"key": "value"}'
                 : publishFormat === 'hex'
-                  ? 'e.g. 01 02 FF'
-                  : 'Message payload'
+                  ? t('send.hexPlaceholder')
+                  : t('mqtt.messagePayload')
             }
             onChange={(e) => setPublishText(e.target.value)}
             onKeyDown={(e) => {
@@ -431,7 +432,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
           onClick={handlePublish}
           disabled={tab.status !== 'open' || !publishTopic || publishInvalid || sending}
         >
-          {sending ? 'Publishing…' : 'Publish'}
+          {sending ? t('mqtt.publishing') : t('mqtt.publish')}
         </button>
       </div>
     </div>

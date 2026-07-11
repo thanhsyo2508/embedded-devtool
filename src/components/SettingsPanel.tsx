@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { useTranslation } from 'react-i18next'
 import {
   MAX_LINES_OPTIONS,
   PLOT_MAX_POINTS_OPTIONS,
   useSettingsStore,
   type Encoding,
   type FontSize,
+  type Language,
   type NewlineMode,
   type Theme,
 } from '../state/settingsStore'
@@ -18,6 +20,7 @@ import { HelpGuide } from './HelpGuide'
 const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation()
   const settings = useSettingsStore()
   const [showGuide, setShowGuide] = useState(false)
   const [appVersion, setAppVersion] = useState<string | null>(null)
@@ -53,17 +56,30 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     void openUrl(`${REPO_URL}/issues/new?${params.toString()}`)
   }
 
+  const shortcuts: [string, string][] = [
+    ['Ctrl+N', t('settings.shortcuts.newConnection')],
+    ['Ctrl+W', t('settings.shortcuts.closeTab')],
+    ['Ctrl+1–9', t('settings.shortcuts.switchTab')],
+    ['Ctrl+L', t('settings.shortcuts.clearTab')],
+    ['Ctrl+F', t('settings.shortcuts.searchBuffer')],
+    ['Space', t('settings.shortcuts.pauseResume')],
+    ['Ctrl+Shift+P', t('settings.shortcuts.togglePlotter')],
+    ['Ctrl+Shift+F', t('settings.shortcuts.toggleFlashPanel')],
+    ['Ctrl+,', t('settings.shortcuts.toggleSettings')],
+    ['Esc', t('settings.shortcuts.closeSettingsFlash')],
+  ]
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
         <div className="settings-header">
           <span className="settings-title">
-            <GearIcon /> Settings
+            <GearIcon /> {t('settings.title')}
           </span>
           <button
             type="button"
             className="icon-button"
-            aria-label="Close settings"
+            aria-label={t('settings.closeAriaLabel')}
             onClick={onClose}
           >
             <XIcon />
@@ -71,7 +87,18 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-row">
-          <span>Character Encoding</span>
+          <span>{t('settings.language')}</span>
+          <select
+            value={settings.language}
+            onChange={(e) => settings.setLanguage(e.target.value as Language)}
+          >
+            <option value="en">{t('settings.languageEnglish')}</option>
+            <option value="vi">{t('settings.languageVietnamese')}</option>
+          </select>
+        </div>
+
+        <div className="settings-row">
+          <span>{t('settings.encoding')}</span>
           <select
             value={settings.encoding}
             onChange={(e) => settings.setEncoding(e.target.value as Encoding)}
@@ -82,7 +109,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-row">
-          <span>Buffer size (lines/tab)</span>
+          <span>{t('settings.bufferSizeLines')}</span>
           <select
             value={settings.maxLinesPerTab}
             onChange={(e) => settings.setMaxLinesPerTab(Number(e.target.value))}
@@ -96,7 +123,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-row">
-          <span>Plotter buffer size (points/channel)</span>
+          <span>{t('settings.bufferSizePlotter')}</span>
           <select
             value={settings.plotMaxPoints}
             onChange={(e) => settings.setPlotMaxPoints(Number(e.target.value))}
@@ -110,7 +137,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-row">
-          <span>Newline Character</span>
+          <span>{t('settings.newline')}</span>
           <div className="seg">
             {(['crlf', 'cr', 'lf'] as NewlineMode[]).map((mode) => (
               <span
@@ -125,7 +152,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-row">
-          <span>Display font size</span>
+          <span>{t('settings.fontSize')}</span>
           <div className="seg">
             {(['small', 'medium', 'large'] as FontSize[]).map((size) => (
               <span
@@ -140,7 +167,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-row">
-          <span>Keep screen always bright</span>
+          <span>{t('settings.keepAwake')}</span>
           <label className="switch">
             <input
               type="checkbox"
@@ -154,7 +181,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         <hr className="settings-divider" />
 
         <div className="settings-row">
-          <span>Personalization</span>
+          <span>{t('settings.personalization')}</span>
           <div className="seg">
             {(['system', 'dark', 'light'] as Theme[]).map((theme) => (
               <span
@@ -162,7 +189,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                 className={settings.theme === theme ? 'on' : ''}
                 onClick={() => settings.setTheme(theme)}
               >
-                {theme}
+                {t(`settings.theme.${theme}`)}
               </span>
             ))}
           </div>
@@ -171,44 +198,44 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         <hr className="settings-divider" />
 
         <div className="settings-row">
-          <span>Feedback</span>
+          <span>{t('settings.feedback')}</span>
           <button
             type="button"
             className="feedback-button"
             onClick={() => void handleSendFeedback()}
           >
-            <MessageIcon /> Send feedback
+            <MessageIcon /> {t('settings.sendFeedback')}
           </button>
         </div>
 
         <hr className="settings-divider" />
 
         <div className="settings-row">
-          <span>User guide</span>
+          <span>{t('settings.userGuide')}</span>
           <button type="button" className="feedback-button" onClick={() => setShowGuide(true)}>
-            <BookOpenIcon /> Open guide
+            <BookOpenIcon /> {t('settings.openGuide')}
           </button>
         </div>
 
         <hr className="settings-divider" />
 
         <div className="settings-row">
-          <span>App version</span>
+          <span>{t('settings.appVersion')}</span>
           <span className="mono">{appVersion ?? '…'}</span>
         </div>
         <div className="settings-row">
           <span>
             {updateStatus === 'checking'
-              ? 'Checking…'
+              ? t('settings.update.checking')
               : updateStatus === 'up-to-date'
-                ? "You're up to date"
+                ? t('settings.update.upToDate')
                 : updateStatus === 'available'
-                  ? `Update available: v${updateVersion}`
+                  ? t('settings.update.available', { version: updateVersion })
                   : updateStatus === 'downloading'
-                    ? `Downloading… ${updateProgress}%`
+                    ? t('settings.update.downloading', { progress: updateProgress })
                     : updateStatus === 'ready'
-                      ? 'Restarting…'
-                      : 'Updates'}
+                      ? t('settings.update.restarting')
+                      : t('settings.update.title')}
           </span>
           <button
             type="button"
@@ -216,7 +243,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             disabled={updateStatus === 'checking' || updateStatus === 'downloading'}
             onClick={() => void checkForUpdate()}
           >
-            <RefreshIcon /> Check for updates
+            <RefreshIcon /> {t('settings.update.checkForUpdates')}
           </button>
         </div>
         {updateStatus === 'available' && (
@@ -227,7 +254,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               className="connect-button"
               onClick={() => void installAndRelaunch()}
             >
-              Install and restart
+              {t('settings.update.installAndRestart')}
             </button>
           </>
         )}
@@ -236,19 +263,8 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         <hr className="settings-divider" />
 
         <div className="shortcuts-list">
-          <div className="shortcuts-title">Keyboard shortcuts</div>
-          {[
-            ['Ctrl+N', 'New connection'],
-            ['Ctrl+W', 'Close current tab'],
-            ['Ctrl+1–9', 'Switch to tab N'],
-            ['Ctrl+L', 'Clear current tab'],
-            ['Ctrl+F', 'Search buffer'],
-            ['Space', 'Pause / resume monitor'],
-            ['Ctrl+Shift+P', 'Toggle plotter'],
-            ['Ctrl+Shift+F', 'Toggle flash panel'],
-            ['Ctrl+,', 'Toggle settings'],
-            ['Esc', 'Close settings / flash panel'],
-          ].map(([keys, label]) => (
+          <div className="shortcuts-title">{t('settings.shortcutsTitle')}</div>
+          {shortcuts.map(([keys, label]) => (
             <div key={keys} className="shortcut-row">
               <kbd>{keys}</kbd>
               <span>{label}</span>

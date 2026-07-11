@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
+import { useTranslation } from 'react-i18next'
 import './App.css'
 import { useTabsStore } from './state/tabsStore'
 import { useLayoutStore } from './state/layoutStore'
@@ -29,6 +30,7 @@ import { ChartIcon, DiskIcon, FolderIcon, GearIcon, GlobeIcon, ZapIcon } from '.
 const PROJECT_FILE_FILTERS = [{ name: 'EDT Project', extensions: ['edtproj'] }]
 
 function App() {
+  const { t } = useTranslation()
   const wireEventsOnce = useTabsStore((s) => s.wireEventsOnce)
   const wireFlashEventsOnce = useFlashStore((s) => s.wireEventsOnce)
   const wireStm32EventsOnce = useStm32Store((s) => s.wireEventsOnce)
@@ -104,7 +106,7 @@ function App() {
   const hasAnyTabs = tabs.length > 0
   const focusedPane = findPane(layoutRoot, focusedPaneId)
   const focusedTab = focusedPane
-    ? (tabs.find((t) => t.id === focusedPane.activeTabId) ?? null)
+    ? (tabs.find((tab) => tab.id === focusedPane.activeTabId) ?? null)
     : null
 
   const handleSaveProject = async () => {
@@ -113,7 +115,7 @@ function App() {
       plotExtractors.length > 0 ||
       plotMathChannels.length > 0 ||
       plotThresholds.length > 0
-    const sourceIndex = plotSourceTabId ? tabs.findIndex((t) => t.id === plotSourceTabId) : -1
+    const sourceIndex = plotSourceTabId ? tabs.findIndex((tab) => tab.id === plotSourceTabId) : -1
     const profile = buildProjectProfile(
       tabs,
       layoutRoot,
@@ -132,7 +134,7 @@ function App() {
     try {
       await invoke('write_text_file', { path, contents: JSON.stringify(profile, null, 2) })
     } catch (err) {
-      window.alert(`Could not save project: ${String(err)}`)
+      window.alert(t('app.saveProjectError', { error: String(err) }))
     }
   }
 
@@ -152,7 +154,7 @@ function App() {
       const contents = await invoke<string>('read_text_file', { path })
       profile = JSON.parse(contents) as ProjectProfileFile
     } catch (err) {
-      window.alert(`Could not read project file: ${String(err)}`)
+      window.alert(t('app.openProjectError', { error: String(err) }))
       return
     }
 
@@ -161,8 +163,8 @@ function App() {
     // though its connection stays alive underneath — close them first
     // rather than leaking invisible connections.
     if (hasAnyTabs) {
-      if (!window.confirm('Opening a project closes every tab currently open. Continue?')) return
-      await Promise.all(tabs.map((t) => closeTab(t.id)))
+      if (!window.confirm(t('app.confirmCloseAllTabs'))) return
+      await Promise.all(tabs.map((tab) => closeTab(tab.id)))
     }
 
     const idByIndex = new Map<number, string>()
@@ -173,7 +175,9 @@ function App() {
       let sshPassword: string | undefined
       if (tabConfig.connectionConfig.kind === 'ssh') {
         const cfg = tabConfig.connectionConfig
-        const entered = window.prompt(`SSH password for ${cfg.username}@${cfg.host}:${cfg.port}`)
+        const entered = window.prompt(
+          t('app.sshPasswordPrompt', { username: cfg.username, host: cfg.host, port: cfg.port }),
+        )
         if (entered === null) {
           failedIndices.push(i)
           continue
@@ -212,7 +216,10 @@ function App() {
 
     if (failedIndices.length > 0) {
       window.alert(
-        `${failedIndices.length} of ${profile.tabs.length} connection(s) could not be reopened.`,
+        t('app.partialRestoreWarning', {
+          failed: failedIndices.length,
+          total: profile.tabs.length,
+        }),
       )
     }
   }
@@ -317,8 +324,8 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
-          aria-label="Open project"
-          title="Open project (.edtproj)"
+          aria-label={t('app.topbar.openProject')}
+          title={t('app.topbar.openProjectTitle')}
           onClick={() => void handleOpenProject()}
         >
           <FolderIcon />
@@ -326,8 +333,8 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
-          aria-label="Save project"
-          title="Save project (.edtproj)"
+          aria-label={t('app.topbar.saveProject')}
+          title={t('app.topbar.saveProjectTitle')}
           disabled={!hasAnyTabs}
           onClick={() => void handleSaveProject()}
         >
@@ -336,8 +343,8 @@ function App() {
         <button
           type="button"
           className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}
-          aria-label="Plotter"
-          title="Plotter (Ctrl+Shift+P)"
+          aria-label={t('app.topbar.plotter')}
+          title={t('app.topbar.plotterTitle')}
           onClick={() => setPlotVisible(!plotVisible)}
         >
           <ChartIcon />
@@ -345,8 +352,8 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
-          aria-label="Flash ESP32"
-          title="Flash ESP32 (Ctrl+Shift+F)"
+          aria-label={t('app.topbar.flashEsp32')}
+          title={t('app.topbar.flashEsp32Title')}
           onClick={() => setShowFlash(true)}
         >
           <ZapIcon />
@@ -354,8 +361,8 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
-          aria-label="Network Scanner"
-          title="Network Scanner"
+          aria-label={t('app.topbar.networkScanner')}
+          title={t('app.topbar.networkScanner')}
           onClick={() => setShowNetScan(true)}
         >
           <GlobeIcon />
@@ -363,8 +370,8 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
-          aria-label="Settings"
-          title="Settings (Ctrl+,)"
+          aria-label={t('app.topbar.settings')}
+          title={t('app.topbar.settingsTitle')}
           onClick={() => setShowSettings(true)}
         >
           <GearIcon />

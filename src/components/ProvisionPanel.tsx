@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { onUsbPlugged, type PortInfo } from '../api/serial'
 import type { LineEnding } from '../state/tabsStore'
 import { useProvisionStore, type ProvisionDevice } from '../state/provisionStore'
@@ -15,6 +16,7 @@ const BAUD_OPTIONS = [9_600, 57_600, 115_200, 230_400, 460_800, 921_600]
  * already-flashed device's serial port. Rendered inline in FlashPanel's
  * ESP32 tab as a third Single/Batch/Provision mode. */
 export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
+  const { t } = useTranslation()
   const steps = useProvisionStore((s) => s.steps)
   const baudRate = useProvisionStore((s) => s.baudRate)
   const armed = useProvisionStore((s) => s.armed)
@@ -51,21 +53,22 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
   }, [armed, runOnDevice])
 
   const statusLabel = (device: ProvisionDevice) => {
-    if (device.status === 'running') return `Step ${device.stepIndex + 1}/${steps.length}`
-    if (device.status === 'done') return '✓ Done'
-    if (device.status === 'error') return '✗ Error'
-    return 'Idle'
+    if (device.status === 'running')
+      return t('provision.statusRunning', { step: device.stepIndex + 1, total: steps.length })
+    if (device.status === 'done') return t('provision.statusDone')
+    if (device.status === 'error') return t('provision.statusError')
+    return t('provision.statusIdle')
   }
 
   return (
     <div className="provision-panel">
       <label className="flash-batch-autoflash">
         <input type="checkbox" checked={armed} onChange={(e) => setArmed(e.target.checked)} />
-        Auto-run on plug (ESP32-like devices run this workflow immediately)
+        {t('provision.autoRunLabel')}
       </label>
 
       <div className="field-row">
-        <span className="field-caption">Baud</span>
+        <span className="field-caption">{t('connect.baud')}</span>
         <select value={baudRate} onChange={(e) => setBaudRate(Number(e.target.value))}>
           {BAUD_OPTIONS.map((b) => (
             <option key={b} value={b}>
@@ -82,14 +85,14 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
             <input
               className="provision-step-payload"
               value={step.payload}
-              placeholder="Command / payload"
+              placeholder={t('provision.payloadPlaceholder')}
               onChange={(e) => updateStep(step.id, { payload: e.target.value })}
             />
             <select
               value={step.lineEnding}
               onChange={(e) => updateStep(step.id, { lineEnding: e.target.value as LineEnding })}
             >
-              <option value="none">None</option>
+              <option value="none">{t('common.none')}</option>
               <option value="cr">CR</option>
               <option value="lf">LF</option>
               <option value="crlf">CRLF</option>
@@ -100,14 +103,14 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
                 checked={step.waitForResponse}
                 onChange={(e) => updateStep(step.id, { waitForResponse: e.target.checked })}
               />
-              Wait
+              {t('provision.wait')}
             </label>
             {step.waitForResponse ? (
               <>
                 <input
                   className="provision-step-match"
                   value={step.responseMatch}
-                  placeholder="Match text (empty = any)"
+                  placeholder={t('provision.matchPlaceholder')}
                   onChange={(e) => updateStep(step.id, { responseMatch: e.target.value })}
                 />
                 <input
@@ -115,7 +118,7 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
                   className="provision-step-ms"
                   value={step.timeoutMs}
                   min={0}
-                  title="Timeout (ms)"
+                  title={t('provision.timeoutTitle')}
                   onChange={(e) => updateStep(step.id, { timeoutMs: Number(e.target.value) })}
                 />
               </>
@@ -125,15 +128,15 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
                 className="provision-step-ms"
                 value={step.delayMs}
                 min={0}
-                title="Delay after this step (ms)"
+                title={t('provision.delayTitle')}
                 onChange={(e) => updateStep(step.id, { delayMs: Number(e.target.value) })}
               />
             )}
             <button
               type="button"
               className="icon-button"
-              aria-label="Remove step"
-              title="Remove"
+              aria-label={t('provision.removeStep')}
+              title={t('common.remove')}
               onClick={() => removeStep(step.id)}
             >
               <TrashIcon />
@@ -141,13 +144,13 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
           </div>
         ))}
         <button type="button" className="flash-add-segment" onClick={addStep}>
-          <PlusIcon /> Add step
+          <PlusIcon /> {t('provision.addStep')}
         </button>
       </div>
 
       <div className="provision-run-now">
         <select value={manualPort} onChange={(e) => setManualPort(e.target.value)}>
-          <option value="">Select port…</option>
+          <option value="">{t('flash.selectPort')}</option>
           {ports.map((p) => (
             <option key={p.portName} value={p.portName}>
               {p.portName}
@@ -161,13 +164,13 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
           disabled={!manualPort || steps.length === 0}
           onClick={() => runOnDevice(manualPort)}
         >
-          <ZapIcon /> Run now
+          <ZapIcon /> {t('provision.runNow')}
         </button>
       </div>
 
       <div className="provision-devices">
         {devices.length === 0 && (
-          <div className="flash-log-empty">No devices provisioned yet this session.</div>
+          <div className="flash-log-empty">{t('provision.noDevicesYet')}</div>
         )}
         {devices.map((d) => (
           <div key={d.portName} className="provision-device-row">

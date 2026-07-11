@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
@@ -17,6 +18,7 @@ function pasteFromClipboard(term: Terminal) {
  * (xterm.js) instead of MonitorView, and keystrokes go straight to the
  * remote shell instead of through SendPanel's line-oriented send box. */
 export function SshPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const containerRef = useRef<HTMLDivElement>(null)
 
   // useLayoutEffect, not useEffect: fitAddon.fit() needs the container's
@@ -101,7 +103,9 @@ export function SshPanel({ tab }: { tab: TabState }) {
     <div className="ssh-panel">
       <div className="toolbar">
         <span className="line-count">{tab.connectionLabel}</span>
-        {tab.status === 'closed' && <span className="tab-disconnected">Disconnected</span>}
+        {tab.status === 'closed' && (
+          <span className="tab-disconnected">{t('monitor.disconnected')}</span>
+        )}
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
       </div>
       <div className="ssh-terminal" ref={containerRef} />

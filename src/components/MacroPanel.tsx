@@ -1,7 +1,9 @@
+import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { CircleIcon, PlayIcon, TrashIcon } from './icons'
 
 export function MacroPanel({ tab }: { tab: TabState }) {
+  const { t } = useTranslation()
   const startMacroRecording = useTabsStore((s) => s.startMacroRecording)
   const stopMacroRecording = useTabsStore((s) => s.stopMacroRecording)
   const playMacro = useTabsStore((s) => s.playMacro)
@@ -10,7 +12,7 @@ export function MacroPanel({ tab }: { tab: TabState }) {
   const clearMacro = useTabsStore((s) => s.clearMacro)
 
   const handleClearMacro = () => {
-    if (window.confirm(`Clear all ${tab.macroSteps.length} recorded step(s)?`)) {
+    if (window.confirm(t('macro.clearConfirm', { count: tab.macroSteps.length }))) {
       clearMacro(tab.id)
     }
   }
@@ -25,29 +27,27 @@ export function MacroPanel({ tab }: { tab: TabState }) {
             tab.macroRecording ? stopMacroRecording(tab.id) : startMacroRecording(tab.id)
           }
         >
-          <CircleIcon /> {tab.macroRecording ? 'Recording…' : 'Record'}
+          <CircleIcon /> {tab.macroRecording ? t('macro.recording') : t('macro.record')}
         </button>
         <button
           type="button"
           disabled={tab.macroSteps.length === 0 || tab.macroPlaying || tab.macroRecording}
           onClick={() => void playMacro(tab.id)}
         >
-          <PlayIcon /> {tab.macroPlaying ? 'Playing…' : 'Play'}
+          <PlayIcon /> {tab.macroPlaying ? t('macro.playing') : t('macro.play')}
         </button>
       </div>
       {tab.macroSteps.length === 0 && (
-        <div className="flash-log-empty">
-          No steps recorded yet — click Record, then send commands normally.
-        </div>
+        <div className="flash-log-empty">{t('macro.noStepsYet')}</div>
       )}
       {tab.macroSteps.map((step, i) => (
         <div className="filter-row" key={i}>
           <span className="mono macro-step-index">{i + 1}</span>
           <span className={`mode-tag ${step.isHex ? 'exclude' : 'include'}`}>
-            {step.isHex ? 'hex' : 'text'}
+            {step.isHex ? t('send.hex') : t('send.text')}
           </span>
           <span className="mono macro-step-text">{step.text}</span>
-          <label className="field-caption">delay (ms)</label>
+          <label className="field-caption">{t('macro.delayMs')}</label>
           <input
             type="number"
             className="macro-delay"
@@ -58,7 +58,7 @@ export function MacroPanel({ tab }: { tab: TabState }) {
           <button
             type="button"
             className="icon-button"
-            aria-label="Remove step"
+            aria-label={t('macro.removeStep')}
             onClick={() => removeMacroStep(tab.id, i)}
           >
             <TrashIcon />
@@ -68,7 +68,7 @@ export function MacroPanel({ tab }: { tab: TabState }) {
       {tab.macroSteps.length > 0 && (
         <div className="filter-actions">
           <button type="button" onClick={handleClearMacro}>
-            Clear macro
+            {t('macro.clearMacro')}
           </button>
         </div>
       )}

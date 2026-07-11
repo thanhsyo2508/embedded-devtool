@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   listSerialPorts,
   onUsbPlugged,
@@ -41,14 +42,7 @@ function formatHexId(id: number | null): string | null {
 type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt' | 'ssh'
 type ConnectionRole = 'client' | 'server'
 
-const FAMILIES: { value: ProtocolFamily; label: string }[] = [
-  { value: 'serial', label: 'Serial' },
-  { value: 'tcp', label: 'TCP' },
-  { value: 'udp', label: 'UDP' },
-  { value: 'ws', label: 'WebSocket' },
-  { value: 'mqtt', label: 'MQTT' },
-  { value: 'ssh', label: 'SSH' },
-]
+const FAMILIES: ProtocolFamily[] = ['serial', 'tcp', 'udp', 'ws', 'mqtt', 'ssh']
 
 function familyOf(kind: ConnectionKind): ProtocolFamily {
   switch (kind) {
@@ -102,6 +96,7 @@ export function ConnectPanel({
   onConnected: (tabId: string) => void
   onCancel?: () => void
 }) {
+  const { t } = useTranslation()
   // Read once at construction — these only seed initial state, they don't
   // need to be reactive (nothing here changes while this panel is mounted).
   const [initialLast] = useState(() => useLastConnectionStore.getState())
@@ -449,13 +444,13 @@ export function ConnectPanel({
     <div className="connect-overlay" onClick={onCancel}>
       <div className="connect-panel" onClick={(e) => e.stopPropagation()}>
         <h2>
-          <PlugIcon /> New connection
+          <PlugIcon /> {t('connect.title')}
           {onCancel && (
             <button
               type="button"
               className="icon-button connect-cancel"
-              aria-label="Cancel"
-              title="Back to current tab (Esc)"
+              aria-label={t('common.cancel')}
+              title={t('connect.cancelTitle')}
               onClick={onCancel}
             >
               <XIcon />
@@ -465,12 +460,8 @@ export function ConnectPanel({
 
         <div className="seg">
           {FAMILIES.map((f) => (
-            <span
-              key={f.value}
-              className={family === f.value ? 'on' : ''}
-              onClick={() => setFamily(f.value)}
-            >
-              {f.label}
+            <span key={f} className={family === f ? 'on' : ''} onClick={() => setFamily(f)}>
+              {t(`connect.family.${f}`)}
             </span>
           ))}
         </div>
@@ -478,16 +469,16 @@ export function ConnectPanel({
         {(family === 'tcp' || family === 'ws') && (
           <div className="seg seg-role">
             <span className={role === 'client' ? 'on' : ''} onClick={() => setRole('client')}>
-              Client
+              {t('connect.role.client')}
             </span>
             <span className={role === 'server' ? 'on' : ''} onClick={() => setRole('server')}>
-              Server
+              {t('connect.role.server')}
             </span>
           </div>
         )}
 
         <LibraryRow
-          label="Profile"
+          label={t('connect.profileLabel')}
           items={targetProfiles}
           onLoad={applyProfile}
           onSave={(name) => saveProfile(name, currentConfigData())}
@@ -498,7 +489,7 @@ export function ConnectPanel({
           <>
             <label className="field-group">
               <span className="field-caption">
-                <UsbIcon /> Port
+                <UsbIcon /> {t('connect.port')}
               </span>
               <div className="field-row">
                 <select
@@ -506,7 +497,7 @@ export function ConnectPanel({
                   value={portName}
                   onChange={(e) => setPortName(e.target.value)}
                 >
-                  {ports.length === 0 && <option value="">No ports found</option>}
+                  {ports.length === 0 && <option value="">{t('connect.noPortsFound')}</option>}
                   {ports.map((p) => (
                     <option key={p.portName} value={p.portName}>
                       {p.portName}
@@ -517,8 +508,8 @@ export function ConnectPanel({
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label="Refresh ports"
-                  title="Refresh ports"
+                  aria-label={t('connect.refreshPorts')}
+                  title={t('connect.refreshPorts')}
                   onClick={() => setRefreshKey((k) => k + 1)}
                 >
                   <RefreshIcon />
@@ -544,7 +535,7 @@ export function ConnectPanel({
             <div className="field-grid">
               <label className="field-group">
                 <span className="field-caption">
-                  <GaugeIcon /> Baud
+                  <GaugeIcon /> {t('connect.baud')}
                 </span>
                 <input
                   type="number"
@@ -553,7 +544,7 @@ export function ConnectPanel({
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Data bits</span>
+                <span className="field-caption">{t('connect.dataBits')}</span>
                 <select value={dataBits} onChange={(e) => setDataBits(e.target.value as DataBits)}>
                   <option value="five">5</option>
                   <option value="six">6</option>
@@ -562,15 +553,15 @@ export function ConnectPanel({
                 </select>
               </label>
               <label className="field-group">
-                <span className="field-caption">Parity</span>
+                <span className="field-caption">{t('connect.parity')}</span>
                 <select value={parity} onChange={(e) => setParity(e.target.value as Parity)}>
-                  <option value="none">None</option>
-                  <option value="odd">Odd</option>
-                  <option value="even">Even</option>
+                  <option value="none">{t('connect.parityNone')}</option>
+                  <option value="odd">{t('connect.parityOdd')}</option>
+                  <option value="even">{t('connect.parityEven')}</option>
                 </select>
               </label>
               <label className="field-group">
-                <span className="field-caption">Stop bits</span>
+                <span className="field-caption">{t('connect.stopBits')}</span>
                 <select value={stopBits} onChange={(e) => setStopBits(e.target.value as StopBits)}>
                   <option value="one">1</option>
                   <option value="two">2</option>
@@ -579,14 +570,14 @@ export function ConnectPanel({
             </div>
 
             <label className="field-group">
-              <span className="field-caption">Flow control</span>
+              <span className="field-caption">{t('connect.flowControl')}</span>
               <select
                 value={flowControl}
                 onChange={(e) => setFlowControl(e.target.value as FlowControl)}
               >
-                <option value="none">None</option>
-                <option value="hardware">Hardware (RTS/CTS)</option>
-                <option value="software">Software (XON/XOFF)</option>
+                <option value="none">{t('connect.flowNone')}</option>
+                <option value="hardware">{t('connect.flowHardware')}</option>
+                <option value="software">{t('connect.flowSoftware')}</option>
               </select>
             </label>
 
@@ -597,20 +588,17 @@ export function ConnectPanel({
                 onChange={(e) => setAutoReconnect(e.target.checked)}
               />
               <RepeatIcon />
-              <span>Auto-reconnect</span>
+              <span>{t('connect.autoReconnect')}</span>
             </label>
 
-            <label
-              className="checkbox-field"
-              title="Toggles RTS around each write for RS485 transceivers whose DE/RE pin has no auto-direction circuitry"
-            >
+            <label className="checkbox-field" title={t('connect.rs485Title')}>
               <input
                 type="checkbox"
                 checked={rs485AutoRts}
                 onChange={(e) => setRs485AutoRts(e.target.checked)}
               />
               <RepeatIcon />
-              <span>RS485 half-duplex (auto RTS toggle)</span>
+              <span>{t('connect.rs485Label')}</span>
             </label>
           </>
         )}
@@ -619,7 +607,7 @@ export function ConnectPanel({
           <div className="field-grid">
             <label className="field-group">
               <span className="field-caption">
-                <GlobeIcon /> Host
+                <GlobeIcon /> {t('connect.host')}
               </span>
               <input
                 type="text"
@@ -629,7 +617,7 @@ export function ConnectPanel({
               />
             </label>
             <label className="field-group">
-              <span className="field-caption">Port</span>
+              <span className="field-caption">{t('connect.port')}</span>
               <input
                 type="number"
                 value={tcpPort}
@@ -642,7 +630,7 @@ export function ConnectPanel({
         {target === 'tcp-server' && (
           <label className="field-group">
             <span className="field-caption">
-              <GlobeIcon /> Listen on port
+              <GlobeIcon /> {t('connect.listenOnPort')}
             </span>
             <input
               type="number"
@@ -656,7 +644,7 @@ export function ConnectPanel({
           <>
             <label className="field-group">
               <span className="field-caption">
-                <GlobeIcon /> Local port (receive)
+                <GlobeIcon /> {t('connect.localPortReceive')}
               </span>
               <input
                 type="number"
@@ -666,16 +654,16 @@ export function ConnectPanel({
             </label>
             <div className="field-grid">
               <label className="field-group">
-                <span className="field-caption">Remote host (to send, optional)</span>
+                <span className="field-caption">{t('connect.remoteHostOptional')}</span>
                 <input
                   type="text"
                   value={udpRemoteHost}
-                  placeholder="192.168.1.255 for broadcast"
+                  placeholder={t('connect.remoteHostPlaceholder')}
                   onChange={(e) => setUdpRemoteHost(e.target.value)}
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Remote port</span>
+                <span className="field-caption">{t('connect.remotePort')}</span>
                 <input
                   type="number"
                   value={udpRemotePort}
@@ -690,7 +678,7 @@ export function ConnectPanel({
         {target === 'ws-client' && (
           <label className="field-group">
             <span className="field-caption">
-              <GlobeIcon /> URL
+              <GlobeIcon /> {t('connect.url')}
             </span>
             <input
               type="text"
@@ -704,7 +692,7 @@ export function ConnectPanel({
         {target === 'ws-server' && (
           <label className="field-group">
             <span className="field-caption">
-              <GlobeIcon /> Listen on port
+              <GlobeIcon /> {t('connect.listenOnPort')}
             </span>
             <input
               type="number"
@@ -719,7 +707,7 @@ export function ConnectPanel({
             <div className="field-grid">
               <label className="field-group">
                 <span className="field-caption">
-                  <GlobeIcon /> Broker host
+                  <GlobeIcon /> {t('connect.brokerHost')}
                 </span>
                 <input
                   type="text"
@@ -729,7 +717,7 @@ export function ConnectPanel({
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Port</span>
+                <span className="field-caption">{t('connect.port')}</span>
                 <input
                   type="number"
                   value={brokerPort}
@@ -738,12 +726,12 @@ export function ConnectPanel({
               </label>
             </div>
             <label className="field-group">
-              <span className="field-caption">Client ID</span>
+              <span className="field-caption">{t('connect.clientId')}</span>
               <input type="text" value={clientId} onChange={(e) => setClientId(e.target.value)} />
             </label>
             <div className="field-grid">
               <label className="field-group">
-                <span className="field-caption">Username (optional)</span>
+                <span className="field-caption">{t('connect.usernameOptional')}</span>
                 <input
                   type="text"
                   value={mqttUsername}
@@ -751,7 +739,7 @@ export function ConnectPanel({
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Password (optional)</span>
+                <span className="field-caption">{t('connect.passwordOptional')}</span>
                 <input
                   type="password"
                   value={mqttPassword}
@@ -762,7 +750,7 @@ export function ConnectPanel({
             <div className="field-grid">
               <label className="field-group">
                 <span className="field-caption">
-                  <MessageIcon /> Subscribe topic
+                  <MessageIcon /> {t('connect.subscribeTopic')}
                 </span>
                 <input
                   type="text"
@@ -772,7 +760,7 @@ export function ConnectPanel({
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Publish topic</span>
+                <span className="field-caption">{t('connect.publishTopic')}</span>
                 <input
                   type="text"
                   value={publishTopic}
@@ -789,7 +777,7 @@ export function ConnectPanel({
             <div className="field-grid">
               <label className="field-group">
                 <span className="field-caption">
-                  <GlobeIcon /> Host
+                  <GlobeIcon /> {t('connect.host')}
                 </span>
                 <input
                   type="text"
@@ -799,7 +787,7 @@ export function ConnectPanel({
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Port</span>
+                <span className="field-caption">{t('connect.port')}</span>
                 <input
                   type="number"
                   value={sshPort}
@@ -809,7 +797,7 @@ export function ConnectPanel({
             </div>
             <div className="field-grid">
               <label className="field-group">
-                <span className="field-caption">Username</span>
+                <span className="field-caption">{t('connect.username')}</span>
                 <input
                   type="text"
                   value={sshUsername}
@@ -817,7 +805,7 @@ export function ConnectPanel({
                 />
               </label>
               <label className="field-group">
-                <span className="field-caption">Password</span>
+                <span className="field-caption">{t('connect.password')}</span>
                 <input
                   type="password"
                   value={sshPassword}
@@ -839,12 +827,12 @@ export function ConnectPanel({
                 ))}
               </select>
               <button type="button" disabled={scanning} onClick={() => void handleScan()}>
-                {scanning ? 'Scanning…' : 'Scan LAN'}
+                {scanning ? t('connect.scanning') : t('connect.scanLan')}
               </button>
             </div>
             {scanResults !== null &&
               (scanResults.length === 0 ? (
-                <p className="mdns-empty">No devices found.</p>
+                <p className="mdns-empty">{t('connect.noDevicesFound')}</p>
               ) : (
                 <div className="mdns-results">
                   {scanResults.map((svc) => (
@@ -852,7 +840,7 @@ export function ConnectPanel({
                       key={svc.fullname}
                       type="button"
                       className="mdns-result"
-                      title="Use this device's address"
+                      title={t('connect.useThisDeviceAddress')}
                       onClick={() => applyDiscovered(svc)}
                     >
                       <span className="mdns-name">{svc.fullname.split('.')[0]}</span>
@@ -875,7 +863,7 @@ export function ConnectPanel({
           onClick={() => void handleConnect()}
         >
           <PlugIcon />
-          {loading ? 'Connecting…' : 'Connect'}
+          {loading ? t('connect.connecting') : t('connect.connect')}
         </button>
       </div>
     </div>
