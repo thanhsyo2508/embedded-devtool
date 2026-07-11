@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { open } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { listSerialPorts, type PortInfo } from '../api/serial'
+import { listSerialPorts, onUsbPlugged, onUsbUnplugged, type PortInfo } from '../api/serial'
 import { useStm32Store } from '../state/stm32Store'
 import { ChipIcon, FolderIcon, GearIcon, RefreshIcon, ZapIcon } from './icons'
 
@@ -9,6 +9,7 @@ const STM32CUBEPROG_URL = 'https://www.st.com/en/development-tools/stm32cubeprog
 
 export function Stm32Body() {
   const [ports, setPorts] = useState<PortInfo[]>([])
+  const portSelectRef = useRef<HTMLSelectElement>(null)
   const [obName, setObName] = useState('RDP')
   const [obValue, setObValue] = useState('')
   const {
@@ -47,6 +48,23 @@ export function Stm32Body() {
       .then(setPorts)
       .catch(() => {})
   }, [checkCli])
+
+  useEffect(() => {
+    const refresh = () => {
+      // Skip while the port <select> is open/focused — swapping its options
+      // out from under an in-progress click risks flashing the wrong port.
+      if (document.activeElement === portSelectRef.current) return
+      listSerialPorts()
+        .then(setPorts)
+        .catch(() => {})
+    }
+    const unlistenPlugged = onUsbPlugged(refresh)
+    const unlistenUnplugged = onUsbUnplugged(refresh)
+    return () => {
+      void unlistenPlugged.then((f) => f())
+      void unlistenUnplugged.then((f) => f())
+    }
+  }, [])
 
   const browseForFile = async () => {
     const picked = await open({
@@ -128,7 +146,11 @@ export function Stm32Body() {
 
       {interfaceKind === 'uart' && (
         <div className="flash-connect-row">
-          <select value={uartPort} onChange={(e) => setUartPort(e.target.value)}>
+          <select
+            ref={portSelectRef}
+            value={uartPort}
+            onChange={(e) => setUartPort(e.target.value)}
+          >
             <option value="">Select port…</option>
             {ports.map((p) => (
               <option key={p.portName} value={p.portName}>

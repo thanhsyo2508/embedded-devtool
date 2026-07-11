@@ -1,13 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { open, save } from '@tauri-apps/plugin-dialog'
-import { listSerialPorts, type PortInfo } from '../api/serial'
-import { useFlashStore } from '../state/flashStore'
-import { ChipIcon, FolderIcon, GearIcon, PlusIcon, TrashIcon, XIcon, ZapIcon } from './icons'
+import { listSerialPorts, onUsbPlugged, onUsbUnplugged, type PortInfo } from '../api/serial'
+import { bundledBootApp0Path, parseEsp32PartitionTable, type PartitionEntry } from '../api/flash'
+import { useFlashStore, type FlashSegmentRow } from '../state/flashStore'
+import { detectSegments } from '../lib/esp32SegmentDetect'
+import {
+  ChipIcon,
+  FolderIcon,
+  GearIcon,
+  MagicWandIcon,
+  PlusIcon,
+  TrashIcon,
+  XIcon,
+  ZapIcon,
+} from './icons'
 import { Stm32Body } from './Stm32Body'
 import { FlashBatchPanel } from './FlashBatchPanel'
+import { ProvisionPanel } from './ProvisionPanel'
 
 type Target = 'esp32' | 'stm32'
-type FlashMode = 'single' | 'batch'
+type FlashMode = 'single' | 'batch' | 'provision'
 
 const BAUD_OPTIONS = [115_200, 230_400, 460_800, 921_600]
 
@@ -21,6 +33,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
   const [target, setTarget] = useState<Target>('esp32')
   const [mode, setMode] = useState<FlashMode>('single')
   const [ports, setPorts] = useState<PortInfo[]>([])
+  const portSelectRef = useRef<HTMLSelectElement>(null)
   const {
     portName,
     baudRate,
@@ -37,16 +50,30 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
     addSegment,
     removeSegment,
     updateSegment,
+    setSegments,
     flash,
     eraseFull,
     saveProfile,
     loadProfile,
   } = useFlashStore()
+  const [smartAdding, setSmartAdding] = useState(false)
 
   useEffect(() => {
-    listSerialPorts()
-      .then(setPorts)
-      .catch(() => {})
+    const refresh = () => {
+      // Skip while the port <select> is open/focused — swapping its options
+      // out from under an in-progress click risks flashing the wrong port.
+      if (document.activeElement === portSelectRef.current) return
+      listSerialPorts()
+        .then(setPorts)
+        .catch(() => {})
+    }
+    refresh()
+    const unlistenPlugged = onUsbPlugged(refresh)
+    const unlistenUnplugged = onUsbUnplugged(refresh)
+    return () => {
+      void unlistenPlugged.then((f) => f())
+      void unlistenUnplugged.then((f) => f())
+    }
   }, [])
 
   const browseForFile = async (index: number) => {
@@ -78,6 +105,60 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
   const handleEraseFull = () => {
     if (window.confirm('Erase the entire chip? This cannot be undone.')) {
       void eraseFull()
+    }
+  }
+
+  // "Smart add": pick the build output files at once (bootloader,
+  // partitions.bin, firmware.bin, a filesystem image...) and let
+  // detectSegments() figure out where each one goes — reading the real
+  // partition table when one was selected rather than guessing an offset
+  // that varies with flash size/partition scheme (see esp32SegmentDetect.ts).
+  const handleSmartAdd = async () => {
+    const picked = await open({
+      title: 'Select ESP32 build files (bootloader, partitions, firmware, filesystem image…)',
+      multiple: true,
+      filters: [{ name: 'Firmware', extensions: ['bin'] }],
+    })
+    const filePaths = Array.isArray(picked) ? picked : picked ? [picked] : []
+    if (filePaths.length === 0) return
+
+    setSmartAdding(true)
+    try {
+      const partitionFile = filePaths.find((p) => /partition/i.test(p) && /\.bin$/i.test(p))
+      let partitions: PartitionEntry[] | null = null
+      if (partitionFile) {
+        try {
+          partitions = await parseEsp32PartitionTable(partitionFile)
+        } catch (err) {
+          window.alert(
+            `Could not parse partition table, offsets left blank where unsure: ${String(err)}`,
+          )
+        }
+      }
+
+      const needsBootApp0 =
+        (partitions?.some((e) => e.partType === 0x01 && e.subtype === 0x00) ?? false) &&
+        !filePaths.some((p) => /boot_?app0/i.test(p))
+      const bootApp0Path = needsBootApp0 ? await bundledBootApp0Path().catch(() => null) : null
+
+      const chipFamily = chipInfo ? (chipInfo.chip === 'ESP32' ? 'esp32' : 'other') : null
+      const detected = detectSegments({ filePaths, partitions, chipFamily, bootApp0Path })
+
+      const rows: FlashSegmentRow[] = detected.map((seg) => ({
+        offset: seg.offset === null ? '' : `0x${seg.offset.toString(16)}`,
+        path: seg.path,
+        label: seg.label,
+      }))
+      setSegments(rows)
+
+      const unmatchedCount = detected.filter((s) => s.source === 'unmatched').length
+      if (unmatchedCount > 0) {
+        window.alert(
+          `${unmatchedCount} file(s) couldn't be matched to a known offset — fill those in manually. This usually means the file didn't have a recognizable name, or its role was ambiguous (e.g. multiple app/OTA files without one you selected being an exact match).`,
+        )
+      }
+    } finally {
+      setSmartAdding(false)
     }
   }
 
@@ -117,12 +198,22 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
               <span className={mode === 'batch' ? 'on' : ''} onClick={() => setMode('batch')}>
                 Batch
               </span>
+              <span
+                className={mode === 'provision' ? 'on' : ''}
+                onClick={() => setMode('provision')}
+              >
+                Provision
+              </span>
             </div>
 
             {mode === 'single' && (
               <>
                 <div className="flash-connect-row">
-                  <select value={portName} onChange={(e) => setPortName(e.target.value)}>
+                  <select
+                    ref={portSelectRef}
+                    value={portName}
+                    onChange={(e) => setPortName(e.target.value)}
+                  >
                     <option value="">Select port…</option>
                     {ports.map((p) => (
                       <option key={p.portName} value={p.portName}>
@@ -162,45 +253,58 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
               </>
             )}
 
-            <div className="flash-segments">
-              {segments.map((seg, i) => (
-                <div className="flash-segment-row" key={i}>
-                  <input
-                    className="flash-offset"
-                    value={seg.offset}
-                    placeholder="0x0"
-                    onChange={(e) => updateSegment(i, { offset: e.target.value })}
-                  />
-                  <input
-                    className="flash-path"
-                    value={seg.path}
-                    placeholder="No file selected"
-                    readOnly
-                  />
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="Browse"
-                    title="Browse"
-                    onClick={() => void browseForFile(i)}
-                  >
-                    <FolderIcon />
+            {mode !== 'provision' && (
+              <div className="flash-segments">
+                {segments.map((seg, i) => (
+                  <div className="flash-segment-row" key={i}>
+                    <input
+                      className="flash-offset"
+                      value={seg.offset}
+                      placeholder="0x0"
+                      onChange={(e) => updateSegment(i, { offset: e.target.value })}
+                    />
+                    <input
+                      className="flash-path"
+                      value={seg.path}
+                      placeholder="No file selected"
+                      readOnly
+                    />
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Browse"
+                      title="Browse"
+                      onClick={() => void browseForFile(i)}
+                    >
+                      <FolderIcon />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Remove segment"
+                      title="Remove"
+                      onClick={() => removeSegment(i)}
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ))}
+                <div className="flash-segments-actions">
+                  <button type="button" className="flash-add-segment" onClick={addSegment}>
+                    <PlusIcon /> Add segment
                   </button>
                   <button
                     type="button"
-                    className="icon-button"
-                    aria-label="Remove segment"
-                    title="Remove"
-                    onClick={() => removeSegment(i)}
+                    className="flash-add-segment"
+                    disabled={smartAdding}
+                    onClick={() => void handleSmartAdd()}
+                    title="Pick build output files and auto-fill offsets — reads the real partition table when you include one, instead of guessing"
                   >
-                    <TrashIcon />
+                    <MagicWandIcon /> {smartAdding ? 'Detecting…' : 'Smart add…'}
                   </button>
                 </div>
-              ))}
-              <button type="button" className="flash-add-segment" onClick={addSegment}>
-                <PlusIcon /> Add segment
-              </button>
-            </div>
+              </div>
+            )}
 
             {mode === 'single' && (
               <>
@@ -252,6 +356,8 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
             {mode === 'batch' && (
               <FlashBatchPanel ports={ports} baudRate={baudRate} segments={parsedSegments} />
             )}
+
+            {mode === 'provision' && <ProvisionPanel ports={ports} />}
           </>
         )}
       </div>

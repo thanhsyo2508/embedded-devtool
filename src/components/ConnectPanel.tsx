@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   listSerialPorts,
+  onUsbPlugged,
+  onUsbUnplugged,
   type DataBits,
   type FlowControl,
   type Parity,
@@ -111,6 +113,7 @@ export function ConnectPanel({
   const [role, setRole] = useState<ConnectionRole>(() => roleOf(initialLast.lastKind ?? 'serial'))
   const target = kindFor(family, role)
   const [ports, setPorts] = useState<PortInfo[]>([])
+  const portSelectRef = useRef<HTMLSelectElement>(null)
   const [portName, setPortName] = useState(() => lastFor('serial')?.portName ?? '')
   const [baudRate, setBaudRate] = useState(() => lastFor('serial')?.baudRate ?? 115200)
   const [dataBits, setDataBits] = useState<DataBits>(() => lastFor('serial')?.dataBits ?? 'eight')
@@ -210,7 +213,18 @@ export function ConnectPanel({
       .then((list) => {
         if (cancelled) return
         setPorts(list)
-        setPortName((current) => current || list[0]?.portName || '')
+        // `current` starts out seeded from the last-remembered serial config
+        // (see the portName useState above), which can name a port that no
+        // longer exists (unplugged, or just a stale value from a previous
+        // session) — the browser then shows a *different* option as visually
+        // selected (its default fallback when the bound value matches
+        // nothing) while React still holds the stale name, so Connect would
+        // silently submit a port the user never actually picked. Falling
+        // back whenever `current` isn't in the live list keeps the visible
+        // selection and the submitted value in sync.
+        setPortName((current) =>
+          current && list.some((p) => p.portName === current) ? current : (list[0]?.portName ?? ''),
+        )
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(String(err))
@@ -219,6 +233,25 @@ export function ConnectPanel({
       cancelled = true
     }
   }, [refreshKey])
+
+  // Re-list ports on USB plug/unplug so the dropdown stays current without
+  // the user having to click the refresh button (serialport-rs has no
+  // native hotplug API — this rides the 1.5s poll+diff done in Rust). Skips
+  // the refresh while the port <select> is open/focused: swapping its
+  // options out from under an in-progress click can silently commit a
+  // different port than the one the user actually clicked on.
+  useEffect(() => {
+    const refreshIfIdle = () => {
+      if (document.activeElement === portSelectRef.current) return
+      setRefreshKey((k) => k + 1)
+    }
+    const unlistenPlugged = onUsbPlugged(refreshIfIdle)
+    const unlistenUnplugged = onUsbUnplugged(refreshIfIdle)
+    return () => {
+      void unlistenPlugged.then((f) => f())
+      void unlistenUnplugged.then((f) => f())
+    }
+  }, [])
 
   // Shared by "Save profile" and the automatic last-used-config memory —
   // both just want a snapshot of the currently entered fields for `target`.
@@ -468,7 +501,11 @@ export function ConnectPanel({
                 <UsbIcon /> Port
               </span>
               <div className="field-row">
-                <select value={portName} onChange={(e) => setPortName(e.target.value)}>
+                <select
+                  ref={portSelectRef}
+                  value={portName}
+                  onChange={(e) => setPortName(e.target.value)}
+                >
                   {ports.length === 0 && <option value="">No ports found</option>}
                   {ports.map((p) => (
                     <option key={p.portName} value={p.portName}>

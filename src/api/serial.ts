@@ -97,3 +97,28 @@ export function onSerialData(cb: (batch: SerialDataBatch) => void): Promise<Unli
 export function onSerialLifecycle(cb: (event: PortLifecycleEvent) => void): Promise<UnlistenFn> {
   return listen<PortLifecycleEvent>('serial://lifecycle', (event) => cb(event.payload))
 }
+
+export interface UsbPlugEvent {
+  portName: string
+  vid: number | null
+  pid: number | null
+  serialNumber: string | null
+  manufacturer: string | null
+  product: string | null
+}
+
+export interface UsbUnplugEvent {
+  portName: string
+}
+
+/** Fires when the OS enumerates a new USB serial device — backed by a 1.5s
+ * poll+diff in Rust (no native hotplug API in `serialport-rs`), independent
+ * of any port the app has opened. Used to auto-refresh port lists and to
+ * trigger "auto-flash on plug". */
+export function onUsbPlugged(cb: (event: UsbPlugEvent) => void): Promise<UnlistenFn> {
+  return listen<UsbPlugEvent>('usb://plugged', (event) => cb(event.payload))
+}
+
+export function onUsbUnplugged(cb: (event: UsbUnplugEvent) => void): Promise<UnlistenFn> {
+  return listen<UsbUnplugEvent>('usb://unplugged', (event) => cb(event.payload))
+}

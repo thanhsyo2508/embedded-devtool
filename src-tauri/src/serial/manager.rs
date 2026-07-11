@@ -280,7 +280,10 @@ impl PortManager {
                 Ok(())
             }
             Err(e) => {
-                let message = e.to_string();
+                // The OS error alone ("The system cannot find the file
+                // specified.") doesn't say which port failed — prefix it,
+                // matching the message shape esp32.rs::connect() already uses.
+                let message = format!("failed to open {}: {e}", req.port_name);
                 self.event_bus.publish(Event::Error {
                     stream_id: req.id,
                     message: message.clone(),
@@ -478,6 +481,62 @@ pub fn spawn_reconnect_watcher(manager: Arc<PortManager>) -> thread::JoinHandle<
                     }
                 }
             }
+        }
+    })
+}
+
+/// Background watcher: every 1.5s, diffs the live USB serial port list
+/// against the previous poll (by VID/PID/serial, same identity rule as
+/// `spawn_reconnect_watcher`) and publishes `UsbPlugged`/`UsbUnplugged` for
+/// whatever changed. Unlike the reconnect watcher, this doesn't touch
+/// `PortManager` at all — it's about physical USB presence, not open
+/// streams — so it also covers devices the app has never opened, which is
+/// what drives the port list auto-refresh and "auto-flash on plug".
+pub fn spawn_hotplug_watcher(event_bus: EventBus) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut known: Vec<(UsbId, String)> = serial_stream::list_ports()
+            .map(|ports| {
+                ports
+                    .iter()
+                    .filter_map(|p| usb_id_of(p).map(|id| (id, p.port_name.clone())))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        loop {
+            thread::sleep(Duration::from_millis(1500));
+            let Ok(available) = serial_stream::list_ports() else {
+                continue;
+            };
+            let current: Vec<(UsbId, serialport::SerialPortInfo)> = available
+                .into_iter()
+                .filter_map(|p| usb_id_of(&p).map(|id| (id, p)))
+                .collect();
+
+            for (id, info) in &current {
+                if !known.iter().any(|(kid, _)| kid == id) {
+                    let port_info = PortInfo::from(info.clone());
+                    event_bus.publish(Event::UsbPlugged {
+                        port_name: port_info.port_name,
+                        vid: port_info.vid,
+                        pid: port_info.pid,
+                        serial_number: port_info.serial_number,
+                        manufacturer: port_info.manufacturer,
+                        product: port_info.product,
+                    });
+                }
+            }
+            for (id, port_name) in &known {
+                if !current.iter().any(|(cid, _)| cid == id) {
+                    event_bus.publish(Event::UsbUnplugged {
+                        port_name: port_name.clone(),
+                    });
+                }
+            }
+            known = current
+                .into_iter()
+                .map(|(id, info)| (id, info.port_name))
+                .collect();
         }
     })
 }

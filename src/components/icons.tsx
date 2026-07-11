@@ -245,3 +245,13 @@ export function CopyIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   )
 }
+
+export function MagicWandIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 20 15 9" />
+      <path d="M14 4v3M19 9h3M18 3l1 1M21 5l-1 1" />
+      <path d="M6 12v3M4.5 13.5h3" />
+    </Icon>
+  )
+}

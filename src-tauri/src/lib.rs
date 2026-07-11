@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::event_bus::{Event, EventBus, WsFrameKind};
 use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
+use crate::flash::partition_table::{self, PartitionEntry};
 use crate::flash::profile::{self, FlashProfile};
 use crate::flash::stm32::{self, Interface as StmInterface, McuInfo as StmMcuInfo};
 use crate::net::NetworkManager;
@@ -509,6 +510,23 @@ struct WsFrameEvent {
     data: Vec<u8>,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct UsbPlugEvent {
+    port_name: String,
+    vid: Option<u16>,
+    pid: Option<u16>,
+    serial_number: Option<String>,
+    manufacturer: Option<String>,
+    product: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct UsbUnplugEvent {
+    port_name: String,
+}
+
 /// Forwards port lifecycle events (open/close/error) from the internal
 /// EventBus to the frontend. Raw data does not travel this path — see
 /// `spawn_batch_emitter` — so this stays cheap even under high throughput.
@@ -589,6 +607,29 @@ fn spawn_lifecycle_forwarder(app: AppHandle, event_bus: EventBus) {
                         },
                     );
                 }
+                Event::UsbPlugged {
+                    port_name,
+                    vid,
+                    pid,
+                    serial_number,
+                    manufacturer,
+                    product,
+                } => {
+                    let _ = app.emit(
+                        "usb://plugged",
+                        UsbPlugEvent {
+                            port_name,
+                            vid,
+                            pid,
+                            serial_number,
+                            manufacturer,
+                            product,
+                        },
+                    );
+                }
+                Event::UsbUnplugged { port_name } => {
+                    let _ = app.emit("usb://unplugged", UsbUnplugEvent { port_name });
+                }
                 Event::DataReceived { .. } => {}
             }
         }
@@ -606,6 +647,31 @@ fn spawn_lifecycle_forwarder(app: AppHandle, event_bus: EventBus) {
 #[tauri::command]
 fn detect_esp32_chip(port_name: String) -> Result<ChipInfo, String> {
     esp32::detect_chip(&port_name)
+}
+
+/// Reads and parses a compiled ESP-IDF partition table (`partitions.bin`)
+/// selected by the user — the Flash panel's "Smart add" uses this to find
+/// the real offset/size of each partition instead of guessing from
+/// filenames, which would risk overwriting the wrong flash region for a
+/// filesystem image whose offset depends on flash size/partition scheme.
+#[tauri::command]
+fn parse_esp32_partition_table(path: String) -> Result<Vec<PartitionEntry>, String> {
+    partition_table::parse_partition_table_file(&path)
+}
+
+// `otadata`-partition binary from espressif/arduino-esp32
+// (tools/partitions/boot_app0.bin, LGPL-2.1 — see THIRD_PARTY_NOTICES.md at
+// the repo root and src-tauri/resources/boot_app0.LICENSE.md) — offered by
+// "Smart add" for OTA-capable partition schemes, since PlatformIO/ESP-IDF
+// build output doesn't always include it.
+const BOOT_APP0_BIN: &[u8] = include_bytes!("../resources/boot_app0.bin");
+
+#[tauri::command]
+fn bundled_boot_app0_path() -> Result<String, String> {
+    let path = std::env::temp_dir().join("edt-boot_app0.bin");
+    std::fs::write(&path, BOOT_APP0_BIN)
+        .map_err(|e| format!("failed to write {}: {e}", path.display()))?;
+    Ok(path.to_string_lossy().to_string())
 }
 
 #[derive(Serialize, Clone)]
@@ -1208,6 +1274,7 @@ pub fn run() {
     let network = Arc::new(NetworkManager::new(event_bus.clone()));
 
     serial::manager::spawn_reconnect_watcher(manager.clone());
+    serial::manager::spawn_hotplug_watcher(event_bus.clone());
 
     let scripts = Arc::new(ScriptManager::new());
 
@@ -1256,6 +1323,8 @@ pub fn run() {
             read_serial_signals,
             set_keep_awake,
             detect_esp32_chip,
+            parse_esp32_partition_table,
+            bundled_boot_app0_path,
             flash_esp32,
             erase_esp32_flash,
             erase_esp32_region,
@@ -1338,5 +1407,13 @@ mod tests {
     fn read_text_file_errors_on_missing_path() {
         let path = std::env::temp_dir().join("edt-test-read-text-missing.edtproj");
         assert!(read_text_file(path.to_string_lossy().to_string()).is_err());
+    }
+
+    #[test]
+    fn bundled_boot_app0_writes_the_embedded_asset_unmodified() {
+        let path = bundled_boot_app0_path().unwrap();
+        let written = std::fs::read(&path).unwrap();
+        assert_eq!(written, BOOT_APP0_BIN);
+        assert_eq!(written.len(), 8192);
     }
 }

@@ -21,15 +21,27 @@ export interface BatchDevice {
 interface FlashBatchState {
   devices: BatchDevice[]
   eventsWired: boolean
+  /** "Auto-flash on plug" — when on, a newly plugged device that looks like
+   * an ESP32 (see esp32VidPid.ts) gets the current baud/segments flashed to
+   * it immediately, no per-device confirmation. Off by default; the toggle
+   * itself is the safety gate for unattended/production flashing. */
+  autoFlashArmed: boolean
 
   wireEventsOnce: () => void
   setSelectedPorts: (portNames: string[]) => void
+  setAutoFlashArmed: (armed: boolean) => void
   flashAll: (baudRate: number, segments: FlashSegmentReq[]) => void
+  /** Flashes a single newly-plugged port, adding it to the device list if
+   * not already tracked. Skips ports already mid-flash so the hotplug
+   * listener firing more than once for the same physical plug can't
+   * double-start a flash. */
+  autoFlashDevice: (portName: string, baudRate: number, segments: FlashSegmentReq[]) => void
 }
 
 export const useFlashBatchStore = create<FlashBatchState>((set, get) => ({
   devices: [],
   eventsWired: false,
+  autoFlashArmed: false,
 
   wireEventsOnce: () => {
     if (get().eventsWired) return
@@ -79,6 +91,26 @@ export const useFlashBatchStore = create<FlashBatchState>((set, get) => ({
           },
       ),
     })),
+
+  setAutoFlashArmed: (armed) => set({ autoFlashArmed: armed }),
+
+  autoFlashDevice: (portName, baudRate, segments) => {
+    const existing = get().devices.find((d) => d.portName === portName)
+    if (existing?.status === 'flashing') return
+    set((state) => ({
+      devices: [
+        ...state.devices.filter((d) => d.portName !== portName),
+        { portName, status: 'flashing', progressCurrent: 0, progressTotal: 0, message: '' },
+      ],
+    }))
+    void flashEsp32(portName, portName, baudRate, segments).catch((err) => {
+      set((state) => ({
+        devices: state.devices.map((d) =>
+          d.portName === portName ? { ...d, status: 'error', message: String(err) } : d,
+        ),
+      }))
+    })
+  },
 
   flashAll: (baudRate, segments) => {
     const { devices } = get()

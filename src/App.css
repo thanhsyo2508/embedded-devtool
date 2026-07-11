@@ -1333,6 +1333,15 @@ button:disabled {
   padding: 6px;
 }
 
+.flash-segments-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.flash-segments-actions .flash-add-segment {
+  flex: 1;
+}
+
 .flash-progress {
   display: flex;
   align-items: center;
@@ -1449,7 +1458,8 @@ button:disabled {
   color: var(--text-muted);
 }
 
-.flash-batch-status.status-flashing {
+.flash-batch-status.status-flashing,
+.flash-batch-status.status-running {
   color: var(--accent);
 }
 
@@ -1459,6 +1469,123 @@ button:disabled {
 
 .flash-batch-status.status-error {
   color: var(--err);
+}
+
+.flash-batch-autoflash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.flash-batch-autoflash input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
+
+.flash-batch-autoflash-warn {
+  font-size: 12px;
+  color: #b8860b;
+}
+
+.provision-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.provision-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+}
+
+.provision-step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.provision-step-index {
+  flex: none;
+  width: 16px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.provision-step-payload {
+  flex: 2;
+  min-width: 0;
+}
+
+.provision-step-wait {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.provision-step-wait input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+}
+
+.provision-step-match {
+  flex: 1;
+  min-width: 0;
+}
+
+.provision-step-ms {
+  flex: none;
+  width: 64px;
+}
+
+.provision-run-now {
+  display: flex;
+  gap: 8px;
+}
+
+.provision-run-now select {
+  flex: 1;
+  min-width: 0;
+}
+
+.provision-devices {
+  flex: 1;
+  min-height: 80px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.provision-device-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+}
+
+.provision-device-log {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .flash-ob-text {

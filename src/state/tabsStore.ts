@@ -311,7 +311,7 @@ interface TabsStore {
   clearModbusSlaveLog: (id: string) => void
 }
 
-const LINE_ENDING_BYTES: Record<LineEnding, number[]> = {
+export const LINE_ENDING_BYTES: Record<LineEnding, number[]> = {
   none: [],
   cr: [0x0d],
   lf: [0x0a],

@@ -40,6 +40,10 @@ interface FlashState {
   addSegment: () => void
   removeSegment: (index: number) => void
   updateSegment: (index: number, patch: Partial<FlashSegmentRow>) => void
+  /** Replaces the whole segment list — used by "Smart add" in FlashPanel,
+   * which builds a complete list from auto-detected build-output files
+   * rather than editing one row at a time. */
+  setSegments: (segments: FlashSegmentRow[]) => void
   flash: () => Promise<void>
   eraseFull: () => Promise<void>
   saveProfile: (path: string) => Promise<void>
@@ -124,6 +128,8 @@ export const useFlashStore = create<FlashState>((set, get) => ({
     set((state) => ({
       segments: state.segments.map((seg, i) => (i === index ? { ...seg, ...patch } : seg)),
     })),
+
+  setSegments: (segments) => set({ segments }),
 
   flash: async () => {
     const { portName, baudRate, segments } = get()

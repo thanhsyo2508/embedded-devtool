@@ -524,17 +524,54 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
               <li>Pick the port and baud rate, then Detect chip.</li>
               <li>
-                Add segments — <b>Example:</b> offset <code>0x1000</code> for the bootloader,{' '}
-                <code>0x8000</code> for the partition table, <code>0x10000</code> for the app binary
-                (offsets vary by project — check your build output).
+                Add segments manually — <b>Example:</b> offset <code>0x1000</code> for the
+                bootloader, <code>0x8000</code> for the partition table, <code>0x10000</code> for
+                the app binary (offsets vary by project — check your build output) — or use{' '}
+                <b>Smart add</b> (below) to fill these in automatically.
               </li>
               <li>Click Flash; Erase chip wipes everything first if needed.</li>
             </ol>
+            <p>
+              <b>Smart add</b> lets you pick your build output files (bootloader, partitions,
+              firmware, a filesystem image) all at once, and fills in the right offset for each —
+              reading the actual compiled partition table when you include one (
+              <code>partitions.bin</code>/<code>partition-table.bin</code>) rather than guessing,
+              since a filesystem image's offset shifts with flash size and partition scheme and a
+              wrong guess could overwrite the app. The bootloader offset is filled in from the
+              detected chip (<code>0x1000</code> on original ESP32, <code>0x0</code> on
+              S2/S3/C2/C3/C6/H2 — run Detect chip first for this to be exact). If a selected
+              partition table needs an OTA "boot selector" (<code>otadata</code>) image and you
+              didn't include your own <code>boot_app0.bin</code>, EDT supplies its own bundled copy
+              automatically. Anything Smart add can't confidently match is added with a blank offset
+              rather than a guess — fill those in by hand.
+            </p>
             <p>
               <b>Batch</b> (next to Single) flashes the same segments to several boards at once —
               check every port to include, then <b>Flash N device(s)</b>. Each port flashes on its
               own, in parallel, with its own live progress/status, so one board failing (or being
               unplugged) doesn't stop or block the others.
+            </p>
+            <p>
+              <b>Auto-flash on plug</b> (in Batch mode) skips the checkbox step entirely: once
+              armed, any newly plugged device that looks like an ESP32 (by its USB serial chip —
+              CP210x, CH340, FTDI, or Espressif's native USB) is flashed immediately with the
+              current baud rate and segments, no per-device confirmation. Meant for repetitive
+              production flashing — plug the next board, it flashes itself. It skips a port that's
+              already open in another tab, and the VID/PID check is only a pre-filter: flashing a
+              non-ESP32 device fails harmlessly at the chip handshake rather than writing anything.
+              Leave it off unless you're actively flashing a batch — it stays armed for as long as
+              the Flash panel is open.
+            </p>
+            <p>
+              <b>Provision</b> (third mode, next to Batch) is separate from flashing — it sends a
+              scripted sequence of plain serial commands to an already-flashed device instead of
+              writing firmware. Build a list of steps (each one a command, a line ending, and either
+              "wait for response" with a match string/timeout or a fixed delay), pick a baud rate,
+              then either <b>Run now</b> on a currently-plugged port or arm <b>Auto-run on plug</b>{' '}
+              so the workflow fires by itself the moment a matching device is connected — handy for
+              commissioning many boards with the same WiFi credentials/device ID/config commands in
+              a row. Steps and baud rate are remembered across restarts; arming is not, for the same
+              reason auto-flash isn't remembered either.
             </p>
           </section>
 

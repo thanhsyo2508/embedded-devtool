@@ -53,6 +53,24 @@ pub enum Event {
         kind: WsFrameKind,
         data: Arc<[u8]>,
     },
+    /// A USB serial device was newly enumerated by the OS (plugged in),
+    /// detected by polling `available_ports()` and diffing by VID/PID/serial
+    /// — see `serial::manager::spawn_hotplug_watcher`. Independent of
+    /// `PortManager`'s open/closed port state; fires for any USB serial
+    /// device, not just ones the app has opened before.
+    UsbPlugged {
+        port_name: String,
+        vid: Option<u16>,
+        pid: Option<u16>,
+        serial_number: Option<String>,
+        manufacturer: Option<String>,
+        product: Option<String>,
+    },
+    /// The counterpart to `UsbPlugged` — a previously-seen USB serial device
+    /// disappeared from the port list.
+    UsbUnplugged {
+        port_name: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

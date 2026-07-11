@@ -49,8 +49,28 @@ export interface FlashProfile {
   segments: FlashProfileSegment[]
 }
 
+export interface PartitionEntry {
+  label: string
+  partType: number
+  subtype: number
+  offset: number
+  size: number
+}
+
 export function detectEsp32Chip(portName: string): Promise<ChipInfo> {
   return invoke('detect_esp32_chip', { portName })
+}
+
+export function parseEsp32PartitionTable(path: string): Promise<PartitionEntry[]> {
+  return invoke('parse_esp32_partition_table', { path })
+}
+
+/** Writes the bundled `boot_app0.bin` (see THIRD_PARTY_NOTICES.md) to a temp
+ * file and returns its path — used by "Smart add" when an OTA-capable
+ * partition table needs an `otadata` image the user's build output didn't
+ * include. */
+export function bundledBootApp0Path(): Promise<string> {
+  return invoke('bundled_boot_app0_path')
 }
 
 export function flashEsp32(
