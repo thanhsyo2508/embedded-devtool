@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.1.4 — 2026-07-11
+
+- **FTP client/server:** a plain-FTP client to browse, upload, download,
+  create folders, and delete files on a device's SD-card/SPIFFS file
+  server (or any FTP server), plus a local FTP server to share a folder
+  on this machine with a device — its own panel, not a tab, since it's a
+  file browser rather than a byte stream.
+- **ESP32 OTA update over WiFi:** a fourth flash target that pushes
+  firmware to a device over WiFi via the ArduinoOTA protocol — mDNS
+  device discovery, MD5/PBKDF2-HMAC-SHA256 challenge auth depending on
+  the device's Arduino core version, no USB cable required. A toast
+  notification now reports success/failure for this (and batch flash,
+  auto-flash-on-plug, and provisioning) regardless of which panel is
+  open.
+- **English/Vietnamese UI language**, switchable in Settings with no
+  restart, covering every panel and the in-app User Guide.
+- **ESP32 flashing convenience:** the port list now refreshes itself on
+  USB plug/unplug (no manual Refresh), Batch mode gained an "auto-flash
+  on plug" toggle for production runs, and a new Provision mode runs a
+  scripted sequence of serial commands against an already-flashed device
+  manually or automatically on plug. Smart add now parses the real
+  ESP-IDF partition table and supplies its own bundled `boot_app0.bin`
+  when one's needed, instead of guessing filesystem offsets.
+- **Batch ESP32 flashing:** flash the same segments to multiple ports at
+  once, with independent per-device progress and status.
+- **`edt-cli`:** a new headless CLI binary
+  (`edt-cli monitor --port COM3 --baud 115200`) for scripting/CI use,
+  attached to each GitHub Release as a standalone per-platform download.
+- **Project profiles (`.edtproj`):** save/restore the whole workspace —
+  every tab's connection, filters/triggers/script, the Snap Layout
+  arrangement, and the Plotter config — to a portable file.
+- The plotter's buffer size is now configurable (default 10x the old
+  hardcoded cap); the SSH terminal gained copy-on-select and fixed
+  paste/auto-focus; sent data now echoes into the monitor as its own
+  line so both directions of a conversation are visible.
+
 ## v0.1.3 — 2026-07-09
 
 - Small update to support testing the auto-update flow and ensure the

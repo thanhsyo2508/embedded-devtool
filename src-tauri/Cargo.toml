@@ -1,6 +1,6 @@
 [package]
 name = "edt"
-version = "0.1.3"
+version = "0.1.4"
 description = "Embedded DevTool"
 authors = ["EDT Contributors"]
 edition = "2021"
@@ -44,7 +44,7 @@ russh = { version = "0.62.2", default-features = false, features = ["flate2", "r
 tokio = { version = "1.52.3", features = ["rt", "rt-multi-thread", "macros", "time"] }
 tauri-plugin-clipboard-manager = "2"
 
-# ESP32 OTA-over-WiFi (espota protocol) — MD5 for the legacy challenge and
+# ESP32 OTA-over-WiFi (espota protocol) â€” MD5 for the legacy challenge and
 # the firmware checksum, SHA256+PBKDF2 for the current challenge protocol
 # (ESP32 Arduino core 3.3.1+). See flash/esp32_ota.rs's module doc.
 md-5 = "0.10"
@@ -52,7 +52,7 @@ sha2 = "0.10"
 pbkdf2 = "0.12"
 
 # FTP client/server. suppaftp is a blocking client (matches the rest of this
-# codebase's thread-per-connection style, no async needed) — plain FTP only
+# codebase's thread-per-connection style, no async needed) â€” plain FTP only
 # for now (no `secure`/TLS feature enabled), since that avoids pulling in
 # either OpenSSL or rustls for a first version and most embedded-device FTP
 # servers speak plain FTP anyway; FTPS can be added later behind a feature
@@ -64,18 +64,18 @@ suppaftp = "10"
 # libunftp requires *some* rustls crypto backend at compile time even though
 # v1 never turns TLS on at runtime. `ring` is pure Rust (no cmake/C compiler
 # needed, unlike the default `aws_lc_rs`, which builds a bundled C crypto
-# library) — same "avoid native build deps for CI portability" reasoning as
+# library) â€” same "avoid native build deps for CI portability" reasoning as
 # elsewhere in this project, and already the crypto backend `russh` uses.
 # prometheus/proxy_protocol (metrics/proxy support) are default features
 # this app doesn't need, left off.
 libunftp = { version = "0.23", default-features = false, features = ["ring"] }
 unftp-sbe-fs = "0.4"
 # Needed directly (not just transitively via libunftp) to implement a
-# username/password Authenticator — see ftp/server.rs.
+# username/password Authenticator â€” see ftp/server.rs.
 unftp-core = "0.1"
 async-trait = "0.1"
 
-# Only pulled in for the `edt-cli` binary (via the `cli` feature below) —
+# Only pulled in for the `edt-cli` binary (via the `cli` feature below) â€”
 # optional so a normal GUI build never compiles or links them.
 clap = { version = "4", features = ["derive"], optional = true }
 ctrlc = { version = "3", optional = true }
