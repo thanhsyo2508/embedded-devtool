@@ -20,11 +20,14 @@ import { FlashBatchPanel } from './FlashBatchPanel'
 import { ProvisionPanel } from './ProvisionPanel'
 import { OtaPanel } from './OtaPanel'
 import { DebugPanel } from './DebugPanel'
+import { ProductionStatsPanel } from './ProductionStatsPanel'
+import { Esp32SecurityPanel } from './Esp32SecurityPanel'
 import { Spinner } from './Spinner'
 import { useDebugHandoffStore } from '../state/debugHandoffStore'
+import { authorizeFlash } from '../lib/flashLock'
 
-type Target = 'esp32' | 'stm32' | 'ota' | 'debug'
-type FlashMode = 'single' | 'batch' | 'provision'
+type Target = 'esp32' | 'stm32' | 'ota' | 'debug' | 'stats'
+type FlashMode = 'single' | 'batch' | 'provision' | 'security'
 
 const BAUD_OPTIONS = [115_200, 230_400, 460_800, 921_600]
 
@@ -201,10 +204,14 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
           <span className={target === 'debug' ? 'on' : ''} onClick={() => setTarget('debug')}>
             {t('debug.tabLabel')}
           </span>
+          <span className={target === 'stats' ? 'on' : ''} onClick={() => setTarget('stats')}>
+            {t('productionStats.tabLabel')}
+          </span>
         </div>
         {target === 'stm32' && <Stm32Body />}
         {target === 'ota' && <OtaPanel />}
         {target === 'debug' && <DebugPanel />}
+        {target === 'stats' && <ProductionStatsPanel />}
 
         {target === 'esp32' && (
           <>
@@ -220,6 +227,9 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                 onClick={() => setMode('provision')}
               >
                 {t('flash.provision')}
+              </span>
+              <span className={mode === 'security' ? 'on' : ''} onClick={() => setMode('security')}>
+                {t('esp32Security.tabLabel')}
               </span>
             </div>
 
@@ -355,7 +365,9 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     type="button"
                     className="connect-button flash-go"
                     disabled={!portName || busy}
-                    onClick={() => void flash()}
+                    onClick={() => {
+                      if (authorizeFlash()) void flash()
+                    }}
                   >
                     {busy ? <Spinner /> : <ZapIcon />}{' '}
                     {busy ? t('flash.working') : t('flash.flash')}
@@ -380,6 +392,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
             )}
 
             {mode === 'provision' && <ProvisionPanel ports={ports} />}
+            {mode === 'security' && <Esp32SecurityPanel port={portName} />}
           </>
         )}
       </div>

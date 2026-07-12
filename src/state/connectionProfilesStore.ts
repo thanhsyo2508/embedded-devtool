@@ -29,6 +29,8 @@ export interface ConnectionProfile extends LibraryItem {
   password?: string
   subscribeTopic?: string
   publishTopic?: string
+  probeSerial?: string
+  chip?: string
 }
 
 export const useConnectionProfilesStore =

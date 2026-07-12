@@ -8,6 +8,7 @@ import { MqttPanel } from './MqttPanel'
 import { UdpPanel } from './UdpPanel'
 import { WsPanel } from './WsPanel'
 import { SshPanel } from './SshPanel'
+import { SwdWatchPanel } from './SwdWatchPanel'
 
 // The specialized/raw toggle is per-tab-view, not global — once multiple
 // panes can show different tabs side by side, a single App-level toggle
@@ -29,6 +30,17 @@ export function TabContent({ tab }: { tab: TabState }) {
     // A PTY has no line-oriented "raw log" fallback that would make sense —
     // unlike MQTT/UDP/WS, there's no toggle here.
     return <SshPanel tab={tab} />
+  }
+
+  if (tab.connectionKind === 'rtt') {
+    // No Send box: RTT down-channel writes aren't implemented (see
+    // core::rtt_stream). Variable watch takes that slot instead.
+    return (
+      <>
+        <MonitorView tab={tab} />
+        <SwdWatchPanel tab={tab} />
+      </>
+    )
   }
 
   return (

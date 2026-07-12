@@ -53,6 +53,15 @@ pub enum Event {
         kind: WsFrameKind,
         data: Arc<[u8]>,
     },
+    /// The current value of one watched SWD variable — see
+    /// `core::rtt_stream`. Fired on the same poll tick as RTT reads, from
+    /// the same background thread, so it doesn't compete with `DataStream`'s
+    /// generic `read()`/`DataReceived` path used for the RTT log text.
+    SwdVariable {
+        stream_id: String,
+        name: String,
+        bytes: Arc<[u8]>,
+    },
     /// A USB serial device was newly enumerated by the OS (plugged in),
     /// detected by polling `available_ports()` and diffing by VID/PID/serial
     /// — see `serial::manager::spawn_hotplug_watcher`. Independent of

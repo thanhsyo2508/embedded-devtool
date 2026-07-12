@@ -4,12 +4,19 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { useTranslation } from 'react-i18next'
 import { listSerialPorts, onUsbPlugged, onUsbUnplugged, type PortInfo } from '../api/serial'
 import { useStm32Store } from '../state/stm32Store'
+import { authorizeFlash } from '../lib/flashLock'
 import { ChipIcon, FolderIcon, GearIcon, RefreshIcon, ZapIcon } from './icons'
+import { Stm32MassProductionPanel } from './Stm32MassProductionPanel'
+import { Stm32SecurityPanel } from './Stm32SecurityPanel'
+import { CollapsibleSection } from './CollapsibleSection'
 
 const STM32CUBEPROG_URL = 'https://www.st.com/en/development-tools/stm32cubeprog.html'
 
+type Stm32Mode = 'single' | 'massProduction'
+
 export function Stm32Body() {
   const { t } = useTranslation()
+  const [mode, setMode] = useState<Stm32Mode>('single')
   const [ports, setPorts] = useState<PortInfo[]>([])
   const portSelectRef = useRef<HTMLSelectElement>(null)
   const [obName, setObName] = useState('RDP')
@@ -187,89 +194,121 @@ export function Stm32Body() {
         </div>
       )}
 
-      <label className="field-group">
-        <span className="field-caption">{t('stm32.firmwareFile')}</span>
-        <div className="field-row">
-          <input
-            className="flash-path"
-            value={filePath}
-            placeholder={t('flash.noFileSelected')}
-            readOnly
-          />
-          <button
-            type="button"
-            className="icon-button"
-            title={t('common.browse')}
-            onClick={() => void browseForFile()}
-          >
-            <FolderIcon />
-          </button>
-        </div>
-      </label>
-
-      <div className="field-grid">
-        <label className="field-group">
-          <span className="field-caption">{t('stm32.address')}</span>
-          <input value={address} onChange={(e) => setAddress(e.target.value)} className="mono" />
-        </label>
-        <label className="checkbox-field" style={{ alignSelf: 'end' }}>
-          <input type="checkbox" checked={verify} onChange={(e) => setVerify(e.target.checked)} />
-          <span>{t('stm32.verify')}</span>
-        </label>
-      </div>
-
-      <label className="checkbox-field">
-        <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} />
-        <span>{t('stm32.resetAfterFlash')}</span>
-      </label>
-
-      <div className="flash-actions">
-        <button type="button" className="flash-erase" disabled={busy} onClick={handleEraseFull}>
-          <GearIcon /> {t('stm32.massErase')}
-        </button>
-        <button
-          type="button"
-          className="connect-button flash-go"
-          disabled={!filePath || busy}
-          onClick={() => void flash()}
+      <div className="seg">
+        <span className={mode === 'single' ? 'on' : ''} onClick={() => setMode('single')}>
+          {t('flash.single')}
+        </span>
+        <span
+          className={mode === 'massProduction' ? 'on' : ''}
+          onClick={() => setMode('massProduction')}
         >
-          <ZapIcon /> {busy ? t('flash.working') : t('flash.flash')}
-        </button>
+          {t('stm32.massProduction.tabLabel')}
+        </span>
       </div>
 
-      <hr className="settings-divider" />
+      {mode === 'massProduction' && <Stm32MassProductionPanel />}
 
-      <div className="settings-row">
-        <span>{t('stm32.optionBytes')}</span>
-        <button type="button" onClick={() => void readOptionBytes()}>
-          {t('stm32.read')}
-        </button>
-      </div>
-      {optionBytesText && <div className="flash-log flash-ob-text">{optionBytesText}</div>}
-      <div className="flash-connect-row">
-        <input
-          value={obName}
-          onChange={(e) => setObName(e.target.value)}
-          placeholder={t('stm32.obNamePlaceholder')}
-        />
-        <input
-          value={obValue}
-          onChange={(e) => setObValue(e.target.value)}
-          placeholder={t('stm32.obValuePlaceholder')}
-        />
-        <button type="button" className="flash-erase" onClick={handleWriteOptionByte}>
-          {t('stm32.write')}
-        </button>
-      </div>
+      {mode === 'single' && (
+        <>
+          <label className="field-group">
+            <span className="field-caption">{t('stm32.firmwareFile')}</span>
+            <div className="field-row">
+              <input
+                className="flash-path"
+                value={filePath}
+                placeholder={t('flash.noFileSelected')}
+                readOnly
+              />
+              <button
+                type="button"
+                className="icon-button"
+                title={t('common.browse')}
+                onClick={() => void browseForFile()}
+              >
+                <FolderIcon />
+              </button>
+            </div>
+          </label>
 
-      <div className="flash-log">
-        {log.length === 0 && <div className="flash-log-empty">{t('flash.noActivity')}</div>}
-        {log.map((line, i) => (
-          <div key={i} className="flash-log-line">
-            {line}
+          <div className="field-grid">
+            <label className="field-group">
+              <span className="field-caption">{t('stm32.address')}</span>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                className="mono"
+              />
+            </label>
+            <label className="checkbox-field" style={{ alignSelf: 'end' }}>
+              <input
+                type="checkbox"
+                checked={verify}
+                onChange={(e) => setVerify(e.target.checked)}
+              />
+              <span>{t('stm32.verify')}</span>
+            </label>
           </div>
-        ))}
-      </div>
+
+          <label className="checkbox-field">
+            <input type="checkbox" checked={reset} onChange={(e) => setReset(e.target.checked)} />
+            <span>{t('stm32.resetAfterFlash')}</span>
+          </label>
+
+          <div className="flash-actions">
+            <button type="button" className="flash-erase" disabled={busy} onClick={handleEraseFull}>
+              <GearIcon /> {t('stm32.massErase')}
+            </button>
+            <button
+              type="button"
+              className="connect-button flash-go"
+              disabled={!filePath || busy}
+              onClick={() => {
+                if (authorizeFlash()) void flash()
+              }}
+            >
+              <ZapIcon /> {busy ? t('flash.working') : t('flash.flash')}
+            </button>
+          </div>
+
+          <hr className="settings-divider" />
+
+          <CollapsibleSection title={t('stm32.security.rdpTitle')}>
+            <Stm32SecurityPanel />
+          </CollapsibleSection>
+
+          <CollapsibleSection title={t('stm32.optionBytesAdvanced')}>
+            <p className="ota-hint">{t('stm32.optionBytesAdvancedHint')}</p>
+            <button type="button" onClick={() => void readOptionBytes()}>
+              {t('stm32.read')}
+            </button>
+            {optionBytesText && <div className="flash-log flash-ob-text">{optionBytesText}</div>}
+            <div className="flash-connect-row">
+              <input
+                value={obName}
+                onChange={(e) => setObName(e.target.value)}
+                placeholder={t('stm32.obNamePlaceholder')}
+              />
+              <input
+                value={obValue}
+                onChange={(e) => setObValue(e.target.value)}
+                placeholder={t('stm32.obValuePlaceholder')}
+              />
+              <button type="button" className="flash-erase" onClick={handleWriteOptionByte}>
+                {t('stm32.write')}
+              </button>
+            </div>
+          </CollapsibleSection>
+
+          <div className="flash-log">
+            {log.length === 0 && <div className="flash-log-empty">{t('flash.noActivity')}</div>}
+            {log.map((line, i) => (
+              <div key={i} className="flash-log-line">
+                {line}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </>
   )
 }

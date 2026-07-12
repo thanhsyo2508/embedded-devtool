@@ -84,6 +84,25 @@ pub trait DataStream: Send {
         ))
     }
 
+    /// Starts polling one variable's raw memory value on every poll tick,
+    /// publishing `Event::SwdVariable` as it changes. Only the SWD/RTT
+    /// stream implements this — every other transport has no notion of a
+    /// target memory address to watch.
+    fn watch_variable(&mut self, _name: String, _address: u64, _size: u8) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support variable watching",
+        ))
+    }
+
+    /// Stops polling a variable previously added via `watch_variable`.
+    fn unwatch_variable(&mut self, _name: &str) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this stream does not support variable watching",
+        ))
+    }
+
     /// True if the transport observed itself go from open to broken (e.g. a
     /// TCP peer closing the connection) without an explicit `close()` call.
     /// Lets a manager notice and clean up without a transport-specific poll

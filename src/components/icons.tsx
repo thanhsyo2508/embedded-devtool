@@ -46,6 +46,14 @@ export function RefreshIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ChevronDownIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 9l6 6 6-6" />
+    </Icon>
+  )
+}
+
 export function GaugeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

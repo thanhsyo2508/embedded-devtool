@@ -84,7 +84,10 @@
       "p2": "Commands are grouped into named <b>profiles</b> (the dropdown on the left) so you can keep separate sets for different devices — saved permanently, and shared by every tab, not just the one you created them in. Pick a profile to show its commands; the + button next to the dropdown creates a new one.",
       "li1": "<b>+ Add</b> at the end of the row opens a small form below for the command's label (optional — falls back to showing the command text itself), the text or hex payload to send, and a hex toggle.",
       "li2": "Click the pencil on any chip to edit it, or the × to remove it.",
-      "li3": "Drag a chip and drop it on another to reorder — the order is the priority, and is saved back to the profile immediately."
+      "li3": "Drag a chip and drop it on another to reorder — the order is the priority, and is saved back to the profile immediately.",
+      "li4": "Tick <b>JSON</b> (next to Hex) when writing a JSON payload — the single-line field switches to a multi-line box so indentation is readable, plus a <b>Format</b> button. It's compacted back to one line automatically when saved, so what's actually sent stays a single write (embedded newlines would otherwise split it for any device reading line-by-line).",
+      "li5": "The JSON box behaves a bit like a code editor: <code>Tab</code> inserts an indent instead of jumping to the next field (<code>Shift+Tab</code> removes one), <code>Enter</code> auto-indents to match the current nesting (and expands <code>{}</code>/<code>[]</code> onto three lines when pressed right between an empty pair), and typing <code>{</code>, <code>[</code>, or <code>\"</code> auto-inserts the matching closer with the cursor placed in between.",
+      "li6": "The <b>line ending</b> dropdown next to Hex/JSON lets one command override the tab's Line Ending setting (e.g. force CRLF for a command that needs it regardless of what the monitor is currently set to) — leave it on \"tab default\" to keep following the tab's setting as before."
     },
     "filters": {
       "heading": "Filters",
@@ -140,7 +143,8 @@
       "smartAdd": "<b>Smart add</b> lets you pick your build output files (bootloader, partitions, firmware, a filesystem image) all at once, and fills in the right offset for each — reading the actual compiled partition table when you include one (<code>partitions.bin</code>/<code>partition-table.bin</code>) rather than guessing, since a filesystem image's offset shifts with flash size and partition scheme and a wrong guess could overwrite the app. The bootloader offset is filled in from the detected chip (<code>0x1000</code> on original ESP32, <code>0x0</code> on S2/S3/C2/C3/C6/H2 — run Detect chip first for this to be exact). If a selected partition table needs an OTA \"boot selector\" (<code>otadata</code>) image and you didn't include your own <code>boot_app0.bin</code>, EDT supplies its own bundled copy automatically. Anything Smart add can't confidently match is added with a blank offset rather than a guess — fill those in by hand.",
       "batch": "<b>Batch</b> (next to Single) flashes the same segments to several boards at once — check every port to include, then <b>Flash N device(s)</b>. Each port flashes on its own, in parallel, with its own live progress/status, so one board failing (or being unplugged) doesn't stop or block the others.",
       "autoFlash": "<b>Auto-flash on plug</b> (in Batch mode) skips the checkbox step entirely: once armed, any newly plugged device that looks like an ESP32 (by its USB serial chip — CP210x, CH340, FTDI, or Espressif's native USB) is flashed immediately with the current baud rate and segments, no per-device confirmation. Meant for repetitive production flashing — plug the next board, it flashes itself. It skips a port that's already open in another tab, and the VID/PID check is only a pre-filter: flashing a non-ESP32 device fails harmlessly at the chip handshake rather than writing anything. Leave it off unless you're actively flashing a batch — it stays armed for as long as the Flash panel is open.",
-      "provision": "<b>Provision</b> (third mode, next to Batch) is separate from flashing — it sends a scripted sequence of plain serial commands to an already-flashed device instead of writing firmware. Build a list of steps (each one a command, a line ending, and either \"wait for response\" with a match string/timeout or a fixed delay), pick a baud rate, then either <b>Run now</b> on a currently-plugged port or arm <b>Auto-run on plug</b> so the workflow fires by itself the moment a matching device is connected — handy for commissioning many boards with the same WiFi credentials/device ID/config commands in a row. Steps and baud rate are remembered across restarts; arming is not, for the same reason auto-flash isn't remembered either."
+      "provision": "<b>Provision</b> (third mode, next to Batch) is separate from flashing — it sends a scripted sequence of plain serial commands to an already-flashed device instead of writing firmware. Build a list of steps (each one a command, a line ending, and either \"wait for response\" with a match string/timeout or a fixed delay), pick a baud rate, then either <b>Run now</b> on a currently-plugged port or arm <b>Auto-run on plug</b> so the workflow fires by itself the moment a matching device is connected — handy for commissioning many boards with the same WiFi credentials/device ID/config commands in a row. Steps and baud rate are remembered across restarts; arming is not, for the same reason auto-flash isn't remembered either.",
+      "security": "A fourth mode, <b>Security</b>, reads a curated set of security-relevant eFuses (flash encryption counter, secure boot enable, JTAG/UART-download disable) straight from the chip — no Python/espefuse.py needed. Burning is irreversible and only the fields the chip's own eFuse layout returns can be burned; read the in-panel warning and Espressif's flash encryption / secure boot docs before using it, since a bit burned without also completing the required key setup can leave a device permanently unbootable."
     },
     "ota": {
       "heading": "OTA Update (WiFi)",
@@ -165,12 +169,32 @@
       "intro": "Requires STM32CubeProgrammer installed — the panel detects it automatically.",
       "stLink": "<b>ST-Link (SWD)</b> — for boards with an on-board or external ST-Link.",
       "uart": "<b>UART bootloader</b> — for boards without one; put the MCU in bootloader mode via BOOT0 first.",
-      "optionBytes": "Option-byte writes (e.g. RDP level) require an explicit confirmation dialog — read it before confirming, as some settings can permanently affect debug access."
+      "optionBytes": "Option-byte writes (e.g. RDP level) require an explicit confirmation dialog — read it before confirming, as some settings can permanently affect debug access.",
+      "security": "The <b>Security</b> section gives the three standard Readout Protection levels clear explanations instead of raw option-byte names: Level 0 (no protection), Level 1 (reversible — revert by mass-erasing back to Level 0), and Level 2 (permanent — cannot be undone, ever). Level 2 requires typing <code>LOCK</code> to confirm, on top of the usual dialog. The raw name/value option-byte editor below it still exists for fields Security doesn't curate (e.g. per-family Write Protection), since field names vary too much between STM32 families to curate safely.",
+      "massProduction": "A second mode next to Single, <b>Mass Production</b>, flashes the same firmware to many boards in a row — pick a byte offset/length in the binary and a value format (zero-padded ASCII decimal, or raw hex bytes), and each device gets an auto-incrementing counter patched in before it's flashed (a copy is patched, the original file is never touched). <b>Flash & Provision</b> does one device at a time: plug a board, click it, wait, unplug, plug the next, repeat. Every attempt is logged (value, pass/fail) with a CSV export, and also feeds the <b>Stats</b> tab's totals."
+    },
+    "flashLock": {
+      "heading": "Flash Lock (PIN)",
+      "p1": "Off by default — turn it on in <b>Settings</b> and set a PIN. Once on, every flash action (ESP32/STM32 single flash, batch flash, mass production) prompts for that PIN first; entering the wrong one (or cancelling) aborts the flash. This is meant to stop a shared production station from being flashed by whoever walks up to it, not to withstand a determined attacker — the PIN is stored in plain text on this machine, the same way the REST API token is."
+    },
+    "swd": {
+      "heading": "SWD Debug (RTT + variable watch)",
+      "p1": "A <b>SWD</b> connection (next to SSH in the New Connection picker) attaches to a debug probe (ST-Link, J-Link, CMSIS-DAP...) instead of a serial port — pick the probe (or leave it on Auto) and type the target chip name (e.g. <code>STM32F407VG</code>; suggestions come from probe-rs's built-in chip database as you type). It opens as a normal Monitor tab.",
+      "p2": "<b>RTT log</b> streams straight into that tab's log the same way a serial port would — but only if the firmware actually initializes an RTT control block (e.g. the <code>rtt-target</code> crate, or SEGGER RTT in C). It's not automatic like UART; if the firmware doesn't have it, the tab still opens fine, it just won't show log lines.",
+      "p3": "<b>Watch</b> (below the log, replacing the Send box — RTT down-channel writes aren't supported) reads global/static variables live over the same SWD session. Load the build's <code>.elf</code>, pick a variable from the list (parsed from its DWARF debug info), and its value refreshes continuously while the chip runs — no need to halt at a breakpoint. Only global/static variables are listed; local variables inside a function need a real halt-and-inspect debugger, which this isn't."
     },
     "restApi": {
       "heading": "Local REST API",
       "p1": "Off by default — enable it in <b>Settings</b>, where you'll also set its port and find its bearer token. Once on, it binds to <code>127.0.0.1</code> only (never the LAN) and lets an external CI/production-line system open a serial port, write and read bytes, list ports, and trigger an ESP32 flash on this running instance — the same manager state the GUI itself uses, so a port opened this way shows up as open in the app too. Every request needs <code>Authorization: Bearer &lt;token&gt;</code>.",
       "p2": "<code>GET /api/v1/status</code> and <code>/serial/ports</code> (available) / <code>/serial/open</code> (currently open) don't need a body. <code>POST /serial/open</code>, <code>/serial/write</code> (hex-encoded bytes), <code>/serial/read</code> (blocks up to <code>timeoutMs</code> for the next batch of data), <code>/serial/close</code>, and <code>/esp32/flash</code> (blocks until the flash finishes, returns pass/fail) take a JSON body:"
+    },
+    "productionStats": {
+      "heading": "Production Stats",
+      "p1": "A fifth flash-panel target totaling every device flashed by a <b>production</b> workflow — ESP32 Batch mode (including auto-flash-on-plug) and STM32 Mass Production — across every session, not just the current one. Shows total/success-rate/last-24h/last-7-days counters plus a recent-activity table, with a CSV export and a way to clear the whole history. Ad-hoc single-device flashes during development aren't counted, so the numbers stay meaningful for a production report."
+    },
+    "configBackup": {
+      "heading": "Backup & Restore Configuration",
+      "p1": "In <b>Settings</b>, <b>Export configuration</b> bundles every saved library — connection profiles, the script library, installed plugins, quick-command profiles, and filter/trigger presets — into one JSON file, for backing this machine up or handing a teammate the same setup. <b>Import configuration</b> reads one back in; each item is upserted by name (a same-named local item is overwritten, not duplicated). Personal preferences (theme, language, the REST API token) and auto-tracked history (recent connections, notifications, production stats) are deliberately left out — those aren't things you'd want to overwrite on someone else's machine."
     }
   },
   "app": {
@@ -213,7 +237,8 @@
       "udp": "UDP",
       "ws": "WebSocket",
       "mqtt": "MQTT",
-      "ssh": "SSH"
+      "ssh": "SSH",
+      "rtt": "SWD"
     },
     "role": {
       "client": "Client",
@@ -267,7 +292,13 @@
     "recentHoursAgo_other": "{{count}}h ago",
     "recentDaysAgo_one": "{{count}}d ago",
     "recentDaysAgo_other": "{{count}}d ago",
-    "onboardingHint": "New here? Press Ctrl+K anytime to search every action, or open the User Guide from Settings for a full walkthrough."
+    "onboardingHint": "New here? Press Ctrl+K anytime to search every action, or open the User Guide from Settings for a full walkthrough.",
+    "probe": "Debug probe",
+    "probeAuto": "Auto (first probe found)",
+    "refreshProbes": "Refresh probes",
+    "noProbesFound": "No debug probes found — check the ST-Link/J-Link/CMSIS-DAP is plugged in.",
+    "chip": "Chip",
+    "rttHint": "Streams RTT log output over SWD (needs rtt-target or SEGGER RTT in the firmware) and lets you watch global/static variables live — see the Watch panel below the log once connected."
   },
   "monitor": {
     "clearConfirm": "Clear the log buffer for this tab?",
@@ -323,7 +354,9 @@
     "provisionError": "{{port}}: provisioning failed — {{message}}",
     "otaDone": "OTA update complete",
     "otaError": "OTA update failed — {{message}}",
-    "ftpTransferError": "FTP transfer failed — {{message}}"
+    "ftpTransferError": "FTP transfer failed — {{message}}",
+    "massProductionDone": "Device #{{counter}} provisioned ({{value}})",
+    "massProductionError": "Device #{{counter}} failed — {{message}}"
   },
   "notifications": {
     "title": "Notifications",
@@ -382,6 +415,24 @@
       "location": "Location",
       "unknown": "(no debug info)"
     }
+  },
+  "productionStats": {
+    "tabLabel": "Stats",
+    "hint": "Cross-session totals for devices flashed by a production workflow — ESP32 batch flash (including auto-flash-on-plug) and STM32 Mass Production. Ad-hoc single-device flashes during development aren't counted here.",
+    "total": "Total flashed",
+    "successRate": "Success rate",
+    "last24h": "Last 24h",
+    "last7d": "Last 7 days",
+    "breakdown": "{{success}} succeeded, {{failed}} failed",
+    "exportCsv": "Export CSV",
+    "clearHistory": "Clear history",
+    "clearConfirm": "Clear the whole production history? This cannot be undone.",
+    "time": "Time",
+    "type": "Type",
+    "port": "Port",
+    "value": "Value",
+    "status": "Status",
+    "empty": "No devices flashed yet."
   },
   "ftp": {
     "title": "FTP Client/Server",
@@ -657,17 +708,59 @@
     "verify": "Verify",
     "resetAfterFlash": "Reset after flash",
     "massErase": "Mass erase",
-    "optionBytes": "Option bytes",
+    "optionBytesAdvanced": "Option bytes (advanced / raw)",
+    "optionBytesAdvancedHint": "Writes any option byte by name — for fields not covered by the curated Security section above (e.g. per-family Write Protection). Field names vary between STM32 families; check your MCU's reference manual.",
     "read": "Read",
     "obNamePlaceholder": "Name (e.g. RDP)",
     "obValuePlaceholder": "Value (e.g. 0xBB)",
-    "write": "Write"
+    "write": "Write",
+    "security": {
+      "rdpTitle": "Readout Protection (RDP)",
+      "rdpHint": "Controls whether the chip's flash can be read out via SWD/JTAG or the bootloader. Read the current option bytes first to see the active level.",
+      "currentLevel": "Current level: {{level}}",
+      "level0Title": "Level 0 — No protection",
+      "level0Desc": "Flash can be freely read/written via SWD/JTAG. Default state for development.",
+      "level1Title": "Level 1 — Readout protection",
+      "level1Desc": "Debug access and flash read are blocked until reverted to Level 0 (which mass-erases the chip). Reversible.",
+      "level2Title": "Level 2 — Permanent protection",
+      "level2Desc": "Permanently disables SWD/JTAG debug access. This CANNOT be undone or reverted to Level 0/1 — the chip can only ever be reflashed via its normal boot path.",
+      "apply": "Apply",
+      "confirmLevel": "Set RDP to Level {{level}}?"
+    },
+    "massProduction": {
+      "tabLabel": "Mass Production",
+      "hint": "Flashes the same firmware to many boards in a row, patching a unique value (serial number/MAC/key) into each copy first. Plug a board, click Flash & Provision, wait for it to finish, unplug, plug the next one, repeat — the counter advances automatically after each success.",
+      "patchOffset": "Patch offset",
+      "patchLength": "Patch length (bytes)",
+      "valueFormat": "Value format",
+      "format": {
+        "asciiDecimal": "ASCII decimal",
+        "hexBytes": "Raw hex bytes"
+      },
+      "startCounter": "Start value",
+      "nextCounter": "Next value",
+      "resetCounter": "Reset counter",
+      "flashNext": "Flash & Provision",
+      "summary": "{{total}} device(s) — {{success}} succeeded, {{failed}} failed",
+      "exportCsv": "Export CSV",
+      "value": "Value",
+      "status": "Status"
+    }
   },
   "tabContent": {
     "topics": "Topics",
     "packets": "Packets",
     "frames": "Frames",
     "rawLog": "Raw log"
+  },
+  "swdWatch": {
+    "loadElf": "Load .elf…",
+    "selectVariable": "Add a variable to watch…",
+    "name": "Name",
+    "value": "Value",
+    "type": "Type",
+    "remove": "Stop watching",
+    "empty": "No variables watched yet — load a .elf and pick one above."
   },
   "quickCommands": {
     "newProfilePrompt": "Quick command profile name?",
@@ -679,7 +772,13 @@
     "editCommand": "Edit command",
     "removeCommand": "Remove command",
     "labelOptional": "Label (optional)",
-    "commandText": "Command text"
+    "commandText": "Command text",
+    "jsonMode": "JSON",
+    "formatJson": "Format",
+    "invalidJson": "Invalid JSON",
+    "jsonPlaceholder": "{ \"cmd\": \"...\" }",
+    "lineEndingTitle": "Line ending for this command (overrides the tab's setting)",
+    "lineEndingInherit": "Line ending: tab default"
   },
   "signalBar": {
     "dtrTitle": "Data Terminal Ready (writable — click to toggle)",
@@ -732,7 +831,24 @@
     "load": "Load",
     "browse": "Browse",
     "refresh": "Refresh",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "typeToConfirm": "Type {{keyword}} to confirm — this cannot be undone."
+  },
+  "security": {
+    "enterPinPrompt": "Enter the flash PIN to continue:",
+    "wrongPin": "Wrong PIN — flash cancelled."
+  },
+  "esp32Security": {
+    "tabLabel": "Security",
+    "hint": "Reads security-relevant eFuses (flash encryption, secure boot, JTAG/UART-download disable) directly from the chip — no espefuse.py/Python needed. Burning is irreversible; only the fields listed below (as returned by the chip's own eFuse layout) can be burned.",
+    "readSummary": "Read eFuse summary",
+    "field": "Field",
+    "value": "Value",
+    "bits": "Bits",
+    "burnTitle": "Burn a security eFuse",
+    "burnWarning": "eFuses are one-time-programmable — burning is PERMANENT and cannot be undone. Setting the wrong value (or burning flash-encryption/secure-boot bits without also completing the required key setup) can render the device permanently unbootable. Read Espressif's flash encryption / secure boot documentation before using this.",
+    "burn": "Burn",
+    "currentValue": "current"
   },
   "settings": {
     "title": "Settings",
@@ -740,9 +856,24 @@
     "section": {
       "general": "General",
       "advanced": "Advanced",
+      "flashLock": "Flash Lock",
+      "backup": "Backup",
       "appearance": "Appearance",
       "help": "Help",
       "about": "About"
+    },
+    "flashLock": {
+      "title": "Require PIN before flashing",
+      "hint": "Every flash action (ESP32/STM32 single flash, batch flash, mass production) will prompt for this PIN first — prevents a shared production station from being flashed by whoever walks up to it. This is stored in plain text on this machine; it's accidental/unauthorized-use prevention, not real access control.",
+      "pin": "PIN"
+    },
+    "backup": {
+      "hint": "Every saved library (connection profiles, scripts, plugins, quick-command profiles, filter/trigger presets) in one file — back this machine's setup up, or hand it to a teammate. Personal preferences (theme, language) and auto-tracked history aren't included.",
+      "export": "Export configuration…",
+      "import": "Import configuration…",
+      "exportError": "Could not export configuration: {{error}}",
+      "importSuccess": "Imported {{count}} item(s).",
+      "importError": "Could not import configuration: {{error}}"
     },
     "language": "Language",
     "languageEnglish": "English",

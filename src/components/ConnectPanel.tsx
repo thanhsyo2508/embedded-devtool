@@ -11,7 +11,13 @@ import {
   type StopBits,
 } from '../api/serial'
 import { useTabsStore, type ConnectionKind } from '../state/tabsStore'
-import { mdnsScan, type MdnsService } from '../api/network'
+import {
+  listSwdProbes,
+  mdnsScan,
+  searchSwdChips,
+  type MdnsService,
+  type SwdProbeInfo,
+} from '../api/network'
 import {
   useConnectionProfilesStore,
   type ConnectionProfile,
@@ -55,10 +61,10 @@ function formatRelativeTime(
 // and only revealing the Client/Server sub-toggle for those two families
 // keeps the picker from growing to 7 same-level options — see the "role"
 // state below.
-type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt' | 'ssh'
+type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt' | 'ssh' | 'rtt'
 type ConnectionRole = 'client' | 'server'
 
-const FAMILIES: ProtocolFamily[] = ['serial', 'tcp', 'udp', 'ws', 'mqtt', 'ssh']
+const FAMILIES: ProtocolFamily[] = ['serial', 'tcp', 'udp', 'ws', 'mqtt', 'ssh', 'rtt']
 
 function familyOf(kind: ConnectionKind): ProtocolFamily {
   switch (kind) {
@@ -161,6 +167,10 @@ export function ConnectPanel({
   const [sshPort, setSshPort] = useState(() => lastFor('ssh')?.port ?? 22)
   const [sshUsername, setSshUsername] = useState(() => lastFor('ssh')?.username ?? '')
   const [sshPassword, setSshPassword] = useState('')
+  const [probeSerial, setProbeSerial] = useState(() => lastFor('rtt')?.probeSerial ?? '')
+  const [chip, setChip] = useState(() => lastFor('rtt')?.chip ?? '')
+  const [probes, setProbes] = useState<SwdProbeInfo[]>([])
+  const [chipSuggestions, setChipSuggestions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -211,6 +221,9 @@ export function ConnectPanel({
       setSshUsername(p.username ?? '')
       // Password is deliberately never saved in a profile — re-enter it.
       setSshPassword('')
+    } else if (p.kind === 'rtt') {
+      setProbeSerial(p.probeSerial ?? '')
+      setChip(p.chip ?? '')
     } else {
       setBrokerHost(p.brokerHost ?? '')
       setBrokerPort(p.brokerPort ?? 1883)
@@ -276,6 +289,39 @@ export function ConnectPanel({
     }
   }, [])
 
+  // Probes are USB devices, so they could in principle be plugged/unplugged
+  // like serial ports — but unlike serial there's no hotplug event for them,
+  // so this just re-lists once whenever the SWD family is selected rather
+  // than polling continuously.
+  useEffect(() => {
+    if (family !== 'rtt') return
+    listSwdProbes()
+      .then(setProbes)
+      .catch(() => {})
+  }, [family])
+
+  // Clears stale suggestions the moment family/chip stop warranting them —
+  // adjusted during render rather than in an effect, per React's guidance
+  // for resetting state derived from a changed value (same pattern as the
+  // presetsFor guard above).
+  const [suggestionsFor, setSuggestionsFor] = useState({ family, chip })
+  if (suggestionsFor.family !== family || suggestionsFor.chip !== chip) {
+    setSuggestionsFor({ family, chip })
+    if (family !== 'rtt' || !chip.trim()) setChipSuggestions([])
+  }
+
+  // Debounced chip-name autocomplete against probe-rs's built-in chip
+  // database — a plain <datalist>, so no dropdown UI of its own to manage.
+  useEffect(() => {
+    if (family !== 'rtt' || !chip.trim()) return
+    const timeout = setTimeout(() => {
+      searchSwdChips(chip)
+        .then(setChipSuggestions)
+        .catch(() => {})
+    }, 200)
+    return () => clearTimeout(timeout)
+  }, [family, chip])
+
   // Shared by "Save profile" and the automatic last-used-config memory —
   // both just want a snapshot of the currently entered fields for `target`.
   const currentConfigData = (): LastConnectionConfig =>
@@ -311,16 +357,18 @@ export function ConnectPanel({
                     // "Save profile" and the last-used-config memory, both of
                     // which persist to localStorage.
                     { kind: 'ssh', host: sshHost, port: sshPort, username: sshUsername }
-                  : {
-                      kind: 'mqtt',
-                      brokerHost,
-                      brokerPort,
-                      clientId,
-                      username: mqttUsername,
-                      password: mqttPassword,
-                      subscribeTopic,
-                      publishTopic,
-                    }
+                  : target === 'rtt'
+                    ? { kind: 'rtt', probeSerial: probeSerial || undefined, chip }
+                    : {
+                        kind: 'mqtt',
+                        brokerHost,
+                        brokerPort,
+                        clientId,
+                        username: mqttUsername,
+                        password: mqttPassword,
+                        subscribeTopic,
+                        publishTopic,
+                      }
 
   const handleConnect = async () => {
     setLoading(true)
@@ -384,7 +432,7 @@ export function ConnectPanel({
           subscribeTopic,
           publishTopic,
         })
-      } else {
+      } else if (target === 'ssh') {
         tabId = `ssh:${sshUsername}@${sshHost}:${sshPort}-${Date.now()}`
         await openTab({
           kind: 'ssh',
@@ -393,6 +441,14 @@ export function ConnectPanel({
           port: sshPort,
           username: sshUsername,
           password: sshPassword,
+        })
+      } else {
+        tabId = `rtt:${chip}-${Date.now()}`
+        await openTab({
+          kind: 'rtt',
+          id: tabId,
+          probeSerial: probeSerial || undefined,
+          chip,
         })
       }
       const configSnapshot = currentConfigData()
@@ -464,7 +520,9 @@ export function ConnectPanel({
               ? Boolean(brokerHost) && Boolean(clientId)
               : target === 'ssh'
                 ? Boolean(sshHost) && Boolean(sshUsername) && Boolean(sshPassword)
-                : true
+                : target === 'rtt'
+                  ? Boolean(chip)
+                  : true
 
   const selected = ports.find((p) => p.portName === portName) ?? null
   const hasDetails = Boolean(
@@ -893,6 +951,55 @@ export function ConnectPanel({
                 />
               </label>
             </div>
+          </>
+        )}
+
+        {target === 'rtt' && (
+          <>
+            <label className="field-group">
+              <span className="field-caption">
+                <UsbIcon /> {t('connect.probe')}
+              </span>
+              <div className="field-row">
+                <select value={probeSerial} onChange={(e) => setProbeSerial(e.target.value)}>
+                  <option value="">{t('connect.probeAuto')}</option>
+                  {probes.map((p) => (
+                    <option key={p.serialNumber ?? p.identifier} value={p.serialNumber ?? ''}>
+                      {p.identifier}
+                      {p.serialNumber ? ` (${p.serialNumber})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label={t('connect.refreshProbes')}
+                  title={t('connect.refreshProbes')}
+                  onClick={() => void listSwdProbes().then(setProbes)}
+                >
+                  <RefreshIcon />
+                </button>
+              </div>
+              {probes.length === 0 && <p className="mdns-empty">{t('connect.noProbesFound')}</p>}
+            </label>
+            <label className="field-group">
+              <span className="field-caption">
+                <ChipIcon /> {t('connect.chip')}
+              </span>
+              <input
+                type="text"
+                list="swd-chip-suggestions"
+                value={chip}
+                placeholder="STM32F407VG"
+                onChange={(e) => setChip(e.target.value)}
+              />
+              <datalist id="swd-chip-suggestions">
+                {chipSuggestions.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            </label>
+            <p className="ota-hint">{t('connect.rttHint')}</p>
           </>
         )}
 

@@ -45,6 +45,13 @@ interface SettingsState {
   restApiEnabled: boolean
   restApiPort: number
   restApiToken: string
+  /** When on, flashing (ESP32/STM32 single flash, batch flash, mass
+   * production) prompts for `flashLockPin` first — a shared production
+   * station can't be flashed by someone walking up to it. Off by default;
+   * this is accidental/unauthorized-use prevention, not real security (the
+   * PIN is stored in plain text like the REST API token above). */
+  flashLockEnabled: boolean
+  flashLockPin: string
   setEncoding: (v: Encoding) => void
   setMaxLinesPerTab: (v: number) => void
   setPlotMaxPoints: (v: number) => void
@@ -56,6 +63,8 @@ interface SettingsState {
   setRestApiEnabled: (v: boolean) => void
   setRestApiPort: (v: number) => void
   regenerateRestApiToken: () => void
+  setFlashLockEnabled: (v: boolean) => void
+  setFlashLockPin: (v: string) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -72,6 +81,8 @@ export const useSettingsStore = create<SettingsState>()(
       restApiEnabled: false,
       restApiPort: 8642,
       restApiToken: generateToken(),
+      flashLockEnabled: false,
+      flashLockPin: '',
       setEncoding: (encoding) => set({ encoding }),
       setMaxLinesPerTab: (maxLinesPerTab) => set({ maxLinesPerTab }),
       setPlotMaxPoints: (plotMaxPoints) => set({ plotMaxPoints }),
@@ -86,6 +97,8 @@ export const useSettingsStore = create<SettingsState>()(
       setRestApiEnabled: (restApiEnabled) => set({ restApiEnabled }),
       setRestApiPort: (restApiPort) => set({ restApiPort }),
       regenerateRestApiToken: () => set({ restApiToken: generateToken() }),
+      setFlashLockEnabled: (flashLockEnabled) => set({ flashLockEnabled }),
+      setFlashLockPin: (flashLockPin) => set({ flashLockPin }),
     }),
     { name: 'edt-settings' },
   ),

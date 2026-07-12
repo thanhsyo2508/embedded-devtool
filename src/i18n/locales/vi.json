@@ -84,7 +84,10 @@
       "p2": "Các lệnh được nhóm vào <b>profile</b> có tên (dropdown bên trái) để bạn giữ các bộ riêng cho từng thiết bị — lưu vĩnh viễn, và dùng chung cho mọi tab, không chỉ tab bạn tạo chúng. Chọn 1 profile để hiện các lệnh của nó; nút + cạnh dropdown tạo 1 profile mới.",
       "li1": "<b>+ Add</b> ở cuối hàng mở 1 form nhỏ bên dưới cho nhãn lệnh (tùy chọn — mặc định hiện chính nội dung lệnh), nội dung text hoặc hex cần gửi, và 1 nút bật/tắt hex.",
       "li2": "Bấm cây bút trên bất kỳ chip nào để sửa nó, hoặc dấu × để xóa.",
-      "li3": "Kéo 1 chip thả vào chip khác để đổi thứ tự — thứ tự chính là độ ưu tiên, và được lưu lại vào profile ngay lập tức."
+      "li3": "Kéo 1 chip thả vào chip khác để đổi thứ tự — thứ tự chính là độ ưu tiên, và được lưu lại vào profile ngay lập tức.",
+      "li4": "Tích <b>JSON</b> (cạnh Hex) khi viết payload JSON — ô 1 dòng chuyển thành khung nhiều dòng để dễ đọc thụt lề, kèm nút <b>Format</b>. Nó tự động được rút gọn về 1 dòng khi lưu, nên nội dung thực sự gửi đi vẫn chỉ là 1 lần ghi (xuống dòng nhúng bên trong sẽ làm vỡ nó thành nhiều dòng nếu thiết bị đọc theo từng dòng).",
+      "li5": "Khung JSON hoạt động hơi giống 1 code editor: <code>Tab</code> chèn thụt lề thay vì nhảy sang ô kế tiếp (<code>Shift+Tab</code> bỏ bớt 1 mức thụt lề), <code>Enter</code> tự thụt lề theo đúng cấp độ lồng hiện tại (và tách <code>{}</code>/<code>[]</code> thành 3 dòng nếu bấm Enter ngay giữa 1 cặp rỗng), và gõ <code>{</code>, <code>[</code>, hoặc <code>\"</code> sẽ tự chèn luôn ký tự đóng tương ứng với con trỏ đặt ở giữa.",
+      "li6": "Menu xổ xuống <b>xuống dòng</b> cạnh Hex/JSON cho phép 1 lệnh ghi đè thiết lập Line Ending của tab (vd. ép CRLF cho 1 lệnh cần vậy bất kể monitor đang đặt gì) — để nguyên \"theo tab\" để giữ hành vi cũ như trước."
     },
     "filters": {
       "heading": "Filters",
@@ -140,7 +143,8 @@
       "smartAdd": "<b>Smart add</b> cho phép chọn các file build output (bootloader, partitions, firmware, filesystem image) cùng lúc, và tự điền đúng offset cho từng file — đọc bảng partition đã biên dịch thật nếu bạn có chọn kèm (<code>partitions.bin</code>/<code>partition-table.bin</code>) thay vì đoán, vì offset của 1 filesystem image thay đổi theo flash size và partition scheme, đoán sai có thể ghi đè lên app. Offset bootloader được điền từ chip đã nhận diện (<code>0x1000</code> trên ESP32 gốc, <code>0x0</code> trên S2/S3/C2/C3/C6/H2 — chạy Detect chip trước để chính xác). Nếu bảng partition đã chọn cần 1 image \"boot selector\" OTA (<code>otadata</code>) mà bạn chưa có sẵn <code>boot_app0.bin</code> riêng, EDT sẽ tự cấp bản đã nhúng sẵn của mình. Bất kỳ file nào Smart add không chắc chắn khớp sẽ được thêm với offset trống thay vì đoán bừa — tự điền thủ công.",
       "batch": "<b>Batch</b> (cạnh Single) nạp cùng các segment cho nhiều board cùng lúc — tích chọn từng cổng muốn nạp, rồi <b>Flash N device(s)</b>. Mỗi cổng nạp độc lập, song song, với tiến trình/trạng thái riêng theo thời gian thực, nên 1 board lỗi (hoặc bị rút ra) không chặn hay dừng các board khác.",
       "autoFlash": "<b>Auto-flash on plug</b> (ở chế độ Batch) bỏ qua hẳn bước tích chọn: khi đã bật, bất kỳ thiết bị nào vừa cắm vào trông giống ESP32 (theo chip USB serial — CP210x, CH340, FTDI, hoặc USB gốc của Espressif) sẽ được nạp ngay với baud rate và segment hiện tại, không cần xác nhận từng thiết bị. Dành cho nạp sản xuất lặp đi lặp lại — cắm board tiếp theo, nó tự nạp. Nó bỏ qua 1 cổng đang mở ở tab khác, và việc kiểm tra VID/PID chỉ là bộ lọc sơ bộ: nạp nhầm 1 thiết bị không phải ESP32 sẽ tự thất bại an toàn ở bước bắt tay chip chứ không ghi gì cả. Chỉ bật khi đang thực sự nạp hàng loạt — nó vẫn bật miễn là panel Flash còn mở.",
-      "provision": "<b>Provision</b> (chế độ thứ 3, cạnh Batch) tách biệt với việc nạp firmware — nó gửi 1 chuỗi lệnh serial thuần đã kịch bản hóa tới 1 thiết bị đã nạp sẵn thay vì ghi firmware. Dựng 1 danh sách bước (mỗi bước gồm 1 lệnh, 1 ký tự xuống dòng, và hoặc \"chờ phản hồi\" với chuỗi khớp/timeout hoặc 1 delay cố định), chọn baud rate, rồi hoặc <b>Run now</b> trên 1 cổng đang cắm sẵn hoặc bật <b>Auto-run on plug</b> để workflow tự chạy ngay khi 1 thiết bị khớp được kết nối — tiện để cấu hình nhiều board cùng WiFi credentials/device ID/lệnh cấu hình liên tiếp. Các bước và baud rate được nhớ qua các lần khởi động lại; trạng thái bật thì không, cùng lý do như auto-flash không được nhớ."
+      "provision": "<b>Provision</b> (chế độ thứ 3, cạnh Batch) tách biệt với việc nạp firmware — nó gửi 1 chuỗi lệnh serial thuần đã kịch bản hóa tới 1 thiết bị đã nạp sẵn thay vì ghi firmware. Dựng 1 danh sách bước (mỗi bước gồm 1 lệnh, 1 ký tự xuống dòng, và hoặc \"chờ phản hồi\" với chuỗi khớp/timeout hoặc 1 delay cố định), chọn baud rate, rồi hoặc <b>Run now</b> trên 1 cổng đang cắm sẵn hoặc bật <b>Auto-run on plug</b> để workflow tự chạy ngay khi 1 thiết bị khớp được kết nối — tiện để cấu hình nhiều board cùng WiFi credentials/device ID/lệnh cấu hình liên tiếp. Các bước và baud rate được nhớ qua các lần khởi động lại; trạng thái bật thì không, cùng lý do như auto-flash không được nhớ.",
+      "security": "1 chế độ thứ 4, <b>Bảo mật</b>, đọc trực tiếp 1 tập eFuse liên quan bảo mật đã chọn lọc (bộ đếm mã hóa flash, bật secure boot, khóa JTAG/UART-download) từ chip — không cần Python/espefuse.py. Việc burn là không thể hoàn tác và chỉ những field mà chính layout eFuse của chip trả về mới burn được; đọc kỹ cảnh báo trong panel và tài liệu flash encryption / secure boot của Espressif trước khi dùng, vì burn 1 bit mà chưa hoàn tất bước tạo khóa cần thiết có thể khiến thiết bị không bao giờ boot lại được."
     },
     "ota": {
       "heading": "Cập nhật OTA (WiFi)",
@@ -165,12 +169,32 @@
       "intro": "Cần cài STM32CubeProgrammer — panel tự động nhận diện nó.",
       "stLink": "<b>ST-Link (SWD)</b> — cho board có ST-Link tích hợp hoặc rời.",
       "uart": "<b>UART bootloader</b> — cho board không có ST-Link; đưa MCU vào chế độ bootloader qua BOOT0 trước.",
-      "optionBytes": "Ghi option byte (vd mức RDP) cần 1 hộp thoại xác nhận rõ ràng — đọc kỹ trước khi xác nhận, vì 1 số thiết lập có thể ảnh hưởng vĩnh viễn tới quyền truy cập debug."
+      "optionBytes": "Ghi option byte (vd mức RDP) cần 1 hộp thoại xác nhận rõ ràng — đọc kỹ trước khi xác nhận, vì 1 số thiết lập có thể ảnh hưởng vĩnh viễn tới quyền truy cập debug.",
+      "security": "Phần <b>Bảo mật</b> giải thích rõ ràng 3 mức Readout Protection chuẩn thay vì tên option byte thô: Mức 0 (không bảo vệ), Mức 1 (có thể hoàn tác — hạ về Mức 0 bằng cách xóa toàn bộ chip), và Mức 2 (vĩnh viễn — không bao giờ hoàn tác được). Mức 2 yêu cầu gõ <code>LOCK</code> để xác nhận, ngoài hộp thoại thông thường. Bộ chỉnh option byte thô theo tên/giá trị bên dưới vẫn còn cho các field mà phần Bảo mật chưa chọn lọc (vd Write Protection theo từng dòng chip), vì tên field khác nhau quá nhiều giữa các họ STM32 để chọn lọc an toàn.",
+      "massProduction": "1 chế độ thứ 2 bên cạnh Đơn lẻ, <b>Sản xuất hàng loạt</b>, nạp cùng 1 firmware cho nhiều board liên tiếp — chọn offset/độ dài byte trong binary và định dạng giá trị (số thập phân ASCII zero-pad, hoặc byte hex thô), mỗi thiết bị được vá 1 bộ đếm tự tăng trước khi nạp (chỉ vá 1 bản sao, file gốc không bao giờ bị đụng tới). <b>Nạp & Cấu hình</b> làm từng thiết bị 1: cắm 1 board, bấm, chờ, rút ra, cắm board tiếp theo, lặp lại. Mọi lần thử đều được ghi log (giá trị, pass/fail) kèm xuất CSV, và cũng đưa vào tổng số của tab <b>Thống kê</b>."
+    },
+    "flashLock": {
+      "heading": "Khóa nạp (PIN)",
+      "p1": "Tắt theo mặc định — bật trong <b>Cài đặt</b> và đặt 1 mã PIN. Khi bật, mọi thao tác nạp (ESP32/STM32 nạp đơn, nạp hàng loạt, sản xuất hàng loạt) sẽ hỏi mã PIN đó trước; nhập sai (hoặc hủy) sẽ hủy luôn việc nạp. Tính năng này để tránh trạm sản xuất dùng chung bị người khác nạp tùy tiện, không phải để chống lại kẻ tấn công có chủ đích — mã PIN được lưu dạng văn bản thô trên máy này, giống như token REST API."
+    },
+    "swd": {
+      "heading": "Debug qua SWD (RTT + theo dõi biến)",
+      "p1": "Kết nối <b>SWD</b> (cạnh SSH trong bảng chọn Kết nối mới) gắn vào 1 đầu dò debug (ST-Link, J-Link, CMSIS-DAP...) thay vì cổng serial — chọn đầu dò (hoặc để Auto) và gõ tên chip đích (vd <code>STM32F407VG</code>; gợi ý lấy từ database chip có sẵn của probe-rs khi gõ). Nó mở ra như 1 tab Monitor bình thường.",
+      "p2": "<b>Log RTT</b> chảy thẳng vào log của tab đó giống như 1 cổng serial — nhưng chỉ khi firmware thực sự khởi tạo 1 RTT control block (vd crate <code>rtt-target</code>, hoặc SEGGER RTT trong C). Không tự động như UART; nếu firmware chưa có, tab vẫn mở bình thường, chỉ là không hiện dòng log nào.",
+      "p3": "<b>Watch</b> (bên dưới log, thay cho ô Gửi — vì chưa hỗ trợ ghi xuống RTT down-channel) đọc trực tiếp giá trị biến global/static qua cùng phiên SWD đó. Nạp file <code>.elf</code> của build, chọn 1 biến từ danh sách (lấy từ debug info DWARF của nó), giá trị sẽ tự cập nhật liên tục trong khi chip vẫn chạy — không cần dừng tại breakpoint. Chỉ liệt kê biến global/static; biến local trong hàm cần 1 debugger dừng-và-xem thực thụ, cái này thì không phải."
     },
     "restApi": {
       "heading": "REST API cục bộ",
       "p1": "Tắt theo mặc định — bật trong <b>Cài đặt</b>, nơi bạn cũng đặt port và tìm bearer token. Khi bật, chỉ bind vào <code>127.0.0.1</code> (không bao giờ từ LAN) và cho phép hệ thống CI/dây chuyền sản xuất bên ngoài mở cổng serial, ghi/đọc byte, liệt kê port, và kích hoạt nạp ESP32 trên instance đang chạy này — dùng chung state với chính app, nên 1 port mở theo cách này cũng hiện là đang mở trong app. Mọi request cần <code>Authorization: Bearer &lt;token&gt;</code>.",
       "p2": "<code>GET /api/v1/status</code> và <code>/serial/ports</code> (khả dụng) / <code>/serial/open</code> (đang mở) không cần body. <code>POST /serial/open</code>, <code>/serial/write</code> (byte mã hex), <code>/serial/read</code> (chờ tối đa <code>timeoutMs</code> cho lô dữ liệu tiếp theo), <code>/serial/close</code>, và <code>/esp32/flash</code> (chờ tới khi nạp xong, trả về pass/fail) cần body JSON:"
+    },
+    "productionStats": {
+      "heading": "Thống kê sản xuất",
+      "p1": "Mục thứ 5 trong panel nạp, tổng hợp mọi thiết bị đã nạp bởi luồng <b>sản xuất</b> — Batch mode ESP32 (kể cả auto-flash-on-plug) và Sản xuất hàng loạt STM32 — qua mọi phiên làm việc, không chỉ phiên hiện tại. Hiện các số liệu tổng/tỷ lệ thành công/24 giờ qua/7 ngày qua kèm bảng hoạt động gần đây, có xuất CSV và xóa toàn bộ lịch sử. Các lần nạp đơn lẻ lúc phát triển không được tính, nên số liệu vẫn có ý nghĩa cho báo cáo sản xuất."
+    },
+    "configBackup": {
+      "heading": "Sao lưu & Khôi phục cấu hình",
+      "p1": "Trong <b>Cài đặt</b>, <b>Xuất cấu hình</b> gộp mọi thư viện đã lưu — connection profile, script library, plugin đã cài, quick-command profile, và filter/trigger preset — vào 1 file JSON, để sao lưu máy này hoặc đưa cho đồng nghiệp cùng 1 cấu hình. <b>Nhập cấu hình</b> đọc lại 1 file như vậy; mỗi mục được upsert theo tên (mục cùng tên ở máy hiện tại sẽ bị ghi đè, không bị nhân đôi). Tùy chọn cá nhân (giao diện, ngôn ngữ, token REST API) và lịch sử tự động (kết nối gần đây, thông báo, thống kê sản xuất) cố tình không được gộp vào — đó không phải thứ bạn muốn ghi đè lên máy người khác."
     }
   },
   "app": {
@@ -213,7 +237,8 @@
       "udp": "UDP",
       "ws": "WebSocket",
       "mqtt": "MQTT",
-      "ssh": "SSH"
+      "ssh": "SSH",
+      "rtt": "SWD"
     },
     "role": {
       "client": "Client",
@@ -264,7 +289,13 @@
     "recentMinutesAgo_other": "{{count}} phút trước",
     "recentHoursAgo_other": "{{count}} giờ trước",
     "recentDaysAgo_other": "{{count}} ngày trước",
-    "onboardingHint": "Mới dùng lần đầu? Bấm Ctrl+K bất kỳ lúc nào để tìm mọi hành động, hoặc mở User Guide trong Cài đặt để xem hướng dẫn đầy đủ."
+    "onboardingHint": "Mới dùng lần đầu? Bấm Ctrl+K bất kỳ lúc nào để tìm mọi hành động, hoặc mở User Guide trong Cài đặt để xem hướng dẫn đầy đủ.",
+    "probe": "Đầu dò debug",
+    "probeAuto": "Tự động (đầu dò đầu tiên tìm thấy)",
+    "refreshProbes": "Làm mới đầu dò",
+    "noProbesFound": "Không tìm thấy đầu dò debug nào — kiểm tra ST-Link/J-Link/CMSIS-DAP đã cắm chưa.",
+    "chip": "Chip",
+    "rttHint": "Truyền log RTT qua SWD (cần rtt-target hoặc SEGGER RTT trong firmware) và cho phép theo dõi trực tiếp biến global/static — xem panel Watch bên dưới log sau khi kết nối."
   },
   "monitor": {
     "clearConfirm": "Xóa bộ đệm log của tab này?",
@@ -320,7 +351,9 @@
     "provisionError": "{{port}}: cấu hình lỗi — {{message}}",
     "otaDone": "Cập nhật OTA hoàn tất",
     "otaError": "Cập nhật OTA lỗi — {{message}}",
-    "ftpTransferError": "Truyền FTP lỗi — {{message}}"
+    "ftpTransferError": "Truyền FTP lỗi — {{message}}",
+    "massProductionDone": "Đã cấu hình thiết bị #{{counter}} ({{value}})",
+    "massProductionError": "Thiết bị #{{counter}} thất bại — {{message}}"
   },
   "notifications": {
     "title": "Thông báo",
@@ -379,6 +412,24 @@
       "location": "Vị trí",
       "unknown": "(không có debug info)"
     }
+  },
+  "productionStats": {
+    "tabLabel": "Thống kê",
+    "hint": "Tổng số thiết bị đã nạp bởi luồng sản xuất — batch flash ESP32 (kể cả auto-flash-on-plug) và Sản xuất hàng loạt STM32. Các lần nạp đơn lẻ trong lúc phát triển không được tính vào đây.",
+    "total": "Tổng đã nạp",
+    "successRate": "Tỷ lệ thành công",
+    "last24h": "24 giờ qua",
+    "last7d": "7 ngày qua",
+    "breakdown": "{{success}} thành công, {{failed}} thất bại",
+    "exportCsv": "Xuất CSV",
+    "clearHistory": "Xóa lịch sử",
+    "clearConfirm": "Xóa toàn bộ lịch sử sản xuất? Không thể hoàn tác.",
+    "time": "Thời gian",
+    "type": "Loại",
+    "port": "Port",
+    "value": "Giá trị",
+    "status": "Trạng thái",
+    "empty": "Chưa có thiết bị nào được nạp."
   },
   "ftp": {
     "title": "FTP Client/Server",
@@ -650,17 +701,59 @@
     "verify": "Xác minh",
     "resetAfterFlash": "Reset sau khi nạp",
     "massErase": "Xóa toàn bộ",
-    "optionBytes": "Option bytes",
+    "optionBytesAdvanced": "Option bytes (nâng cao / thô)",
+    "optionBytesAdvancedHint": "Ghi bất kỳ option byte nào theo tên — dùng cho các field chưa có trong phần Bảo mật đã chọn lọc ở trên (vd. Write Protection theo từng dòng chip). Tên field khác nhau giữa các họ STM32; kiểm tra reference manual của MCU.",
     "read": "Đọc",
     "obNamePlaceholder": "Tên (vd. RDP)",
     "obValuePlaceholder": "Giá trị (vd. 0xBB)",
-    "write": "Ghi"
+    "write": "Ghi",
+    "security": {
+      "rdpTitle": "Readout Protection (RDP)",
+      "rdpHint": "Kiểm soát việc flash của chip có thể đọc được qua SWD/JTAG hay bootloader hay không. Đọc option bytes trước để biết mức đang áp dụng.",
+      "currentLevel": "Mức hiện tại: {{level}}",
+      "level0Title": "Mức 0 — Không bảo vệ",
+      "level0Desc": "Flash có thể đọc/ghi tự do qua SWD/JTAG. Trạng thái mặc định khi phát triển.",
+      "level1Title": "Mức 1 — Bảo vệ đọc",
+      "level1Desc": "Chặn debug và đọc flash cho tới khi hạ về Mức 0 (thao tác này sẽ xóa toàn bộ chip). Có thể hoàn tác.",
+      "level2Title": "Mức 2 — Bảo vệ vĩnh viễn",
+      "level2Desc": "Vô hiệu hóa VĨNH VIỄN quyền truy cập debug qua SWD/JTAG. KHÔNG THỂ hoàn tác hay hạ về Mức 0/1 — chip chỉ có thể nạp lại qua đường boot bình thường.",
+      "apply": "Áp dụng",
+      "confirmLevel": "Đặt RDP về Mức {{level}}?"
+    },
+    "massProduction": {
+      "tabLabel": "Sản xuất hàng loạt",
+      "hint": "Nạp cùng 1 firmware cho nhiều board liên tiếp, tự vá 1 giá trị riêng (serial number/MAC/key) vào từng bản trước khi nạp. Cắm 1 board, bấm Nạp & Cấu hình, chờ xong, rút ra, cắm board tiếp theo, lặp lại — bộ đếm tự tăng sau mỗi lần thành công.",
+      "patchOffset": "Offset vá",
+      "patchLength": "Độ dài vá (byte)",
+      "valueFormat": "Định dạng giá trị",
+      "format": {
+        "asciiDecimal": "Số thập phân ASCII",
+        "hexBytes": "Byte hex thô"
+      },
+      "startCounter": "Giá trị bắt đầu",
+      "nextCounter": "Giá trị tiếp theo",
+      "resetCounter": "Đặt lại bộ đếm",
+      "flashNext": "Nạp & Cấu hình",
+      "summary": "{{total}} thiết bị — {{success}} thành công, {{failed}} thất bại",
+      "exportCsv": "Xuất CSV",
+      "value": "Giá trị",
+      "status": "Trạng thái"
+    }
   },
   "tabContent": {
     "topics": "Topic",
     "packets": "Gói tin",
     "frames": "Frame",
     "rawLog": "Log thô"
+  },
+  "swdWatch": {
+    "loadElf": "Nạp .elf…",
+    "selectVariable": "Thêm 1 biến để theo dõi…",
+    "name": "Tên",
+    "value": "Giá trị",
+    "type": "Kiểu",
+    "remove": "Ngừng theo dõi",
+    "empty": "Chưa theo dõi biến nào — nạp 1 file .elf rồi chọn biến ở trên."
   },
   "quickCommands": {
     "newProfilePrompt": "Tên cấu hình quick command?",
@@ -672,7 +765,13 @@
     "editCommand": "Sửa lệnh",
     "removeCommand": "Xóa lệnh",
     "labelOptional": "Nhãn (tùy chọn)",
-    "commandText": "Nội dung lệnh"
+    "commandText": "Nội dung lệnh",
+    "jsonMode": "JSON",
+    "formatJson": "Format",
+    "invalidJson": "JSON không hợp lệ",
+    "jsonPlaceholder": "{ \"cmd\": \"...\" }",
+    "lineEndingTitle": "Ký tự xuống dòng cho riêng lệnh này (ghi đè lên thiết lập của tab)",
+    "lineEndingInherit": "Xuống dòng: theo tab"
   },
   "signalBar": {
     "dtrTitle": "Data Terminal Ready (có thể ghi — bấm để bật/tắt)",
@@ -725,7 +824,24 @@
     "load": "Tải",
     "browse": "Duyệt",
     "refresh": "Làm mới",
-    "dismiss": "Bỏ qua"
+    "dismiss": "Bỏ qua",
+    "typeToConfirm": "Gõ {{keyword}} để xác nhận — thao tác này không thể hoàn tác."
+  },
+  "security": {
+    "enterPinPrompt": "Nhập mã PIN nạp để tiếp tục:",
+    "wrongPin": "Sai mã PIN — đã hủy nạp."
+  },
+  "esp32Security": {
+    "tabLabel": "Bảo mật",
+    "hint": "Đọc trực tiếp các eFuse liên quan bảo mật (mã hóa flash, secure boot, khóa JTAG/UART-download) từ chip — không cần espefuse.py/Python. Việc burn (ghi) là không thể hoàn tác; chỉ các field liệt kê dưới đây (do chính layout eFuse của chip trả về) mới có thể burn.",
+    "readSummary": "Đọc tóm tắt eFuse",
+    "field": "Field",
+    "value": "Giá trị",
+    "bits": "Số bit",
+    "burnTitle": "Burn 1 eFuse bảo mật",
+    "burnWarning": "eFuse chỉ ghi được 1 lần (OTP) — burn là VĨNH VIỄN và không thể hoàn tác. Đặt sai giá trị (hoặc burn bit mã hóa flash/secure boot mà chưa hoàn tất bước tạo khóa cần thiết) có thể khiến thiết bị không bao giờ boot lại được. Hãy đọc tài liệu flash encryption / secure boot của Espressif trước khi dùng.",
+    "burn": "Burn",
+    "currentValue": "hiện tại"
   },
   "settings": {
     "title": "Cài đặt",
@@ -733,9 +849,24 @@
     "section": {
       "general": "Chung",
       "advanced": "Nâng cao",
+      "flashLock": "Khóa nạp",
+      "backup": "Sao lưu",
       "appearance": "Giao diện",
       "help": "Trợ giúp",
       "about": "Giới thiệu"
+    },
+    "flashLock": {
+      "title": "Yêu cầu mã PIN trước khi nạp",
+      "hint": "Mọi thao tác nạp (ESP32/STM32 nạp đơn, nạp hàng loạt, sản xuất hàng loạt) sẽ hỏi mã PIN này trước — tránh việc trạm sản xuất dùng chung bị người khác nạp tùy tiện. Mã được lưu dạng văn bản thô trên máy này; đây là biện pháp phòng tránh thao tác nhầm/trái phép, không phải bảo mật thực sự.",
+      "pin": "Mã PIN"
+    },
+    "backup": {
+      "hint": "Gộp mọi thư viện đã lưu (connection profile, script, plugin, quick-command profile, filter/trigger preset) vào 1 file — sao lưu cấu hình máy này, hoặc chia sẻ cho đồng nghiệp. Tùy chọn cá nhân (giao diện, ngôn ngữ) và lịch sử tự động không được gộp vào.",
+      "export": "Xuất cấu hình…",
+      "import": "Nhập cấu hình…",
+      "exportError": "Không thể xuất cấu hình: {{error}}",
+      "importSuccess": "Đã nhập {{count}} mục.",
+      "importError": "Không thể nhập cấu hình: {{error}}"
     },
     "language": "Ngôn ngữ",
     "languageEnglish": "Tiếng Anh",

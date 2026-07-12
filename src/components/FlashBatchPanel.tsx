@@ -5,6 +5,7 @@ import type { FlashSegmentReq } from '../api/flash'
 import { useFlashBatchStore, type BatchDevice } from '../state/flashBatchStore'
 import { useTabsStore } from '../state/tabsStore'
 import { isLikelyEsp32Vid } from '../lib/esp32VidPid'
+import { authorizeFlash } from '../lib/flashLock'
 import { ZapIcon } from './icons'
 
 /** Same firmware (baudRate/segments), many ports at once — flashes every
@@ -85,7 +86,11 @@ export function FlashBatchPanel({
         <input
           type="checkbox"
           checked={autoFlashArmed}
-          onChange={(e) => setAutoFlashArmed(e.target.checked)}
+          onChange={(e) => {
+            const next = e.target.checked
+            if (next && !authorizeFlash()) return
+            setAutoFlashArmed(next)
+          }}
         />
         {t('flashBatch.autoFlashLabel')}
       </label>
@@ -123,7 +128,9 @@ export function FlashBatchPanel({
         type="button"
         className="connect-button flash-go"
         disabled={devices.length === 0 || segments.length === 0 || busy}
-        onClick={() => flashAll(baudRate, segments)}
+        onClick={() => {
+          if (authorizeFlash()) flashAll(baudRate, segments)
+        }}
       >
         <ZapIcon />{' '}
         {busy ? t('flashBatch.flashing') : t('flashBatch.flashNDevices', { count: devices.length })}

@@ -6,6 +6,7 @@ pub mod plugin;
 pub mod restapi;
 pub mod script;
 pub mod serial;
+pub mod swd;
 #[cfg(feature = "cli")]
 pub mod testrunner;
 
@@ -23,6 +24,7 @@ use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
 use crate::flash::esp32_ota::{self, OtaProgress};
 use crate::flash::partition_table::{self, PartitionEntry};
 use crate::flash::profile::{self, FlashProfile};
+use crate::flash::provision;
 use crate::flash::stm32::{self, Interface as StmInterface, McuInfo as StmMcuInfo};
 use crate::net::NetworkManager;
 use crate::script::{ScriptCallbacks, ScriptManager};
@@ -520,6 +522,14 @@ struct WsFrameEvent {
 
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
+struct SwdVariableEvent {
+    id: String,
+    name: String,
+    bytes: Vec<u8>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
 struct UsbPlugEvent {
     port_name: String,
     vid: Option<u16>,
@@ -615,6 +625,20 @@ fn spawn_lifecycle_forwarder(app: AppHandle, event_bus: EventBus) {
                         },
                     );
                 }
+                Event::SwdVariable {
+                    stream_id,
+                    name,
+                    bytes,
+                } => {
+                    let _ = app.emit(
+                        "swd://variable",
+                        SwdVariableEvent {
+                            id: stream_id,
+                            name,
+                            bytes: bytes.to_vec(),
+                        },
+                    );
+                }
                 Event::UsbPlugged {
                     port_name,
                     vid,
@@ -688,6 +712,24 @@ fn decode_esp32_backtrace(
         return Err("no addresses found in the pasted text".to_string());
     }
     elf_analysis::decode_addresses(&elf_path, &addresses)
+}
+
+/// Reads the curated set of security-relevant eFuses (flash encryption /
+/// secure boot / JTAG / UART-download) for the chip on `port` — read-only,
+/// safe to call any time.
+#[tauri::command]
+fn esp32_efuse_summary(
+    port: String,
+) -> Result<flash::esp32_security::EfuseSecuritySummary, String> {
+    flash::esp32_security::read_security_summary(&port)
+}
+
+/// Burns `value` into a single named security eFuse on the chip at `port`.
+/// **Irreversible** — the UI requires a typed confirmation before calling
+/// this, not just a yes/no dialog.
+#[tauri::command]
+fn esp32_burn_efuse(port: String, field_name: String, value: u32) -> Result<u32, String> {
+    flash::esp32_security::burn_security_field(&port, &field_name, value)
 }
 
 // `otadata`-partition binary from espressif/arduino-esp32
@@ -937,6 +979,20 @@ struct Stm32DoneEvent {
     operation: &'static str,
     success: bool,
     message: String,
+}
+
+/// Mass Production mode: patches a copy of `source_path` with a per-device
+/// counter before it gets flashed via the regular `flash_stm32` command —
+/// the frontend calls this first, then flashes whatever path it returns.
+#[tauri::command]
+fn prepare_provisioned_binary(
+    source_path: String,
+    offset: u32,
+    length: u32,
+    format: String,
+    counter: u64,
+) -> Result<provision::ProvisionedBinary, String> {
+    provision::prepare_provisioned_binary(&source_path, offset, length, &format, counter)
 }
 
 #[derive(Deserialize)]
@@ -1431,6 +1487,67 @@ fn ssh_resize(
     network.resize(&id, cols, rows)
 }
 
+/// SWD/RTT (see core::rtt_stream): attaches to a debug probe and streams
+/// RTT channel 0 as a normal Monitor tab, plus supports watching
+/// global/static variables (see `rtt_watch_variable`) over the same
+/// connection. `probe_serial` picks a specific attached probe;
+/// unspecified opens whichever `list_swd_probes` returns first.
+#[tauri::command]
+fn open_rtt(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    probe_serial: Option<String>,
+    chip: String,
+) -> Result<(), String> {
+    network.open_rtt(id, probe_serial, chip)
+}
+
+/// Lists every currently attached debug probe — read-only, safe to poll
+/// from the Connect panel while it's open.
+#[tauri::command]
+fn list_swd_probes() -> Vec<swd::ProbeInfo> {
+    swd::list_probes()
+}
+
+/// Prefix-searches probe-rs's built-in chip database for the Connect
+/// panel's chip-name field, so the user doesn't need to know the exact
+/// probe-rs target string up front.
+#[tauri::command]
+fn search_swd_chips(query: String) -> Vec<String> {
+    swd::search_chips(&query)
+}
+
+/// Lists global/static variables declared in an ELF's DWARF info — feeds
+/// the variable watch dock's picker. See `swd::variables` for why only
+/// global/static (not local/stack) variables are listed.
+#[tauri::command]
+fn list_elf_variables(path: String) -> Result<Vec<swd::variables::VariableInfo>, String> {
+    swd::variables::list_variables(&path)
+}
+
+/// Starts polling one variable's live value over SWD on an open RTT tab —
+/// values stream back via the `swd://variable` event. Only valid for a tab
+/// opened with `open_rtt`; every other transport rejects this.
+#[tauri::command]
+fn rtt_watch_variable(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    name: String,
+    address: u64,
+    size: u8,
+) -> Result<(), String> {
+    network.watch_variable(&id, name, address, size)
+}
+
+#[tauri::command]
+fn rtt_unwatch_variable(
+    network: tauri::State<Arc<NetworkManager>>,
+    id: String,
+    name: String,
+) -> Result<(), String> {
+    network.unwatch_variable(&id, &name)
+}
+
 #[tauri::command]
 fn close_network_stream(
     network: tauri::State<Arc<NetworkManager>>,
@@ -1751,6 +1868,8 @@ pub fn run() {
             parse_esp32_partition_table,
             parse_elf_memory_map,
             decode_esp32_backtrace,
+            esp32_efuse_summary,
+            esp32_burn_efuse,
             bundled_boot_app0_path,
             flash_esp32,
             erase_esp32_flash,
@@ -1762,6 +1881,7 @@ pub fn run() {
             find_stm32_cli,
             detect_stm32_mcu,
             flash_stm32,
+            prepare_provisioned_binary,
             mass_erase_stm32,
             read_stm32_option_bytes,
             write_stm32_option_byte,
@@ -1780,6 +1900,12 @@ pub fn run() {
             open_mqtt,
             open_ssh,
             ssh_resize,
+            open_rtt,
+            list_swd_probes,
+            search_swd_chips,
+            list_elf_variables,
+            rtt_watch_variable,
+            rtt_unwatch_variable,
             close_network_stream,
             write_network_stream,
             mqtt_publish,

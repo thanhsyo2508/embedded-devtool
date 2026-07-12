@@ -69,6 +69,72 @@ export function openMqtt(id: string, params: MqttParams): Promise<void> {
   })
 }
 
+export interface SwdProbeInfo {
+  identifier: string
+  vendorId: number
+  productId: number
+  serialNumber: string | null
+}
+
+/** Attaches to a debug probe over SWD and streams RTT channel 0 as a
+ * normal Monitor tab — see core::rtt_stream. `probeSerial` picks a
+ * specific attached probe; omit it to use whichever `listSwdProbes`
+ * returns first. */
+export function openRtt(id: string, probeSerial: string | undefined, chip: string): Promise<void> {
+  return invoke('open_rtt', { id, probeSerial, chip })
+}
+
+export function listSwdProbes(): Promise<SwdProbeInfo[]> {
+  return invoke('list_swd_probes')
+}
+
+/** Prefix-searches probe-rs's built-in chip database — lets the Connect
+ * panel offer suggestions instead of requiring the exact probe-rs target
+ * string up front (e.g. "STM32F407VG" already matches "STM32F407VGTx"). */
+export function searchSwdChips(query: string): Promise<string[]> {
+  return invoke('search_swd_chips', { query })
+}
+
+export interface ElfVariable {
+  name: string
+  address: number
+  size: number
+  typeHint: string
+}
+
+/** Lists global/static variables declared in an ELF's DWARF info — only
+ * these are watchable without halting the core (see swd::variables for
+ * why local/stack variables aren't listed here). */
+export function listElfVariables(path: string): Promise<ElfVariable[]> {
+  return invoke('list_elf_variables', { path })
+}
+
+/** Starts polling one variable's live value on an open RTT tab — values
+ * stream back via onSwdVariable. Only valid for a tab opened with
+ * openRtt. */
+export function rttWatchVariable(
+  id: string,
+  name: string,
+  address: number,
+  size: number,
+): Promise<void> {
+  return invoke('rtt_watch_variable', { id, name, address, size })
+}
+
+export function rttUnwatchVariable(id: string, name: string): Promise<void> {
+  return invoke('rtt_unwatch_variable', { id, name })
+}
+
+export interface SwdVariableEvent {
+  id: string
+  name: string
+  bytes: number[]
+}
+
+export function onSwdVariable(cb: (event: SwdVariableEvent) => void): Promise<UnlistenFn> {
+  return listen<SwdVariableEvent>('swd://variable', (event) => cb(event.payload))
+}
+
 export function closeNetworkStream(id: string): Promise<void> {
   return invoke('close_network_stream', { id })
 }

@@ -1263,11 +1263,18 @@ body,
 
 .quick-command-form {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
   padding: 5px 10px;
   border-top: 1px solid var(--border);
   flex: none;
+}
+
+.quick-command-form-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .quick-command-form input[type='text'] {
@@ -1277,6 +1284,23 @@ body,
 
 .quick-command-form input[type='text'].invalid {
   border-color: var(--err);
+}
+
+.quick-command-json-textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.quick-command-json-textarea.invalid {
+  border-color: var(--err);
+}
+
+.quick-command-json-error {
+  font-size: 11px;
+  color: var(--err);
 }
 
 /* ---- send panel ---- */
@@ -3035,6 +3059,47 @@ kbd {
   font-size: 12px;
 }
 
+/* ---- production stats ---- */
+.production-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.production-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.production-stats-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.production-stats-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.production-stats-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.production-stats-breakdown {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* ---- shared busy spinner ---- */
 .spinner {
   animation: spin 0.8s linear infinite;
@@ -3045,4 +3110,150 @@ kbd {
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ---- typed confirmation (irreversible actions: eFuse burn, RDP level 2) ---- */
+.typed-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.typed-confirm-hint {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.typed-confirm input {
+  width: 90px;
+}
+
+.danger-text {
+  color: var(--err);
+}
+
+/* ---- STM32 security (RDP levels) ---- */
+.stm32-security {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stm32-security-current {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+.stm32-security-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stm32-security-level {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.stm32-security-level p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.stm32-security-level-danger {
+  border-color: var(--err);
+}
+
+/* ---- ESP32 security (eFuse summary + burns) ---- */
+.esp32-security {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.esp32-security-burn-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.esp32-security-burn-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.esp32-security-burn-input {
+  width: 70px;
+}
+
+/* ---- collapsible section (space-saving accordion for busy panels) ---- */
+.collapsible-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.collapsible-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.collapsible-chevron {
+  flex: none;
+  color: var(--text-muted);
+  transition: transform 0.15s;
+}
+
+.collapsible-chevron.open {
+  transform: rotate(180deg);
+}
+
+.collapsible-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+/* ---- SWD variable watch (RTT tabs) ---- */
+.swd-watch-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+  flex: none;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.swd-watch-elf-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

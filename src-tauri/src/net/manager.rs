@@ -12,6 +12,7 @@ use crate::core::data_stream::DataStream;
 use crate::core::event_bus::{Event, EventBus};
 use crate::core::mqtt_stream::{MqttConfig, MqttStream};
 use crate::core::net_stream::{TcpClientStream, TcpServerStream, UdpDataStream};
+use crate::core::rtt_stream::{RttConfig, RttStream};
 use crate::core::ssh_stream::SshStream;
 use crate::core::ws_stream::{WsClientStream, WsServerStream};
 
@@ -100,6 +101,49 @@ impl NetworkManager {
                 },
             )),
         )
+    }
+
+    pub fn open_rtt(
+        &self,
+        id: String,
+        probe_serial: Option<String>,
+        chip: String,
+    ) -> Result<(), String> {
+        self.open(
+            id.clone(),
+            Box::new(RttStream::new(
+                id,
+                self.event_bus.clone(),
+                RttConfig { probe_serial, chip },
+            )),
+        )
+    }
+
+    /// Starts polling one variable's live value over SWD — see
+    /// `DataStream::watch_variable`. Only valid for a tab opened with
+    /// `open_rtt`; every other transport rejects this.
+    pub fn watch_variable(
+        &self,
+        id: &str,
+        name: String,
+        address: u64,
+        size: u8,
+    ) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream
+                .watch_variable(name, address, size)
+                .map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
+    }
+
+    pub fn unwatch_variable(&self, id: &str, name: &str) -> Result<(), String> {
+        let mut streams = self.streams.lock().unwrap();
+        match streams.get_mut(id) {
+            Some(stream) => stream.unwatch_variable(name).map_err(|e| e.to_string()),
+            None => Err(format!("stream id '{id}' not found")),
+        }
     }
 
     pub fn open_ssh(

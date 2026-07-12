@@ -98,6 +98,8 @@ clap = { version = "4", features = ["derive"], optional = true }
 ctrlc = { version = "3", optional = true }
 # YAML test-suite parsing for `edt-cli test`.
 serde_yaml = { version = "0.9", optional = true }
+probe-rs = "0.31.0"
+gimli = { version = "0.34.0", default-features = false, features = ["read", "std"] }
 
 [features]
 cli = ["dep:clap", "dep:ctrlc", "dep:serde_yaml"]

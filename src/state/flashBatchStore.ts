@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { flashEsp32, onFlashDone, onFlashProgress, type FlashSegmentReq } from '../api/flash'
 import i18n from '../i18n'
 import { useToastStore } from './toastStore'
+import { useProductionHistoryStore } from './productionHistoryStore'
 
 // Batch flash reuses the exact same `flash_esp32` Tauri command as the
 // single-device flow (see flashStore.ts) — it spawns a plain OS thread per
@@ -83,6 +84,12 @@ export const useFlashBatchStore = create<FlashBatchState>((set, get) => ({
           i18n.t('toast.batchFlashError', { port: event.id, message: event.message }),
         )
       }
+      useProductionHistoryStore.getState().addEntry({
+        deviceType: 'esp32',
+        port: event.id,
+        success: event.success,
+        message: event.message,
+      })
     })
   },
 

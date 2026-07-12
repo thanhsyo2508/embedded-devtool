@@ -18,7 +18,7 @@ use espflash::target::Chip;
 use serde::{Deserialize, Serialize};
 use serialport::{SerialPortType, UsbPortInfo};
 
-fn chip_display_name(chip: Chip) -> &'static str {
+pub(crate) fn chip_display_name(chip: Chip) -> &'static str {
     match chip {
         Chip::Esp32 => "ESP32",
         Chip::Esp32c2 => "ESP32-C2",
@@ -93,10 +93,14 @@ fn usb_info_for_port(port_name: &str) -> UsbPortInfo {
             serial_number: None,
             manufacturer: None,
             product: None,
+            // `usbportinfo-interface`, gated behind a serialport Cargo feature
+            // that another dependency now enables via feature unification
+            // (it wasn't part of this struct before probe-rs was added).
+            interface: None,
         })
 }
 
-fn connect(port_name: &str, baud: u32) -> Result<Flasher, String> {
+pub(crate) fn connect(port_name: &str, baud: u32) -> Result<Flasher, String> {
     let native_port = serialport::new(port_name, 115_200)
         .flow_control(serialport::FlowControl::None)
         .open_native()

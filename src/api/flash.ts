@@ -188,3 +188,48 @@ export function onOtaProgress(cb: (event: OtaProgressEvent) => void): Promise<Un
 export function onOtaDone(cb: (event: FlashDoneEvent) => void): Promise<UnlistenFn> {
   return listen<FlashDoneEvent>('ota://done', (event) => cb(event.payload))
 }
+
+export type ProvisionValueFormat = 'asciiDecimal' | 'hexBytes'
+
+export interface ProvisionedBinary {
+  path: string
+  valueDisplay: string
+}
+
+/** Mass Production mode: patches a copy of `sourcePath` with `counter`
+ * (formatted per `format`) at `offset`/`length`, and returns the temp
+ * file's path — flash that path instead of the original. */
+export function prepareProvisionedBinary(
+  sourcePath: string,
+  offset: number,
+  length: number,
+  format: ProvisionValueFormat,
+  counter: number,
+): Promise<ProvisionedBinary> {
+  return invoke('prepare_provisioned_binary', { sourcePath, offset, length, format, counter })
+}
+
+// ---- ESP32 eFuse security (flash encryption / secure boot / JTAG) ----
+
+export interface EfuseFieldValue {
+  name: string
+  value: number
+  bitCount: number
+}
+
+export interface EfuseSecuritySummary {
+  chip: string
+  fields: EfuseFieldValue[]
+}
+
+/** Reads the curated set of security-relevant eFuses (flash encryption,
+ * secure boot, JTAG/UART-download disable) for the chip on `port`. */
+export function readEsp32EfuseSummary(port: string): Promise<EfuseSecuritySummary> {
+  return invoke('esp32_efuse_summary', { port })
+}
+
+/** Burns `value` into a single named eFuse field — irreversible, must only
+ * be called after the user has typed an explicit confirmation. */
+export function burnEsp32Efuse(port: string, fieldName: string, value: number): Promise<number> {
+  return invoke('esp32_burn_efuse', { port, fieldName, value })
+}

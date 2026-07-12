@@ -110,5 +110,7 @@ export function recentConnectionToOpenRequest(
         username: c.username ?? '',
         password: sshPassword ?? '',
       }
+    case 'rtt':
+      return { kind: 'rtt', id, probeSerial: c.probeSerial, chip: c.chip ?? '' }
   }
 }

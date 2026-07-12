@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getVersion } from '@tauri-apps/api/app'
+import { open, save } from '@tauri-apps/plugin-dialog'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { useTranslation } from 'react-i18next'
 import {
@@ -14,6 +15,7 @@ import {
   type Theme,
 } from '../state/settingsStore'
 import { useUpdateStore } from '../state/updateStore'
+import { buildConfigBundle, importConfigBundle, type ConfigBundle } from '../lib/configBundle'
 import { BookOpenIcon, CopyIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
 import { HelpGuide } from './HelpGuide'
 
@@ -54,6 +56,44 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       os: navigator.userAgent,
     })
     void openUrl(`${REPO_URL}/issues/new?${params.toString()}`)
+  }
+
+  // Every saved library (connection profiles, scripts, plugins,
+  // quick-command profiles, filter/trigger presets) in one file — for
+  // backing up this machine's setup or handing it to a teammate.
+  // Deliberately excludes personal prefs and auto-tracked history, see
+  // configBundle.ts.
+  const handleExportConfig = async () => {
+    const path = await save({
+      defaultPath: 'edt-config.json',
+      filters: [{ name: 'EDT Config', extensions: ['json'] }],
+    })
+    if (!path) return
+    try {
+      await invoke('write_text_file', {
+        path,
+        contents: JSON.stringify(buildConfigBundle(), null, 2),
+      })
+    } catch (err) {
+      window.alert(t('settings.backup.exportError', { error: String(err) }))
+    }
+  }
+
+  const handleImportConfig = async () => {
+    const path = await open({
+      filters: [{ name: 'EDT Config', extensions: ['json'] }],
+      multiple: false,
+    })
+    if (!path || Array.isArray(path)) return
+    try {
+      const contents = await invoke<string>('read_text_file', { path })
+      const bundle = JSON.parse(contents) as ConfigBundle
+      const summary = importConfigBundle(bundle)
+      const count = Object.values(summary).reduce((a, b) => a + b, 0)
+      window.alert(t('settings.backup.importSuccess', { count }))
+    } catch (err) {
+      window.alert(t('settings.backup.importError', { error: String(err) }))
+    }
   }
 
   const shortcuts: [string, string][] = [
@@ -235,6 +275,48 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <p className="rest-api-base-url mono">http://127.0.0.1:{settings.restApiPort}/api/v1</p>
           </>
         )}
+
+        <hr className="settings-divider" />
+
+        <div className="settings-section-title">{t('settings.section.flashLock')}</div>
+        <div className="settings-row">
+          <span>{t('settings.flashLock.title')}</span>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={settings.flashLockEnabled}
+              onChange={(e) => settings.setFlashLockEnabled(e.target.checked)}
+            />
+            <span className="switch-track" />
+          </label>
+        </div>
+        {settings.flashLockEnabled && (
+          <>
+            <p className="ota-hint">{t('settings.flashLock.hint')}</p>
+            <div className="settings-row">
+              <span>{t('settings.flashLock.pin')}</span>
+              <input
+                type="password"
+                className="rest-api-port"
+                value={settings.flashLockPin}
+                onChange={(e) => settings.setFlashLockPin(e.target.value)}
+              />
+            </div>
+          </>
+        )}
+
+        <hr className="settings-divider" />
+
+        <div className="settings-section-title">{t('settings.section.backup')}</div>
+        <p className="ota-hint">{t('settings.backup.hint')}</p>
+        <div className="flash-actions">
+          <button type="button" onClick={() => void handleExportConfig()}>
+            {t('settings.backup.export')}
+          </button>
+          <button type="button" onClick={() => void handleImportConfig()}>
+            {t('settings.backup.import')}
+          </button>
+        </div>
 
         <hr className="settings-divider" />
 

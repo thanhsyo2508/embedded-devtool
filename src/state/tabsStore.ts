@@ -13,6 +13,7 @@ import {
   closeNetworkStream,
   onNetworkData,
   openMqtt,
+  openRtt,
   openSsh,
   openTcpClient,
   openTcpServer,
@@ -168,7 +169,15 @@ export type TimestampMode = 'delta' | 'abs' | 'off'
 export type LineEnding = 'none' | 'cr' | 'lf' | 'crlf'
 export type TabStatus = 'open' | 'closed' | 'error'
 export type ConnectionKind =
-  'serial' | 'tcp-client' | 'tcp-server' | 'udp' | 'ws-client' | 'ws-server' | 'mqtt' | 'ssh'
+  | 'serial'
+  | 'tcp-client'
+  | 'tcp-server'
+  | 'udp'
+  | 'ws-client'
+  | 'ws-server'
+  | 'mqtt'
+  | 'ssh'
+  | 'rtt'
 
 /** What a tab connects over — serial keeps the full `OpenPortRequest` (data
  * bits/parity/etc.), TCP only needs host/port. Kept around so Reconnect can
@@ -185,6 +194,7 @@ export type ConnectionConfig =
   | { kind: 'ws-server'; port: number }
   | ({ kind: 'mqtt' } & MqttParams)
   | { kind: 'ssh'; host: string; port: number; username: string; password: string }
+  | { kind: 'rtt'; probeSerial?: string; chip: string }
 
 /** What `openTab` accepts to start a new connection of any kind. `id` is
  * always the caller-assigned tab id (also used as the underlying stream id). */
@@ -203,6 +213,7 @@ export type OpenTabRequest =
   | { kind: 'ws-server'; id: string; port: number }
   | ({ kind: 'mqtt'; id: string } & MqttParams)
   | { kind: 'ssh'; id: string; host: string; port: number; username: string; password: string }
+  | { kind: 'rtt'; id: string; probeSerial?: string; chip: string }
 
 export interface TabState {
   id: string
@@ -277,8 +288,14 @@ interface TabsStore {
   setLineEnding: (id: string, ending: LineEnding) => void
   setChecksumMode: (id: string, mode: ChecksumMode) => void
   setQuickCommandProfile: (id: string, profileId: string | null) => void
-  send: (id: string, text: string) => Promise<void>
-  sendBytes: (id: string, bytes: number[], historyEntry: string, isHex?: boolean) => Promise<void>
+  send: (id: string, text: string, lineEndingOverride?: LineEnding) => Promise<void>
+  sendBytes: (
+    id: string,
+    bytes: number[],
+    historyEntry: string,
+    isHex?: boolean,
+    lineEndingOverride?: LineEnding,
+  ) => Promise<void>
   toggleLogging: (id: string) => Promise<void>
   flushStaleTabs: () => void
   clearLines: (id: string) => void
@@ -518,6 +535,8 @@ function connectionLabelFor(config: ConnectionConfig): string {
       return `mqtt://${config.brokerHost}:${config.brokerPort}`
     case 'ssh':
       return `${config.username}@${config.host}:${config.port}`
+    case 'rtt':
+      return `SWD · ${config.chip}`
   }
 }
 
@@ -856,13 +875,15 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
                         subscribeTopic: req.subscribeTopic,
                         publishTopic: req.publishTopic,
                       }
-                    : {
-                        kind: 'ssh',
-                        host: req.host,
-                        port: req.port,
-                        username: req.username,
-                        password: req.password,
-                      }
+                    : req.kind === 'ssh'
+                      ? {
+                          kind: 'ssh',
+                          host: req.host,
+                          port: req.port,
+                          username: req.username,
+                          password: req.password,
+                        }
+                      : { kind: 'rtt', probeSerial: req.probeSerial, chip: req.chip }
 
     const newTab: TabState = {
       id: req.id,
@@ -925,7 +946,9 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     else if (req.kind === 'ws-client') await openWsClient(req.id, req.url)
     else if (req.kind === 'ws-server') await openWsServer(req.id, req.port)
     else if (req.kind === 'mqtt') await openMqtt(req.id, req)
-    else await openSsh(req.id, req.host, req.port, req.username, req.password)
+    else if (req.kind === 'ssh')
+      await openSsh(req.id, req.host, req.port, req.username, req.password)
+    else await openRtt(req.id, req.probeSerial, req.chip)
 
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
   },
@@ -993,7 +1016,9 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       else if (config.kind === 'ws-client') await openWsClient(id, config.url)
       else if (config.kind === 'ws-server') await openWsServer(id, config.port)
       else if (config.kind === 'mqtt') await openMqtt(id, config)
-      else await openSsh(id, config.host, config.port, config.username, config.password)
+      else if (config.kind === 'ssh')
+        await openSsh(id, config.host, config.port, config.username, config.password)
+      else await openRtt(id, config.probeSerial, config.chip)
     } catch (err) {
       set((state) => ({
         tabs: state.tabs.map((t) =>
@@ -1032,11 +1057,17 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       ),
     })),
 
-  send: async (id, text) => {
-    await get().sendBytes(id, Array.from(new TextEncoder().encode(text)), text)
+  send: async (id, text, lineEndingOverride) => {
+    await get().sendBytes(
+      id,
+      Array.from(new TextEncoder().encode(text)),
+      text,
+      false,
+      lineEndingOverride,
+    )
   },
 
-  sendBytes: async (id, bytes, historyEntry, isHex = false) => {
+  sendBytes: async (id, bytes, historyEntry, isHex = false, lineEndingOverride) => {
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab) return
     // A checksummed frame (e.g. Modbus RTU) must not get a trailing CR/LF
@@ -1046,7 +1077,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     const withChecksum = applyChecksum(bytes, tab.checksumMode)
     const outgoing =
       tab.checksumMode === 'none'
-        ? [...withChecksum, ...LINE_ENDING_BYTES[tab.lineEnding]]
+        ? [...withChecksum, ...LINE_ENDING_BYTES[lineEndingOverride ?? tab.lineEnding]]
         : withChecksum
     if (tab.connectionKind === 'serial') await writeSerialPort(id, outgoing)
     else await writeNetworkStream(id, outgoing)

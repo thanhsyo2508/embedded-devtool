@@ -593,6 +593,7 @@ mod tests {
                 serial_number: Some("ABC123".to_string()),
                 manufacturer: Some("Silicon Labs".to_string()),
                 product: Some("CP2102".to_string()),
+                interface: None,
             }),
         };
         let port_info = PortInfo::from(info);

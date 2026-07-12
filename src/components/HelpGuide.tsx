@@ -281,6 +281,15 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
               <li>{t('help.quickCommands.li2')}</li>
               <li>{t('help.quickCommands.li3')}</li>
+              <li>
+                <Trans i18nKey="help.quickCommands.li4" components={G} />
+              </li>
+              <li>
+                <Trans i18nKey="help.quickCommands.li5" components={G} />
+              </li>
+              <li>
+                <Trans i18nKey="help.quickCommands.li6" components={G} />
+              </li>
             </ul>
           </section>
 
@@ -434,6 +443,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             <p>
               <Trans i18nKey="help.flashEsp32.provision" components={G} />
             </p>
+            <p>
+              <Trans i18nKey="help.flashEsp32.security" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">
@@ -483,6 +495,46 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
             </ul>
             <p>{t('help.flashStm32.optionBytes')}</p>
+            <p>
+              <Trans i18nKey="help.flashStm32.security" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.flashStm32.massProduction" components={G} />
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>{t('help.flashLock.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.flashLock.p1" components={G} />
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>{t('help.swd.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.swd.p1" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.swd.p2" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.swd.p3" components={G} />
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>{t('help.productionStats.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.productionStats.p1" components={G} />
+            </p>
+          </section>
+
+          <section className="guide-section">
+            <h3>{t('help.configBackup.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.configBackup.p1" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">

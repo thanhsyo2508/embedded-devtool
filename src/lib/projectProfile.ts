@@ -118,5 +118,7 @@ export function connectionConfigToOpenRequest(
       return { ...config, id }
     case 'ssh':
       return { ...config, id, password: sshPassword ?? '' }
+    case 'rtt':
+      return { ...config, id }
   }
 }
