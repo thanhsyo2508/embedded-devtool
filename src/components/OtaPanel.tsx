@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { mdnsScan, type MdnsService } from '../api/network'
 import { useOtaStore } from '../state/otaStore'
 import { FolderIcon, GlobeIcon, ZapIcon } from './icons'
+import { Spinner } from './Spinner'
 
 const ARDUINO_OTA_SERVICE = '_arduino._tcp.local.'
 const SCAN_MS = 3000
@@ -160,7 +161,7 @@ export function OtaPanel() {
           disabled={!host || !firmwarePath || busy}
           onClick={() => void flash()}
         >
-          <ZapIcon /> {busy ? t('flash.working') : t('ota.flashOverWifi')}
+          {busy ? <Spinner /> : <ZapIcon />} {busy ? t('flash.working') : t('ota.flashOverWifi')}
         </button>
       </div>
 

@@ -19,6 +19,7 @@ import { Stm32Body } from './Stm32Body'
 import { FlashBatchPanel } from './FlashBatchPanel'
 import { ProvisionPanel } from './ProvisionPanel'
 import { OtaPanel } from './OtaPanel'
+import { Spinner } from './Spinner'
 
 type Target = 'esp32' | 'stm32' | 'ota'
 type FlashMode = 'single' | 'batch' | 'provision'
@@ -348,7 +349,8 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                     disabled={!portName || busy}
                     onClick={() => void flash()}
                   >
-                    <ZapIcon /> {busy ? t('flash.working') : t('flash.flash')}
+                    {busy ? <Spinner /> : <ZapIcon />}{' '}
+                    {busy ? t('flash.working') : t('flash.flash')}
                   </button>
                 </div>
 

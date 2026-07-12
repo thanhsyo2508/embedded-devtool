@@ -75,6 +75,16 @@ unftp-sbe-fs = "0.4"
 unftp-core = "0.1"
 async-trait = "0.1"
 
+# Local REST API (optional, off by default in Settings) so an external
+# CI/production-line system can drive an already-running EDT instance --
+# tiny_http is a small blocking HTTP server, matching this codebase's
+# "prefer blocking over pulling in more async machinery when it's good
+# enough" pattern already used for the FTP client. See restapi/mod.rs.
+# The bearer token is generated frontend-side (Web Crypto's
+# getRandomValues, already available in the webview) and persisted in
+# settingsStore, not here -- the backend only ever receives and checks it.
+tiny_http = "0.12"
+
 # Only pulled in for the `edt-cli` binary (via the `cli` feature below) â€”
 # optional so a normal GUI build never compiles or links them.
 clap = { version = "4", features = ["derive"], optional = true }

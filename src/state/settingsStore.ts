@@ -17,6 +17,14 @@ export const FONT_SIZE_PX: Record<FontSize, string> = {
 export const MAX_LINES_OPTIONS = [1_000, 10_000, 50_000, 100_000, 500_000] as const
 export const PLOT_MAX_POINTS_OPTIONS = [5_000, 10_000, 50_000, 100_000, 500_000] as const
 
+// Web Crypto is already available in the Tauri webview — no need for a
+// backend round trip just to generate a random bearer token.
+function generateToken(): string {
+  const bytes = new Uint8Array(24)
+  crypto.getRandomValues(bytes)
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 interface SettingsState {
   encoding: Encoding
   maxLinesPerTab: number
@@ -29,6 +37,14 @@ interface SettingsState {
   theme: Theme
   keepAwake: boolean
   language: Language
+  /** Whether the local REST API (see restapi::RestApiManager on the Rust
+   * side) should be running — App.tsx starts/stops the actual server on
+   * mount and whenever this flips, mirroring how `keepAwake` drives
+   * `set_keep_awake`. Off by default: it's a control surface over local
+   * hardware, even though it only ever binds to 127.0.0.1. */
+  restApiEnabled: boolean
+  restApiPort: number
+  restApiToken: string
   setEncoding: (v: Encoding) => void
   setMaxLinesPerTab: (v: number) => void
   setPlotMaxPoints: (v: number) => void
@@ -37,6 +53,9 @@ interface SettingsState {
   setTheme: (v: Theme) => void
   setKeepAwake: (v: boolean) => void
   setLanguage: (v: Language) => void
+  setRestApiEnabled: (v: boolean) => void
+  setRestApiPort: (v: number) => void
+  regenerateRestApiToken: () => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -50,6 +69,9 @@ export const useSettingsStore = create<SettingsState>()(
       theme: 'system',
       keepAwake: false,
       language: 'en',
+      restApiEnabled: false,
+      restApiPort: 8642,
+      restApiToken: generateToken(),
       setEncoding: (encoding) => set({ encoding }),
       setMaxLinesPerTab: (maxLinesPerTab) => set({ maxLinesPerTab }),
       setPlotMaxPoints: (plotMaxPoints) => set({ plotMaxPoints }),
@@ -61,6 +83,9 @@ export const useSettingsStore = create<SettingsState>()(
         set({ language })
         void i18n.changeLanguage(language)
       },
+      setRestApiEnabled: (restApiEnabled) => set({ restApiEnabled }),
+      setRestApiPort: (restApiPort) => set({ restApiPort }),
+      regenerateRestApiToken: () => set({ restApiToken: generateToken() }),
     }),
     { name: 'edt-settings' },
   ),

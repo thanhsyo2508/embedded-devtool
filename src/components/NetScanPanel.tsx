@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useNetScanStore, type NetScanRow } from '../state/netScanStore'
 import { DeepScanModal } from './DeepScanModal'
 import { GlobeIcon, RefreshIcon, SearchIcon, XIcon } from './icons'
+import { Spinner } from './Spinner'
 
 function ipSortKey(ip: string): number {
   const parts = ip.split('.').map(Number)
@@ -73,7 +74,7 @@ export function NetScanPanel({ onClose }: { onClose: () => void }) {
               <RefreshIcon />
             </button>
             <button type="button" disabled={scanning || !cidr} onClick={() => void startScan()}>
-              {scanning ? t('netScan.scanning') : t('netScan.scan')}
+              {scanning && <Spinner />} {scanning ? t('netScan.scanning') : t('netScan.scan')}
             </button>
           </div>
 

@@ -2,6 +2,11 @@
   "help": {
     "title": "Hướng dẫn sử dụng",
     "closeAriaLabel": "Đóng hướng dẫn",
+    "commandPalette": {
+      "heading": "Command Palette",
+      "p1": "Bấm <kbd>Ctrl+K</kbd> (hoặc icon terminal-prompt trên thanh top bar) để mở — gõ để lọc mọi hành động cấp cao (kết nối mới, mở/lưu dự án, bật/tắt biểu đồ, Flash/FTP/Plugin/Cài đặt, đóng/xóa tab đang focus...) rồi bấm <kbd>Enter</kbd> để chạy lệnh đang bôi đậm, hoặc bấm chuột vào 1 kết quả bất kỳ. Phím mũi tên để di chuyển lựa chọn, <kbd>Esc</kbd> để đóng.",
+      "p2": "Lệnh nào có phím tắt sẽ hiện phím tắt đó bên phải — danh sách này lấy trực tiếp từ chính các hành động mà phím tắt kích hoạt, nên luôn chính xác kể cả khi có panel mới được thêm vào."
+    },
     "layout": {
       "heading": "Bố cục nhiều pane (Snap Layouts)",
       "p1": "Kéo 1 tab bằng nhãn của nó và thả vào cạnh trái/phải/trên/dưới của vùng nội dung 1 pane bất kỳ để chia đôi không gian làm việc và xem 2 tab cạnh nhau — thả vào cạnh 1 pane đã có tiếp tục chia nhỏ hơn nữa, lồng bao nhiêu hàng/cột tùy ý. Một đường chia mảnh xuất hiện giữa các pane; kéo nó để đổi kích thước.",
@@ -106,6 +111,14 @@
       "example2Label": "Ví dụ — request/response kiểu expect với <code>wait_for</code>:",
       "sandboxNote": "Đây là 1 sandbox tiện lợi (không có <code>os</code>/<code>io</code>/<code>require</code>, mỗi callback giới hạn ~2s) cho script bạn tự viết — không phải 1 ranh giới an toàn chống mã độc."
     },
+    "plugins": {
+      "heading": "Plugin",
+      "intro": "1 <b>plugin</b> là 1 file Lua có tên, tái sử dụng được — khác với script (1 ô code tự do cho mỗi tab), cài plugin 1 lần từ nút <b>Plugin</b> trên thanh công cụ, sau đó bật cho bất kỳ tab nào từ nút Plugin của chính tab đó; nhiều plugin có thể chạy cùng lúc trên 1 tab. 1 plugin định nghĩa đúng 1 hàm thuần và không có <code>send</code>/<code>wait_for</code>/<code>timer</code> — nó chỉ mô tả cách đọc dữ liệu, không bao giờ điều khiển thiết bị.",
+      "manifest": "Manifest chỉ là các dòng comment <code>-- key: value</code> ở đầu file — <code>name</code> (bắt buộc), <code>kind</code> (bắt buộc, <code>decoder</code> hoặc <code>plotter-parser</code>), và <code>version</code>/<code>description</code> tùy chọn. Không có file manifest riêng, nên cài plugin chỉ là chọn 1 file <code>.lua</code>.",
+      "decoderLabel": "Plugin <b>decoder</b> định nghĩa <code>decode(line)</code>, trả về 1 bảng field hiển thị trực tiếp trong panel Plugin của tab đó:",
+      "plotterLabel": "Plugin <b>plotter parser</b> định nghĩa <code>parse(line)</code>, trả về các cặp <code>{ channel = number, ... }</code> đưa thẳng vào biểu đồ, giống hệt <code>plot(...)</code> của script:",
+      "attachNote": "Lỗi của riêng 1 plugin (pattern sai, sai kiểu trả về) hiển thị ngay cạnh checkbox của nó trong panel Plugin thay vì làm dừng cả tab — 1 dòng lỗi không làm sập cả plugin."
+    },
     "plotter": {
       "heading": "Biểu đồ (Plotter)",
       "p1": "Bật icon biểu đồ trên thanh trên cùng (<kbd>Ctrl+Shift+P</kbd>) và chọn 1 tab nguồn. Các dòng tự động được phân tích dạng CSV (<code>1.2,3.4</code>), cách nhau bằng khoảng trắng, hoặc cặp <code>key:value</code> (vd <code>temp:24.5,hum:51.2</code>) — tối đa 8 kênh. Mỗi kênh giữ 1 cửa sổ trượt các điểm gần nhất, bỏ điểm cũ nhất khi đầy; <b>Cài đặt → Kích thước bộ đệm biểu đồ</b> điều khiển số lượng (1.000–500.000, mặc định 50.000) — tăng lên nếu bạn đang theo dõi 1 phiên chạy dài và không muốn dữ liệu sớm bị đẩy ra.",
@@ -146,6 +159,11 @@
       "stLink": "<b>ST-Link (SWD)</b> — cho board có ST-Link tích hợp hoặc rời.",
       "uart": "<b>UART bootloader</b> — cho board không có ST-Link; đưa MCU vào chế độ bootloader qua BOOT0 trước.",
       "optionBytes": "Ghi option byte (vd mức RDP) cần 1 hộp thoại xác nhận rõ ràng — đọc kỹ trước khi xác nhận, vì 1 số thiết lập có thể ảnh hưởng vĩnh viễn tới quyền truy cập debug."
+    },
+    "restApi": {
+      "heading": "REST API cục bộ",
+      "p1": "Tắt theo mặc định — bật trong <b>Cài đặt</b>, nơi bạn cũng đặt port và tìm bearer token. Khi bật, chỉ bind vào <code>127.0.0.1</code> (không bao giờ từ LAN) và cho phép hệ thống CI/dây chuyền sản xuất bên ngoài mở cổng serial, ghi/đọc byte, liệt kê port, và kích hoạt nạp ESP32 trên instance đang chạy này — dùng chung state với chính app, nên 1 port mở theo cách này cũng hiện là đang mở trong app. Mọi request cần <code>Authorization: Bearer &lt;token&gt;</code>.",
+      "p2": "<code>GET /api/v1/status</code> và <code>/serial/ports</code> (khả dụng) / <code>/serial/open</code> (đang mở) không cần body. <code>POST /serial/open</code>, <code>/serial/write</code> (byte mã hex), <code>/serial/read</code> (chờ tối đa <code>timeoutMs</code> cho lô dữ liệu tiếp theo), <code>/serial/close</code>, và <code>/esp32/flash</code> (chờ tới khi nạp xong, trả về pass/fail) cần body JSON:"
     }
   },
   "app": {
@@ -160,6 +178,7 @@
       "flashEsp32Title": "Nạp ESP32 (Ctrl+Shift+F)",
       "networkScanner": "Quét mạng",
       "ftp": "FTP Client/Server",
+      "plugins": "Plugin",
       "settings": "Cài đặt",
       "settingsTitle": "Cài đặt (Ctrl+,)"
     },
@@ -231,7 +250,13 @@
     "noDevicesFound": "Không tìm thấy thiết bị nào.",
     "useThisDeviceAddress": "Dùng địa chỉ của thiết bị này",
     "connecting": "Đang kết nối…",
-    "connect": "Kết nối"
+    "connect": "Kết nối",
+    "recentLabel": "Gần đây",
+    "recentApply": "Điền cấu hình kết nối này vào form",
+    "recentJustNow": "vừa xong",
+    "recentMinutesAgo_other": "{{count}} phút trước",
+    "recentHoursAgo_other": "{{count}} giờ trước",
+    "recentDaysAgo_other": "{{count}} ngày trước"
   },
   "monitor": {
     "clearConfirm": "Xóa bộ đệm log của tab này?",
@@ -253,6 +278,7 @@
     "triggers": "Trigger",
     "script": "Script",
     "scriptRunning": "Script (đang chạy)",
+    "plugins": "Plugin",
     "macro": "Macro",
     "macroRecording": "Macro (đang ghi)",
     "modbusMaster": "Modbus Master",
@@ -279,6 +305,24 @@
     "otaDone": "Cập nhật OTA hoàn tất",
     "otaError": "Cập nhật OTA lỗi — {{message}}",
     "ftpTransferError": "Truyền FTP lỗi — {{message}}"
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "clear": "Xóa hết",
+    "empty": "Chưa có thông báo nào."
+  },
+  "commandPalette": {
+    "open": "Command palette",
+    "openTitle": "Command palette (Ctrl+K)",
+    "placeholder": "Gõ 1 lệnh…",
+    "noMatches": "Không có lệnh nào khớp.",
+    "closeTab": "Đóng tab hiện tại",
+    "clearTab": "Xóa buffer tab hiện tại",
+    "category": {
+      "navigate": "Đi tới",
+      "project": "Dự án",
+      "tab": "Tab"
+    }
   },
   "ota": {
     "tabLabel": "OTA (WiFi)",
@@ -437,6 +481,23 @@
     "console": "Console",
     "clearConsole": "Xóa console",
     "noOutputYet": "Chưa có output."
+  },
+  "pluginBar": {
+    "noneInstalled": "Chưa cài plugin nào — cài từ nút Plugin trên thanh công cụ phía trên.",
+    "waitingForData": "Đang chờ dữ liệu…",
+    "kind": {
+      "decoder": "Decoder",
+      "plotterParser": "Plotter parser"
+    }
+  },
+  "pluginLibrary": {
+    "title": "Plugin",
+    "hint": "1 plugin là 1 file Lua có tên, tái sử dụng được — hoặc giải mã mỗi dòng thành các field (Decoder), hoặc trích xuất kênh số cho biểu đồ (Plotter parser) — cài ở đây, sau đó bật cho từng tab từ nút Plugin của tab đó.",
+    "install": "Cài plugin…",
+    "installDialogTitle": "Chọn file plugin .lua",
+    "luaFilterName": "Plugin Lua",
+    "noneInstalled": "Chưa cài plugin nào.",
+    "deleteConfirm": "Gỡ cài đặt \"{{name}}\"? Tab nào đang chạy nó sẽ dừng lại."
   },
   "modbus": {
     "coilValue": "Giá trị coil (0/1)",
@@ -630,6 +691,16 @@
     "newline": "Ký tự xuống dòng",
     "fontSize": "Cỡ chữ hiển thị",
     "keepAwake": "Giữ màn hình luôn sáng",
+    "restApi": {
+      "title": "REST API cục bộ",
+      "hint": "Cho phép hệ thống CI/dây chuyền sản xuất bên ngoài mở cổng serial, ghi/đọc byte, và kích hoạt nạp ESP32 trên instance đang chạy này qua HTTP. Chỉ bind vào 127.0.0.1 — không thể truy cập từ LAN. Mọi request cần token bên dưới trong header \"Authorization: Bearer <token>\".",
+      "port": "Port",
+      "token": "Bearer token",
+      "copyToken": "Sao chép token",
+      "regenerateToken": "Tạo lại token",
+      "regenerateConfirm": "Tạo lại token? Công cụ bên ngoài nào đang dùng token cũ sẽ cần được cập nhật.",
+      "startError": "Không thể khởi động REST API cục bộ: {{error}}"
+    },
     "personalization": "Cá nhân hóa",
     "theme": {
       "system": "hệ thống",
@@ -653,6 +724,7 @@
     },
     "shortcutsTitle": "Phím tắt",
     "shortcuts": {
+      "commandPalette": "Command palette",
       "newConnection": "Kết nối mới",
       "closeTab": "Đóng tab hiện tại",
       "switchTab": "Chuyển tới tab N",

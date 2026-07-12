@@ -11,6 +11,7 @@ import {
   DiskIcon,
   FilterIcon,
   GaugeIcon,
+  PuzzleIcon,
   RepeatIcon,
   SearchIcon,
   TargetIcon,
@@ -24,6 +25,7 @@ import { ScriptPanel } from './ScriptPanel'
 import { MacroPanel } from './MacroPanel'
 import { ModbusMasterPanel } from './ModbusMasterPanel'
 import { ModbusSlavePanel } from './ModbusSlavePanel'
+import { PluginBar } from './PluginBar'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
@@ -51,7 +53,14 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [autoScroll, setAutoScroll] = useState(true)
   const [logBusy, setLogBusy] = useState(false)
   const [openPanel, setOpenPanel] = useState<
-    'filters' | 'triggers' | 'script' | 'macro' | 'modbus-master' | 'modbus-slave' | null
+    | 'filters'
+    | 'triggers'
+    | 'script'
+    | 'plugins'
+    | 'macro'
+    | 'modbus-master'
+    | 'modbus-slave'
+    | null
   >(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -124,7 +133,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
   }
 
   const togglePanel = (
-    panel: 'filters' | 'triggers' | 'script' | 'macro' | 'modbus-master' | 'modbus-slave',
+    panel:
+      'filters' | 'triggers' | 'script' | 'plugins' | 'macro' | 'modbus-master' | 'modbus-slave',
   ) => setOpenPanel((current) => (current === panel ? null : panel))
 
   const virtualizer = useVirtualizer({
@@ -358,6 +368,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <ScriptPanel tab={tab} />
             </div>
           )}
+          {openPanel === 'plugins' && (
+            <div className="feature-flyout">
+              <PluginBar tab={tab} />
+            </div>
+          )}
           {openPanel === 'macro' && (
             <div className="feature-flyout">
               <MacroPanel tab={tab} />
@@ -414,6 +429,22 @@ export function MonitorView({ tab }: { tab: TabState }) {
             onClick={() => togglePanel('script')}
           >
             <CodeIcon />
+          </button>
+          <button
+            type="button"
+            className={
+              openPanel === 'plugins' || tab.activePlugins.some((p) => p.running) ? 'on' : ''
+            }
+            title={t('monitor.plugins')}
+            aria-label={t('monitor.plugins')}
+            onClick={() => togglePanel('plugins')}
+          >
+            <PuzzleIcon />
+            {tab.activePlugins.filter((p) => p.running).length > 0 && (
+              <span className="feature-rail-badge">
+                {tab.activePlugins.filter((p) => p.running).length}
+              </span>
+            )}
           </button>
           <button
             type="button"

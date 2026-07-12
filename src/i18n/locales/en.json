@@ -2,6 +2,11 @@
   "help": {
     "title": "User Guide",
     "closeAriaLabel": "Close guide",
+    "commandPalette": {
+      "heading": "Command Palette",
+      "p1": "Press <kbd>Ctrl+K</kbd> (or the terminal-prompt icon in the top bar) to open it — type to filter every top-level action (new connection, open/save project, toggle the plotter, Flash/FTP/Plugins/Settings, close/clear the focused tab...) and press <kbd>Enter</kbd> to run the highlighted one, or click any result. Arrow keys move the selection, <kbd>Esc</kbd> closes it.",
+      "p2": "Every entry that has a keyboard shortcut shows it on the right — this list is generated from the same actions the shortcuts trigger, so it's always accurate even as new panels get added."
+    },
     "layout": {
       "heading": "Multi-pane Layout (Snap Layouts)",
       "p1": "Drag a tab by its label and drop it on the left/right/top/bottom edge of any pane's content area to split the workspace and view two tabs side by side — drop on the edge of an existing pane again to split it further, nesting as many rows/columns as you need. A thin divider appears between panes; drag it to resize.",
@@ -106,6 +111,14 @@
       "example2Label": "Example — expect-style request/response with <code>wait_for</code>:",
       "sandboxNote": "This is a convenience sandbox (no <code>os</code>/<code>io</code>/<code>require</code>, each callback capped at ~2s) for scripts you write yourself — not a hardened boundary against malicious code."
     },
+    "plugins": {
+      "heading": "Plugins",
+      "intro": "A <b>plugin</b> is a named, reusable Lua file — unlike a script (one free-form slot per tab), install a plugin once from the <b>Plugins</b> button in the top bar, then enable it on any tab from that tab's own Plugins button; several plugins can run on the same tab at once. A plugin defines exactly one pure function and has no <code>send</code>/<code>wait_for</code>/<code>timer</code> — it only describes how to read data, never drives the device.",
+      "manifest": "The manifest is just leading <code>-- key: value</code> comment lines at the top of the file — <code>name</code> (required), <code>kind</code> (required, <code>decoder</code> or <code>plotter-parser</code>), and optional <code>version</code>/<code>description</code>. No separate manifest file, so installing a plugin is picking one <code>.lua</code> file.",
+      "decoderLabel": "A <b>decoder</b> plugin defines <code>decode(line)</code>, returning a table of fields shown live in that tab's Plugins panel:",
+      "plotterLabel": "A <b>plotter parser</b> plugin defines <code>parse(line)</code>, returning <code>{ channel = number, ... }</code> pairs fed straight into the plotter, the same as a script's <code>plot(...)</code>:",
+      "attachNote": "A plugin's own errors (bad pattern, wrong return type) show inline next to its checkbox in the Plugins panel rather than stopping the whole tab — one bad line doesn't take the plugin down."
+    },
     "plotter": {
       "heading": "Plotter",
       "p1": "Toggle the chart icon in the top bar (<kbd>Ctrl+Shift+P</kbd>) and pick a source tab. Lines are auto-parsed as CSV (<code>1.2,3.4</code>), space-separated, or <code>key:value</code> pairs (e.g. <code>temp:24.5,hum:51.2</code>) — up to 8 channels. Each channel keeps a sliding window of the most recent points, dropping the oldest once full; <b>Settings → Plotter buffer size</b> controls how many (1,000–500,000, default 50,000) — raise it if you're watching a long-running session and don't want early data pushed out.",
@@ -146,6 +159,11 @@
       "stLink": "<b>ST-Link (SWD)</b> — for boards with an on-board or external ST-Link.",
       "uart": "<b>UART bootloader</b> — for boards without one; put the MCU in bootloader mode via BOOT0 first.",
       "optionBytes": "Option-byte writes (e.g. RDP level) require an explicit confirmation dialog — read it before confirming, as some settings can permanently affect debug access."
+    },
+    "restApi": {
+      "heading": "Local REST API",
+      "p1": "Off by default — enable it in <b>Settings</b>, where you'll also set its port and find its bearer token. Once on, it binds to <code>127.0.0.1</code> only (never the LAN) and lets an external CI/production-line system open a serial port, write and read bytes, list ports, and trigger an ESP32 flash on this running instance — the same manager state the GUI itself uses, so a port opened this way shows up as open in the app too. Every request needs <code>Authorization: Bearer &lt;token&gt;</code>.",
+      "p2": "<code>GET /api/v1/status</code> and <code>/serial/ports</code> (available) / <code>/serial/open</code> (currently open) don't need a body. <code>POST /serial/open</code>, <code>/serial/write</code> (hex-encoded bytes), <code>/serial/read</code> (blocks up to <code>timeoutMs</code> for the next batch of data), <code>/serial/close</code>, and <code>/esp32/flash</code> (blocks until the flash finishes, returns pass/fail) take a JSON body:"
     }
   },
   "app": {
@@ -160,6 +178,7 @@
       "flashEsp32Title": "Flash ESP32 (Ctrl+Shift+F)",
       "networkScanner": "Network Scanner",
       "ftp": "FTP Client/Server",
+      "plugins": "Plugins",
       "settings": "Settings",
       "settingsTitle": "Settings (Ctrl+,)"
     },
@@ -231,7 +250,16 @@
     "noDevicesFound": "No devices found.",
     "useThisDeviceAddress": "Use this device's address",
     "connecting": "Connecting…",
-    "connect": "Connect"
+    "connect": "Connect",
+    "recentLabel": "Recent",
+    "recentApply": "Fill in this connection's settings",
+    "recentJustNow": "just now",
+    "recentMinutesAgo_one": "{{count}}m ago",
+    "recentMinutesAgo_other": "{{count}}m ago",
+    "recentHoursAgo_one": "{{count}}h ago",
+    "recentHoursAgo_other": "{{count}}h ago",
+    "recentDaysAgo_one": "{{count}}d ago",
+    "recentDaysAgo_other": "{{count}}d ago"
   },
   "monitor": {
     "clearConfirm": "Clear the log buffer for this tab?",
@@ -253,6 +281,7 @@
     "triggers": "Triggers",
     "script": "Script",
     "scriptRunning": "Script (running)",
+    "plugins": "Plugins",
     "macro": "Macro",
     "macroRecording": "Macro (recording)",
     "modbusMaster": "Modbus Master",
@@ -279,6 +308,24 @@
     "otaDone": "OTA update complete",
     "otaError": "OTA update failed — {{message}}",
     "ftpTransferError": "FTP transfer failed — {{message}}"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "clear": "Clear all",
+    "empty": "No notifications yet."
+  },
+  "commandPalette": {
+    "open": "Command palette",
+    "openTitle": "Command palette (Ctrl+K)",
+    "placeholder": "Type a command…",
+    "noMatches": "No matching commands.",
+    "closeTab": "Close current tab",
+    "clearTab": "Clear current tab buffer",
+    "category": {
+      "navigate": "Go to",
+      "project": "Project",
+      "tab": "Tab"
+    }
   },
   "ota": {
     "tabLabel": "OTA (WiFi)",
@@ -439,6 +486,23 @@
     "console": "Console",
     "clearConsole": "Clear console",
     "noOutputYet": "No output yet."
+  },
+  "pluginBar": {
+    "noneInstalled": "No plugins installed yet — install one from the Plugins button in the top bar.",
+    "waitingForData": "Waiting for data…",
+    "kind": {
+      "decoder": "Decoder",
+      "plotterParser": "Plotter parser"
+    }
+  },
+  "pluginLibrary": {
+    "title": "Plugins",
+    "hint": "A plugin is a named, reusable Lua file that either decodes each line into fields (Decoder) or extracts numeric channels for the plotter (Plotter parser) — install one here, then enable it per tab from that tab's Plugins button.",
+    "install": "Install plugin…",
+    "installDialogTitle": "Select a plugin .lua file",
+    "luaFilterName": "Lua plugin",
+    "noneInstalled": "No plugins installed yet.",
+    "deleteConfirm": "Uninstall \"{{name}}\"? Any tab currently running it will stop."
   },
   "modbus": {
     "coilValue": "Coil value (0/1)",
@@ -634,6 +698,16 @@
     "newline": "Newline Character",
     "fontSize": "Display font size",
     "keepAwake": "Keep screen always bright",
+    "restApi": {
+      "title": "Local REST API",
+      "hint": "Lets an external CI/production-line system open a serial port, write/read bytes, and trigger an ESP32 flash on this running instance over HTTP. Binds to 127.0.0.1 only — never reachable from the LAN. Every request needs the token below in an \"Authorization: Bearer <token>\" header.",
+      "port": "Port",
+      "token": "Bearer token",
+      "copyToken": "Copy token",
+      "regenerateToken": "Regenerate token",
+      "regenerateConfirm": "Regenerate the token? Any external tool configured with the current one will need to be updated.",
+      "startError": "Could not start the local REST API: {{error}}"
+    },
     "personalization": "Personalization",
     "theme": {
       "system": "system",
@@ -657,6 +731,7 @@
     },
     "shortcutsTitle": "Keyboard shortcuts",
     "shortcuts": {
+      "commandPalette": "Command palette",
       "newConnection": "New connection",
       "closeTab": "Close current tab",
       "switchTab": "Switch to tab N",

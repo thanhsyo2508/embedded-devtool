@@ -24,6 +24,41 @@ else
   alert("device did not reply within 2s")
 end`
 
+const PLUGIN_DECODER_EXAMPLE = `-- name: NMEA GGA fields
+-- version: 1.0.0
+-- kind: decoder
+-- description: Splits a $GPGGA sentence into named fields
+
+function decode(line)
+  local lat, lon, sats = line:match("GPGGA,[%d.]+,(%a+),.-,(%a+),.-,%d,(%d+)")
+  if not lat then return {} end
+  return { latitude = lat, longitude = lon, satellites = sats }
+end`
+
+const PLUGIN_PLOTTER_EXAMPLE = `-- name: Temp/Humidity
+-- version: 1.0.0
+-- kind: plotter-parser
+-- description: Extracts temp/humidity as plotter channels
+
+function parse(line)
+  local t, h = line:match("T=([%d.]+) H=([%d.]+)")
+  if not t then return {} end
+  return { temp = tonumber(t), humidity = tonumber(h) }
+end`
+
+const REST_API_EXAMPLE = `curl -X POST http://127.0.0.1:8642/api/v1/serial/open \\
+  -H "Authorization: Bearer <token>" \\
+  -H "Content-Type: application/json" \\
+  -d '{"id":"line1","portName":"COM3","baudRate":115200}'
+
+curl -X POST http://127.0.0.1:8642/api/v1/serial/write \\
+  -H "Authorization: Bearer <token>" \\
+  -d '{"id":"line1","dataHex":"41542b494e464f0d0a"}'
+
+curl -X POST http://127.0.0.1:8642/api/v1/serial/read \\
+  -H "Authorization: Bearer <token>" \\
+  -d '{"id":"line1","timeoutMs":2000}'`
+
 // Shared tag map for every <Trans> below — the translation strings in
 // src/i18n/locales/*.json use these same tag names (<b>, <code>, <kbd>) so
 // one map covers the whole guide instead of repeating it per call.
@@ -52,6 +87,14 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="help-body">
+          <section className="guide-section">
+            <h3>{t('help.commandPalette.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.commandPalette.p1" components={G} />
+            </p>
+            <p>{t('help.commandPalette.p2')}</p>
+          </section>
+
           <section className="guide-section">
             <h3>{t('help.layout.heading')}</h3>
             <p>
@@ -312,6 +355,31 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
           </section>
 
           <section className="guide-section">
+            <h3>{t('help.plugins.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.plugins.intro" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.plugins.manifest" components={G} />
+            </p>
+            <p>
+              <b>
+                <Trans i18nKey="help.plugins.decoderLabel" components={G} />
+              </b>
+            </p>
+            <pre className="guide-code">{PLUGIN_DECODER_EXAMPLE}</pre>
+            <p>
+              <b>
+                <Trans i18nKey="help.plugins.plotterLabel" components={G} />
+              </b>
+            </p>
+            <pre className="guide-code">{PLUGIN_PLOTTER_EXAMPLE}</pre>
+            <p>
+              <Trans i18nKey="help.plugins.attachNote" components={G} />
+            </p>
+          </section>
+
+          <section className="guide-section">
             <h3>{t('help.plotter.heading')}</h3>
             <p>
               <Trans i18nKey="help.plotter.p1" components={G} />
@@ -399,6 +467,17 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
             </ul>
             <p>{t('help.flashStm32.optionBytes')}</p>
+          </section>
+
+          <section className="guide-section">
+            <h3>{t('help.restApi.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.restApi.p1" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.restApi.p2" components={G} />
+            </p>
+            <pre className="guide-code">{REST_API_EXAMPLE}</pre>
           </section>
         </div>
       </div>

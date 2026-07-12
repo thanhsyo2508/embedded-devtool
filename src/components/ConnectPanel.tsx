@@ -17,8 +17,10 @@ import {
   type ConnectionProfile,
 } from '../state/connectionProfilesStore'
 import { useLastConnectionStore, type LastConnectionConfig } from '../state/lastConnectionStore'
+import { useRecentConnectionsStore, type RecentConnection } from '../state/recentConnectionsStore'
 import {
   ChipIcon,
+  ClockIcon,
   GaugeIcon,
   GlobeIcon,
   MessageIcon,
@@ -29,9 +31,23 @@ import {
   XIcon,
 } from './icons'
 import { LibraryRow } from './LibraryRow'
+import { Spinner } from './Spinner'
 
 function formatHexId(id: number | null): string | null {
   return id === null ? null : `0x${id.toString(16).padStart(4, '0').toUpperCase()}`
+}
+
+function formatRelativeTime(
+  t: (key: string, opts?: Record<string, number>) => string,
+  atMs: number,
+): string {
+  const seconds = Math.max(0, Math.round((Date.now() - atMs) / 1000))
+  if (seconds < 60) return t('connect.recentJustNow')
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return t('connect.recentMinutesAgo', { count: minutes })
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return t('connect.recentHoursAgo', { count: hours })
+  return t('connect.recentDaysAgo', { count: Math.round(hours / 24) })
 }
 
 // TCP and WebSocket each have a client/server role; grouping by protocol
@@ -155,6 +171,9 @@ export function ConnectPanel({
   const [scanResults, setScanResults] = useState<MdnsService[] | null>(null)
   const openTab = useTabsStore((s) => s.openTab)
   const rememberLastConnection = useLastConnectionStore((s) => s.remember)
+  const recentConnections = useRecentConnectionsStore((s) => s.items)
+  const pushRecentConnection = useRecentConnectionsStore((s) => s.push)
+  const removeRecentConnection = useRecentConnectionsStore((s) => s.remove)
   const profiles = useConnectionProfilesStore((s) => s.items)
   const targetProfiles = profiles.filter((p) => p.kind === target)
   const saveProfile = useConnectionProfilesStore((s) => s.save)
@@ -200,6 +219,14 @@ export function ConnectPanel({
       setSubscribeTopic(p.subscribeTopic ?? '#')
       setPublishTopic(p.publishTopic ?? '')
     }
+  }
+
+  // Reuses applyProfile's field-restoring logic — a RecentConnection's
+  // `config` is the same shape as a saved profile minus id/name, so this
+  // just wraps it in the shape applyProfile expects rather than
+  // duplicating a second switch over every connection kind.
+  const applyRecent = (recent: RecentConnection) => {
+    applyProfile({ ...recent.config, id: recent.id, name: recent.label })
   }
 
   useEffect(() => {
@@ -367,7 +394,10 @@ export function ConnectPanel({
           password: sshPassword,
         })
       }
-      rememberLastConnection(target, currentConfigData())
+      const configSnapshot = currentConfigData()
+      rememberLastConnection(target, configSnapshot)
+      const openedTab = useTabsStore.getState().tabs.find((t) => t.id === tabId)
+      if (openedTab) pushRecentConnection(target, configSnapshot, openedTab.connectionLabel)
       onConnected(tabId)
     } catch (err) {
       setError(String(err))
@@ -457,6 +487,40 @@ export function ConnectPanel({
             </button>
           )}
         </h2>
+
+        {recentConnections.length > 0 && (
+          <div className="recent-connections">
+            <span className="recent-connections-label">
+              <ClockIcon /> {t('connect.recentLabel')}
+            </span>
+            <div className="recent-connections-list">
+              {recentConnections.map((recent) => (
+                <div key={recent.id} className="recent-connection-chip">
+                  <button
+                    type="button"
+                    className="recent-connection-main"
+                    title={t('connect.recentApply')}
+                    onClick={() => applyRecent(recent)}
+                  >
+                    <span className="recent-connection-label">{recent.label}</span>
+                    <span className="recent-connection-time">
+                      {formatRelativeTime(t, recent.connectedAtMs)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label={t('common.delete')}
+                    title={t('common.delete')}
+                    onClick={() => removeRecentConnection(recent.id)}
+                  >
+                    <XIcon />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="seg">
           {FAMILIES.map((f) => (
@@ -862,7 +926,7 @@ export function ConnectPanel({
           disabled={!canConnect || loading}
           onClick={() => void handleConnect()}
         >
-          <PlugIcon />
+          {loading ? <Spinner /> : <PlugIcon />}
           {loading ? t('connect.connecting') : t('connect.connect')}
         </button>
       </div>

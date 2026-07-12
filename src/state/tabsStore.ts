@@ -51,6 +51,16 @@ import {
   runScript as runScriptApi,
   stopScript as stopScriptApi,
 } from '../api/script'
+import {
+  onPluginDecoded,
+  onPluginDone,
+  onPluginError,
+  onPluginPlot,
+  pluginRun,
+  pluginStop,
+  type PluginKind,
+} from '../api/plugin'
+import type { InstalledPlugin } from './pluginLibraryStore'
 import { usePlotStore } from './plotStore'
 
 export interface LogLine {
@@ -100,6 +110,21 @@ export interface ScriptConsoleEntry {
   kind: 'log' | 'alert' | 'error'
   message: string
   atMs: number
+}
+
+/** One installed plugin attached to this tab. Unlike a script (one slot
+ * per tab, imperative), a tab can have several plugins active at once,
+ * each a pure decode(line)/parse(line) function the backend calls
+ * automatically — `fields`/`error` reflect the plugin's most recent line,
+ * not a running console log. */
+export interface ActivePlugin {
+  runId: string
+  pluginId: string
+  name: string
+  kind: PluginKind
+  running: boolean
+  error: string | null
+  fields: Record<string, string>
 }
 
 export interface ModbusLogEntry {
@@ -226,6 +251,7 @@ export interface TabState {
   scriptCode: string
   scriptRunning: boolean
   scriptConsole: ScriptConsoleEntry[]
+  activePlugins: ActivePlugin[]
   modbusMasterLog: ModbusLogEntry[]
   modbusMasterPolls: ModbusPollRule[]
   modbusSlave: ModbusSlaveState
@@ -283,6 +309,7 @@ interface TabsStore {
   runScript: (id: string) => Promise<void>
   stopScript: (id: string) => Promise<void>
   clearScriptConsole: (id: string) => void
+  togglePlugin: (id: string, plugin: InstalledPlugin) => Promise<void>
   appendModbusMasterLog: (id: string, kind: ModbusLogEntry['kind'], message: string) => void
   clearModbusMasterLog: (id: string) => void
   /** Shared by the manual request builder and the poll scheduler so the two
@@ -773,6 +800,26 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     void onScriptPlot((e) =>
       usePlotStore.getState().ingestScriptPoint(e.streamId, e.channel, e.value),
     )
+
+    // Plugin events are keyed by runId (`${tabId}:${pluginId}`), unique
+    // across every tab, so each handler maps over every tab's
+    // activePlugins looking for the one matching entry rather than
+    // needing to parse the tab id back out of the run id.
+    const updateActivePlugin = (runId: string, patch: Partial<ActivePlugin>) =>
+      set((state) => ({
+        tabs: state.tabs.map((tab) => ({
+          ...tab,
+          activePlugins: tab.activePlugins.map((p) => (p.runId === runId ? { ...p, ...patch } : p)),
+        })),
+      }))
+
+    void onPluginDecoded((e) => updateActivePlugin(e.id, { fields: e.fields, error: null }))
+    void onPluginPlot((e) => {
+      updateActivePlugin(e.id, { error: null })
+      usePlotStore.getState().ingestScriptPoint(e.streamId, e.channel, e.value)
+    })
+    void onPluginError((e) => updateActivePlugin(e.id, { error: e.message }))
+    void onPluginDone((e) => updateActivePlugin(e.id, { running: false }))
   },
 
   openTab: async (req) => {
@@ -847,6 +894,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       scriptCode: '',
       scriptRunning: false,
       scriptConsole: [],
+      activePlugins: [],
       modbusMasterLog: [],
       modbusMasterPolls: [],
       modbusSlave: {
@@ -883,6 +931,11 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     if (tab?.scriptRunning) {
       await stopScriptApi(id).catch(() => {})
     }
+    await Promise.all(
+      (tab?.activePlugins ?? [])
+        .filter((p) => p.running)
+        .map((p) => pluginStop(p.runId).catch(() => {})),
+    )
     if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
     else await closeNetworkStream(id).catch(() => {})
     set((state) => {
@@ -900,11 +953,23 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     if (tab?.scriptRunning) {
       await stopScriptApi(id).catch(() => {})
     }
+    await Promise.all(
+      (tab?.activePlugins ?? [])
+        .filter((p) => p.running)
+        .map((p) => pluginStop(p.runId).catch(() => {})),
+    )
     if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
     else await closeNetworkStream(id).catch(() => {})
     set((state) => ({
       tabs: state.tabs.map((tab) =>
-        tab.id === id ? { ...tab, status: 'closed', errorMessage: undefined } : tab,
+        tab.id === id
+          ? {
+              ...tab,
+              status: 'closed',
+              errorMessage: undefined,
+              activePlugins: tab.activePlugins.map((p) => ({ ...p, running: false })),
+            }
+          : tab,
       ),
     }))
   },
@@ -1352,6 +1417,59 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, scriptConsole: [] } : tab)),
     })),
+
+  // Unlike scripts (one code slot per tab), several plugins can run on the
+  // same tab at once — each entry in activePlugins is its own decode/parse
+  // loop on the backend, keyed by `${tabId}:${pluginId}` so the same
+  // installed plugin can also run on a different tab simultaneously.
+  togglePlugin: async (id, plugin) => {
+    const tab = get().tabs.find((t) => t.id === id)
+    if (!tab) return
+    const runId = `${id}:${plugin.id}`
+    const existing = tab.activePlugins.find((p) => p.runId === runId)
+
+    if (existing?.running) {
+      await pluginStop(runId).catch(() => {})
+      set((state) => ({
+        tabs: state.tabs.map((t) =>
+          t.id === id
+            ? {
+                ...t,
+                activePlugins: t.activePlugins.map((p) =>
+                  p.runId === runId ? { ...p, running: false } : p,
+                ),
+              }
+            : t,
+        ),
+      }))
+      return
+    }
+
+    try {
+      await pluginRun(runId, id, plugin.kind, plugin.code)
+    } catch (err) {
+      window.alert(String(err))
+      return
+    }
+    set((state) => ({
+      tabs: state.tabs.map((t) => {
+        if (t.id !== id) return t
+        const entry: ActivePlugin = {
+          runId,
+          pluginId: plugin.id,
+          name: plugin.name,
+          kind: plugin.kind,
+          running: true,
+          error: null,
+          fields: {},
+        }
+        const activePlugins = existing
+          ? t.activePlugins.map((p) => (p.runId === runId ? entry : p))
+          : [...t.activePlugins, entry]
+        return { ...t, activePlugins }
+      }),
+    }))
+  },
 
   appendModbusMasterLog: (id, kind, message) =>
     set((state) => ({

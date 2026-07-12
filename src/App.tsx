@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +12,7 @@ import {
   type ProjectProfileFile,
 } from './lib/projectProfile'
 import { FONT_SIZE_PX, useSettingsStore } from './state/settingsStore'
+import { restApiStart, restApiStop } from './api/restapi'
 import { useFlashStore } from './state/flashStore'
 import { useStm32Store } from './state/stm32Store'
 import { usePlotStore } from './state/plotStore'
@@ -23,16 +24,21 @@ import { PlotDock } from './components/PlotDock'
 import { WorkspaceResizer } from './components/WorkspaceResizer'
 import { NetScanPanel } from './components/NetScanPanel'
 import { FtpPanel } from './components/FtpPanel'
+import { PluginLibraryPanel } from './components/PluginLibraryPanel'
 import { ToastStack } from './components/ToastStack'
+import { NotificationBell } from './components/NotificationBell'
+import { CommandPalette, type PaletteCommand } from './components/CommandPalette'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
 import { useWsStore } from './state/wsStore'
 import {
   ChartIcon,
+  CommandIcon,
   DiskIcon,
   FolderIcon,
   GearIcon,
   GlobeIcon,
+  PuzzleIcon,
   ServerIcon,
   ZapIcon,
 } from './components/icons'
@@ -62,10 +68,15 @@ function App() {
   const [showFlash, setShowFlash] = useState(false)
   const [showNetScan, setShowNetScan] = useState(false)
   const [showFtp, setShowFtp] = useState(false)
+  const [showPlugins, setShowPlugins] = useState(false)
+  const [showPalette, setShowPalette] = useState(false)
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
   const keepAwake = useSettingsStore((s) => s.keepAwake)
+  const restApiEnabled = useSettingsStore((s) => s.restApiEnabled)
+  const restApiPort = useSettingsStore((s) => s.restApiPort)
+  const restApiToken = useSettingsStore((s) => s.restApiToken)
   const plotVisible = usePlotStore((s) => s.visible)
   const setPlotVisible = usePlotStore((s) => s.setVisible)
   const plotSourceTabId = usePlotStore((s) => s.sourceTabId)
@@ -113,6 +124,20 @@ function App() {
   useEffect(() => {
     void invoke('set_keep_awake', { enabled: keepAwake }).catch(() => {})
   }, [keepAwake])
+
+  // Restarts the server (stop, then start with whatever's current) on any
+  // change so toggling the setting, or editing the port/token while
+  // enabled, always converges to matching backend state — rest_api_stop
+  // is a no-op if nothing's running, so this is safe on first mount too.
+  useEffect(() => {
+    void restApiStop().finally(() => {
+      if (restApiEnabled) {
+        void restApiStart(restApiPort, restApiToken).catch((err: unknown) => {
+          window.alert(t('settings.restApi.startError', { error: String(err) }))
+        })
+      }
+    })
+  }, [restApiEnabled, restApiPort, restApiToken, t])
 
   const hasAnyTabs = tabs.length > 0
   const focusedPane = findPane(layoutRoot, focusedPaneId)
@@ -235,6 +260,96 @@ function App() {
     }
   }
 
+  // Ctrl+K quick-open — see CommandPalette's module doc. Built here (not
+  // inside that component) since every action needs this component's own
+  // setShowX state/handlers; recomputed whenever what a command should do
+  // or whether it applies (e.g. "Close tab" needs a focused tab) changes.
+  const paletteCommands: PaletteCommand[] = useMemo(() => {
+    const navigate = t('commandPalette.category.navigate')
+    const project = t('commandPalette.category.project')
+    const tabCategory = t('commandPalette.category.tab')
+    const commands: PaletteCommand[] = [
+      {
+        id: 'new-connection',
+        category: navigate,
+        label: t('connect.title'),
+        shortcut: 'Ctrl+N',
+        run: () => setShowConnect(true),
+      },
+      {
+        id: 'toggle-plotter',
+        category: navigate,
+        label: t('app.topbar.plotter'),
+        shortcut: 'Ctrl+Shift+P',
+        run: () => setPlotVisible(!plotVisible),
+      },
+      {
+        id: 'flash',
+        category: navigate,
+        label: t('app.topbar.flashEsp32'),
+        shortcut: 'Ctrl+Shift+F',
+        run: () => setShowFlash(true),
+      },
+      {
+        id: 'netscan',
+        category: navigate,
+        label: t('app.topbar.networkScanner'),
+        run: () => setShowNetScan(true),
+      },
+      { id: 'ftp', category: navigate, label: t('app.topbar.ftp'), run: () => setShowFtp(true) },
+      {
+        id: 'plugins',
+        category: navigate,
+        label: t('app.topbar.plugins'),
+        run: () => setShowPlugins(true),
+      },
+      {
+        id: 'settings',
+        category: navigate,
+        label: t('app.topbar.settings'),
+        shortcut: 'Ctrl+,',
+        run: () => setShowSettings(true),
+      },
+      {
+        id: 'open-project',
+        category: project,
+        label: t('app.topbar.openProject'),
+        run: () => void handleOpenProject(),
+      },
+    ]
+    if (hasAnyTabs) {
+      commands.push({
+        id: 'save-project',
+        category: project,
+        label: t('app.topbar.saveProject'),
+        run: () => void handleSaveProject(),
+      })
+    }
+    if (focusedTab) {
+      commands.push(
+        {
+          id: 'close-tab',
+          category: tabCategory,
+          label: t('commandPalette.closeTab'),
+          shortcut: 'Ctrl+W',
+          run: () => {
+            void closeTab(focusedTab.id)
+            layoutCloseTab(focusedTab.id)
+          },
+        },
+        {
+          id: 'clear-tab',
+          category: tabCategory,
+          label: t('commandPalette.clearTab'),
+          shortcut: 'Ctrl+L',
+          run: () => clearLines(focusedTab.id),
+        },
+      )
+    }
+    return commands
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t, hasAnyTabs, focusedTab, plotVisible])
+
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
   // Shortcuts that target "the current tab" now act on the focused pane's
   // active tab, since there's no longer a single global active tab once
@@ -246,11 +361,19 @@ function App() {
       const isTyping = !!target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 
       if (e.key === 'Escape') {
-        if (showSettings) setShowSettings(false)
+        if (showPalette) setShowPalette(false)
+        else if (showSettings) setShowSettings(false)
         else if (showFlash) setShowFlash(false)
         else if (showNetScan) setShowNetScan(false)
         else if (showFtp) setShowFtp(false)
+        else if (showPlugins) setShowPlugins(false)
         else if (showConnect && hasAnyTabs) setShowConnect(false)
+        return
+      }
+
+      if (mod && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setShowPalette((v) => !v)
         return
       }
 
@@ -320,6 +443,8 @@ function App() {
     showFlash,
     showNetScan,
     showFtp,
+    showPlugins,
+    showPalette,
     hasAnyTabs,
     plotVisible,
     closeTab,
@@ -392,6 +517,25 @@ function App() {
         <button
           type="button"
           className="icon-button settings-trigger"
+          aria-label={t('app.topbar.plugins')}
+          title={t('app.topbar.plugins')}
+          onClick={() => setShowPlugins(true)}
+        >
+          <PuzzleIcon />
+        </button>
+        <button
+          type="button"
+          className="icon-button settings-trigger"
+          aria-label={t('commandPalette.open')}
+          title={t('commandPalette.openTitle')}
+          onClick={() => setShowPalette(true)}
+        >
+          <CommandIcon />
+        </button>
+        <NotificationBell />
+        <button
+          type="button"
+          className="icon-button settings-trigger"
           aria-label={t('app.topbar.settings')}
           title={t('app.topbar.settingsTitle')}
           onClick={() => setShowSettings(true)}
@@ -423,6 +567,10 @@ function App() {
       {showFlash && <FlashPanel onClose={() => setShowFlash(false)} />}
       {showNetScan && <NetScanPanel onClose={() => setShowNetScan(false)} />}
       {showFtp && <FtpPanel onClose={() => setShowFtp(false)} />}
+      {showPlugins && <PluginLibraryPanel onClose={() => setShowPlugins(false)} />}
+      {showPalette && (
+        <CommandPalette commands={paletteCommands} onClose={() => setShowPalette(false)} />
+      )}
       <ToastStack />
     </div>
   )

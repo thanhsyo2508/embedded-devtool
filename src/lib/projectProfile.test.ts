@@ -38,6 +38,7 @@ function makeTab(
     scriptCode: '',
     scriptRunning: false,
     scriptConsole: [],
+    activePlugins: [],
     modbusMasterLog: [],
     modbusMasterPolls: [],
     modbusSlave: {

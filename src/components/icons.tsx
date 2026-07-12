@@ -274,6 +274,41 @@ export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function ClockIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3.5 2" />
+    </Icon>
+  )
+}
+
+export function BellIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M6 8a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6" />
+      <path d="M10 20a2 2 0 0 0 4 0" />
+    </Icon>
+  )
+}
+
+export function CommandIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M7 9l3 3-3 3M13 15h4" />
+    </Icon>
+  )
+}
+
+export function PuzzleIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M9 4h3a1.5 1.5 0 0 1 0 3 1.5 1.5 0 0 0 0 3h4a1 1 0 0 1 1 1v4a1.5 1.5 0 0 1-3 0 1.5 1.5 0 0 0-3 0v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-4a1.5 1.5 0 0 1 3 0 1.5 1.5 0 0 0 0-3H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h4V4z" />
+    </Icon>
+  )
+}
+
 export function MagicWandIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

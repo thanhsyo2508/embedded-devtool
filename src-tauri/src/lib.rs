@@ -2,9 +2,12 @@ pub mod core;
 pub mod flash;
 pub mod ftp;
 pub mod net;
+pub mod plugin;
+pub mod restapi;
 pub mod script;
 pub mod serial;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
@@ -1151,6 +1154,148 @@ fn stop_script(scripts: tauri::State<Arc<ScriptManager>>, id: String) -> Result<
     scripts.stop(&id)
 }
 
+// ---- Plugin engine ----
+//
+// Narrower than a script: a plugin exposes one pure function
+// (decode(line) or parse(line)) called for every line, no send/wait_for.
+// Keyed by a caller-assigned run id (frontend uses `${tabId}:${pluginId}`
+// so the same installed plugin can run on multiple tabs at once).
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PluginDecodedEvent {
+    id: String,
+    fields: HashMap<String, String>,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PluginPlotEvent {
+    id: String,
+    stream_id: String,
+    channel: String,
+    value: f64,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PluginErrorEvent {
+    id: String,
+    message: String,
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct PluginDoneEvent {
+    id: String,
+}
+
+#[tauri::command]
+fn plugin_run(
+    app: AppHandle,
+    plugins: tauri::State<Arc<plugin::PluginManager>>,
+    event_bus: tauri::State<EventBus>,
+    id: String,
+    stream_id: String,
+    kind: plugin::PluginKind,
+    code: String,
+) -> Result<(), String> {
+    let app_for_decoded = app.clone();
+    let id_for_decoded = id.clone();
+    let app_for_plot = app.clone();
+    let id_for_plot = id.clone();
+    let stream_for_plot = stream_id.clone();
+    let app_for_error = app.clone();
+    let id_for_error = id.clone();
+    let app_for_done = app.clone();
+    let id_for_done = id.clone();
+
+    let callbacks = plugin::PluginCallbacks {
+        on_decoded: Arc::new(move |fields| {
+            let _ = app_for_decoded.emit(
+                "plugin://decoded",
+                PluginDecodedEvent {
+                    id: id_for_decoded.clone(),
+                    fields,
+                },
+            );
+        }),
+        on_plot: Arc::new(move |channel, value| {
+            let _ = app_for_plot.emit(
+                "plugin://plot",
+                PluginPlotEvent {
+                    id: id_for_plot.clone(),
+                    stream_id: stream_for_plot.clone(),
+                    channel,
+                    value,
+                },
+            );
+        }),
+        on_error: Arc::new(move |message| {
+            let _ = app_for_error.emit(
+                "plugin://error",
+                PluginErrorEvent {
+                    id: id_for_error.clone(),
+                    message,
+                },
+            );
+        }),
+        on_done: Arc::new(move || {
+            let _ = app_for_done.emit(
+                "plugin://done",
+                PluginDoneEvent {
+                    id: id_for_done.clone(),
+                },
+            );
+        }),
+    };
+
+    plugins.run(
+        id,
+        stream_id,
+        kind,
+        code,
+        event_bus.inner().clone(),
+        callbacks,
+    )
+}
+
+#[tauri::command]
+fn plugin_stop(
+    plugins: tauri::State<Arc<plugin::PluginManager>>,
+    id: String,
+) -> Result<(), String> {
+    plugins.stop(&id)
+}
+
+// ---- Local REST API (optional, off by default) ----
+
+#[tauri::command]
+fn rest_api_start(
+    rest_api: tauri::State<Arc<restapi::RestApiManager>>,
+    port_manager: tauri::State<Arc<PortManager>>,
+    event_bus: tauri::State<EventBus>,
+    port: u16,
+    token: String,
+) -> Result<(), String> {
+    rest_api.start(
+        port,
+        token,
+        port_manager.inner().clone(),
+        event_bus.inner().clone(),
+    )
+}
+
+#[tauri::command]
+fn rest_api_stop(rest_api: tauri::State<Arc<restapi::RestApiManager>>) {
+    rest_api.stop();
+}
+
+#[tauri::command]
+fn rest_api_is_running(rest_api: tauri::State<Arc<restapi::RestApiManager>>) -> bool {
+    rest_api.is_running()
+}
+
 // ---- TCP client/server (Tháng 6) ----
 //
 // Mirrors the serial commands in shape: open/close/write plus a batch
@@ -1523,6 +1668,8 @@ pub fn run() {
     serial::manager::spawn_hotplug_watcher(event_bus.clone());
 
     let scripts = Arc::new(ScriptManager::new());
+    let plugins = Arc::new(plugin::PluginManager::new());
+    let rest_api = Arc::new(restapi::RestApiManager::new());
     let ftp_manager = Arc::new(ftp::FtpManager::new());
     let ftp_server_manager = Arc::new(ftp::FtpServerManager::new());
 
@@ -1539,6 +1686,8 @@ pub fn run() {
         .manage(network_for_state)
         .manage(event_bus_for_state)
         .manage(scripts)
+        .manage(plugins)
+        .manage(rest_api)
         .manage(ftp_manager)
         .manage(ftp_server_manager)
         .manage(KeepAwakeState(Mutex::new(None)))
@@ -1590,6 +1739,11 @@ pub fn run() {
             write_stm32_option_byte,
             run_script,
             stop_script,
+            plugin_run,
+            plugin_stop,
+            rest_api_start,
+            rest_api_stop,
+            rest_api_is_running,
             open_tcp_client,
             open_tcp_server,
             open_udp,
@@ -1632,6 +1786,9 @@ pub fn run() {
                 }
                 if let Some(network) = app_handle.try_state::<Arc<NetworkManager>>() {
                     network.close_all();
+                }
+                if let Some(rest_api) = app_handle.try_state::<Arc<restapi::RestApiManager>>() {
+                    rest_api.stop();
                 }
             }
         });

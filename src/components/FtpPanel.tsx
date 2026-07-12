@@ -15,6 +15,7 @@ import {
   UploadIcon,
   XIcon,
 } from './icons'
+import { Spinner } from './Spinner'
 
 type Target = 'client' | 'server'
 
@@ -190,7 +191,8 @@ export function FtpPanel({ onClose }: { onClose: () => void }) {
                   disabled={!host || connecting}
                   onClick={() => void connect()}
                 >
-                  <PlugIcon /> {connecting ? t('flash.working') : t('ftp.connect')}
+                  {connecting ? <Spinner /> : <PlugIcon />}{' '}
+                  {connecting ? t('flash.working') : t('ftp.connect')}
                 </button>
               </div>
             </>

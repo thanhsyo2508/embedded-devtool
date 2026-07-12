@@ -14,7 +14,7 @@ import {
   type Theme,
 } from '../state/settingsStore'
 import { useUpdateStore } from '../state/updateStore'
-import { BookOpenIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
+import { BookOpenIcon, CopyIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
 import { HelpGuide } from './HelpGuide'
 
 const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
@@ -57,6 +57,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   }
 
   const shortcuts: [string, string][] = [
+    ['Ctrl+K', t('settings.shortcuts.commandPalette')],
     ['Ctrl+N', t('settings.shortcuts.newConnection')],
     ['Ctrl+W', t('settings.shortcuts.closeTab')],
     ['Ctrl+1–9', t('settings.shortcuts.switchTab')],
@@ -177,6 +178,61 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <span className="switch-track" />
           </label>
         </div>
+
+        <hr className="settings-divider" />
+
+        <div className="settings-row">
+          <span>{t('settings.restApi.title')}</span>
+          <label className="switch">
+            <input
+              type="checkbox"
+              checked={settings.restApiEnabled}
+              onChange={(e) => settings.setRestApiEnabled(e.target.checked)}
+            />
+            <span className="switch-track" />
+          </label>
+        </div>
+        {settings.restApiEnabled && (
+          <>
+            <p className="ota-hint">{t('settings.restApi.hint')}</p>
+            <div className="settings-row">
+              <span>{t('settings.restApi.port')}</span>
+              <input
+                type="number"
+                className="rest-api-port"
+                value={settings.restApiPort}
+                onChange={(e) => settings.setRestApiPort(Number(e.target.value))}
+              />
+            </div>
+            <div className="settings-row">
+              <span>{t('settings.restApi.token')}</span>
+              <div className="field-row">
+                <input className="mono rest-api-token" value={settings.restApiToken} readOnly />
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={t('settings.restApi.copyToken')}
+                  onClick={() => void navigator.clipboard.writeText(settings.restApiToken)}
+                >
+                  <CopyIcon />
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  title={t('settings.restApi.regenerateToken')}
+                  onClick={() => {
+                    if (window.confirm(t('settings.restApi.regenerateConfirm'))) {
+                      settings.regenerateRestApiToken()
+                    }
+                  }}
+                >
+                  <RefreshIcon />
+                </button>
+              </div>
+            </div>
+            <p className="rest-api-base-url mono">http://127.0.0.1:{settings.restApiPort}/api/v1</p>
+          </>
+        )}
 
         <hr className="settings-divider" />
 
