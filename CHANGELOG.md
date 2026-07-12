@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.1.5 — 2026-07-12
+
+- **SWD debug (new connection kind):** attaches to a debug probe
+  (ST-Link/J-Link/CMSIS-DAP) via `probe-rs` instead of a serial port —
+  streams RTT log output into a normal Monitor tab (needs `rtt-target`
+  or SEGGER RTT in the firmware), and a Watch panel reads global/static
+  variables live by name, resolved from a build's `.elf` DWARF info, no
+  breakpoint needed.
+- **STM32 Mass Production mode:** patches a unique serial number/MAC/key
+  into each device's firmware before flashing and logs a CSV, plus a
+  Production Stats panel totaling devices flashed across ESP32 batch and
+  STM32 mass-production sessions.
+- **Export/Import configuration:** every saved library (connection
+  profiles, scripts, plugins, quick-command profiles, filter/trigger
+  presets) bundled into one JSON file for backing a machine up or
+  handing a teammate the same setup.
+- **Security:** curated STM32 Readout Protection levels and ESP32 eFuse
+  read/burn (flash encryption/secure boot/JTAG counters, pure Rust via
+  `espflash` — no Python/`espefuse.py` needed), plus an app-wide flash
+  PIN lock. Irreversible actions require typing a confirmation keyword.
+- **Quick Commands:** a JSON editing mode (auto-indent, bracket
+  auto-pairing, Tab inserts an indent instead of leaving the field)
+  that compacts back to one line on save, plus a per-command line-ending
+  override.
+- STM32 flash panel's Security and raw option-bytes sections now
+  collapse by default to cut the always-visible height.
+
 ## v0.1.4 — 2026-07-11
 
 - **FTP client/server:** a plain-FTP client to browse, upload, download,
