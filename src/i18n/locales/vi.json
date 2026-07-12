@@ -23,6 +23,7 @@
       "li5": "Các dòng khớp định dạng log phổ biến (ESP-IDF <code>E (328) wifi: ...</code>, <code>[ERROR]</code>, hoặc tiền tố <code>WARN:</code>) sẽ tự tô màu theo mức độ — không cần cấu hình gì, chạy song song với filter/search.",
       "li6": "Thanh dưới cùng của monitor hiển thị bytes/s, lines/s, số lỗi, và thời gian hoạt động (uptime) theo thời gian thực cho tab đó.",
       "li7": "Mọi thứ bạn gửi (Send panel, quick command, macro, script) đều được ghi lại vào log như 1 dòng riêng — đánh dấu bằng <b>»</b> và hiển thị màu accent, còn <b>«</b> là dòng nhận từ thiết bị — nên yêu cầu và phản hồi luôn nằm cùng bộ đệm, đúng thứ tự.",
+      "li8": "<b>Bấm chuột phải</b> vào phần đang bôi đen (hoặc vào 1 dòng nếu chưa bôi đen gì) để dùng các hành động nhanh: Sao chép, tìm trong buffer, thêm làm bộ lọc, hoặc — nếu trông giống crash backtrace — <b>Giải mã crash backtrace</b>, tự động nhảy thẳng tới tab Debug với nội dung đã dán sẵn.",
       "autoReconnect": "Bật <b>Auto-reconnect</b> khi kết nối qua serial để tab tự mở lại khi thiết bị bị rút ra rồi cắm lại (khớp theo vendor/product id USB + số serial, không phải theo tên cổng của hệ điều hành, thứ có thể thay đổi). Nếu kết nối bị rớt, dùng <b>Disconnect</b>/<b>Reconnect</b> ngay trong tab — cổng COM, baud rate và các thiết lập khác vẫn được giữ nguyên."
     },
     "network": {
@@ -147,6 +148,12 @@
       "p2": "<b>Quét thiết bị OTA</b> quét mạng LAN qua mDNS cho dịch vụ <code>_arduino._tcp</code> (đúng dịch vụ mà ArduinoOTA tự quảng bá, và cũng là thứ menu Network Ports của Arduino IDE dùng) — bấm vào 1 kết quả để tự điền host và port. Hoặc nhập IP thiết bị thủ công (port mặc định <code>3232</code>). Để trống mật khẩu nếu sketch chưa từng gọi <code>ArduinoOTA.setPassword()</code>. Tiến trình đi qua bước bắt tay mời/xác thực trước khi truyền byte nào, sau đó là 1 lần tải lên liên tục — không cần cấu hình offset theo từng segment, việc đó do chính phần xử lý partition OTA của thiết bị lo.",
       "toastNote": "1 thông báo toast ở góc dưới bên phải sẽ báo thành công/thất bại khi việc này (hoặc 1 lần batch flash, auto-flash-on-plug, hoặc provisioning) hoàn tất, bất kể panel này còn mở hay không — không cần phải canh chừng nó."
     },
+    "debug": {
+      "heading": "Debug (bản đồ bộ nhớ + giải mã crash)",
+      "p1": "1 mục thứ 4 trong panel nạp, đọc trực tiếp file <code>.elf</code> của build — chính file mà build đã tạo ra sẵn, không cần file <code>.map</code> riêng, không cần cài toolchain nào (như <code>xtensa-esp32-elf-addr2line</code>). Hoạt động như nhau cho ESP32 Xtensa hay RISC-V, hoặc STM32/ARM, vì debug info DWARF và section header ELF không phụ thuộc kiến trúc.",
+      "p2": "<b>Bản đồ bộ nhớ</b> — chọn <code>.elf</code> rồi bấm <b>Phân tích</b> để xem dung lượng flash/RAM theo từng section, sắp xếp lớn nhất trước. Flash bytes = text+rodata+data (những gì được ghi vào file binary); RAM bytes = data+bss (những gì chiếm bộ nhớ lúc chạy) — được phân loại từ type/flags thực của section header, nên vẫn chính xác kể cả với tên section không chuẩn của ESP-IDF như <code>.iram0.text</code>.",
+      "p3": "<b>Giải mã crash</b> — dán output crash của thiết bị (vd dòng <code>Backtrace: 0x400d1e2d:0x3ffb9f30 ...</code> từ Guru Meditation Error) rồi bấm <b>Giải mã</b> để dịch từng địa chỉ thành tên hàm và file:dòng, dùng chung debug info của <code>.elf</code> đó. Chỉ nửa PC của mỗi cặp địa chỉ được giải mã (nửa SP không phải địa chỉ code); địa chỉ không có debug info khớp vẫn hiện ra, chỉ là không có tên hàm/vị trí."
+    },
     "ftp": {
       "heading": "FTP Client/Server",
       "p1": "Tab <b>Client</b> kết nối tới bất kỳ FTP server nào — trình duyệt file thẻ SD hoặc SPIFFS/LittleFS mà nhiều sketch ESP32/ESP8266 cung cấp, 1 NAS, hoặc máy tính khác — cho phép duyệt thư mục, tải lên, tải xuống, tạo thư mục và xóa file. Nhập host/port/username/password rồi bấm <b>Kết nối</b>; để username là <code>anonymous</code> và mật khẩu trống với server không yêu cầu đăng nhập. Chỉ hỗ trợ FTP thường (không FTPS/TLS), đủ dùng cho phần lớn FTP server trên thiết bị nhúng.",
@@ -256,7 +263,8 @@
     "recentJustNow": "vừa xong",
     "recentMinutesAgo_other": "{{count}} phút trước",
     "recentHoursAgo_other": "{{count}} giờ trước",
-    "recentDaysAgo_other": "{{count}} ngày trước"
+    "recentDaysAgo_other": "{{count}} ngày trước",
+    "onboardingHint": "Mới dùng lần đầu? Bấm Ctrl+K bất kỳ lúc nào để tìm mọi hành động, hoặc mở User Guide trong Cài đặt để xem hướng dẫn đầy đủ."
   },
   "monitor": {
     "clearConfirm": "Xóa bộ đệm log của tab này?",
@@ -285,7 +293,15 @@
     "modbusSlave": "Modbus Slave",
     "modbusSlaveListening": "Modbus Slave (đang lắng nghe)",
     "logToFile": "Ghi log ra file",
-    "loggingTo": "Đang ghi log vào {{dir}}"
+    "loggingTo": "Đang ghi log vào {{dir}}",
+    "contextMenu": {
+      "copy": "Sao chép",
+      "searchForThis": "Tìm trong buffer",
+      "addFilter": "Thêm làm bộ lọc",
+      "decodeBacktrace": "Giải mã crash backtrace",
+      "addBookmark": "Đánh dấu",
+      "removeBookmark": "Bỏ đánh dấu"
+    }
   },
   "filterBar": {
     "presetLabel": "Mẫu",
@@ -318,10 +334,16 @@
     "noMatches": "Không có lệnh nào khớp.",
     "closeTab": "Đóng tab hiện tại",
     "clearTab": "Xóa buffer tab hiện tại",
+    "switchToTab": "Chuyển tới: {{label}}",
+    "reconnectTo": "Kết nối lại: {{label}}",
+    "setTheme": "Giao diện: {{theme}}",
+    "setLanguage": "Ngôn ngữ: {{language}}",
     "category": {
       "navigate": "Đi tới",
       "project": "Dự án",
-      "tab": "Tab"
+      "tab": "Tab",
+      "recent": "Gần đây",
+      "preferences": "Tùy chọn"
     }
   },
   "ota": {
@@ -332,6 +354,31 @@
     "passwordPlaceholder": "để trống nếu thiết bị không đặt mật khẩu",
     "selectFirmwareTitle": "Chọn file firmware .bin",
     "flashOverWifi": "Nạp qua WiFi"
+  },
+  "debug": {
+    "tabLabel": "Debug",
+    "hint": "Đọc trực tiếp file .elf của build (debug info DWARF + section header) — không cần file .map riêng, không cần toolchain nào cài sẵn. Hoạt động như nhau cho ESP32 Xtensa hay RISC-V, hoặc STM32/ARM.",
+    "elfFile": "File .elf",
+    "selectElfTitle": "Chọn file .elf của build",
+    "elfFilterName": "File ELF",
+    "memoryMap": {
+      "heading": "Bản đồ bộ nhớ",
+      "analyze": "Phân tích",
+      "flashUsed": "Flash: {{size}}",
+      "ramUsed": "RAM: {{size}}",
+      "section": "Section",
+      "kind": "Loại",
+      "size": "Kích thước"
+    },
+    "crashDecoder": {
+      "heading": "Giải mã crash",
+      "placeholder": "Dán output crash vào đây, vd:\nBacktrace: 0x400d1e2d:0x3ffb9f30 0x400d1e97:0x3ffb9f50",
+      "decode": "Giải mã",
+      "address": "Địa chỉ",
+      "function": "Hàm",
+      "location": "Vị trí",
+      "unknown": "(không có debug info)"
+    }
   },
   "ftp": {
     "title": "FTP Client/Server",
@@ -677,11 +724,19 @@
     "remove": "Xóa",
     "load": "Tải",
     "browse": "Duyệt",
-    "refresh": "Làm mới"
+    "refresh": "Làm mới",
+    "dismiss": "Bỏ qua"
   },
   "settings": {
     "title": "Cài đặt",
     "closeAriaLabel": "Đóng cài đặt",
+    "section": {
+      "general": "Chung",
+      "advanced": "Nâng cao",
+      "appearance": "Giao diện",
+      "help": "Trợ giúp",
+      "about": "Giới thiệu"
+    },
     "language": "Ngôn ngữ",
     "languageEnglish": "Tiếng Anh",
     "languageVietnamese": "Tiếng Việt",

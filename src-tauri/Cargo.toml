@@ -85,13 +85,22 @@ async-trait = "0.1"
 # settingsStore, not here -- the backend only ever receives and checks it.
 tiny_http = "0.12"
 
+# ELF/DWARF reading for the ESP32 crash (backtrace) decoder and memory-map
+# analyzer (see flash/elf_analysis.rs) -- pure Rust, so no bundled
+# toolchain binary (e.g. xtensa-esp32-elf-addr2line) needs to be shipped
+# or found on PATH.
+object = "0.36"
+addr2line = "0.24"
+
 # Only pulled in for the `edt-cli` binary (via the `cli` feature below) â€”
 # optional so a normal GUI build never compiles or links them.
 clap = { version = "4", features = ["derive"], optional = true }
 ctrlc = { version = "3", optional = true }
+# YAML test-suite parsing for `edt-cli test`.
+serde_yaml = { version = "0.9", optional = true }
 
 [features]
-cli = ["dep:clap", "dep:ctrlc"]
+cli = ["dep:clap", "dep:ctrlc", "dep:serde_yaml"]
 
 [[bin]]
 name = "edt-cli"

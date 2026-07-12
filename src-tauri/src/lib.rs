@@ -6,6 +6,8 @@ pub mod plugin;
 pub mod restapi;
 pub mod script;
 pub mod serial;
+#[cfg(feature = "cli")]
+pub mod testrunner;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -16,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::core::event_bus::{Event, EventBus, WsFrameKind};
+use crate::flash::elf_analysis;
 use crate::flash::esp32::{self, ChipInfo, FlashProgress, FlashSegmentReq};
 use crate::flash::esp32_ota::{self, OtaProgress};
 use crate::flash::partition_table::{self, PartitionEntry};
@@ -662,6 +665,29 @@ fn detect_esp32_chip(port_name: String) -> Result<ChipInfo, String> {
 #[tauri::command]
 fn parse_esp32_partition_table(path: String) -> Result<Vec<PartitionEntry>, String> {
     partition_table::parse_partition_table_file(&path)
+}
+
+/// Flash/RAM usage breakdown by ELF section (Debug tab, "Memory map") —
+/// reads the same `.elf` a build already produces, no separate `.map`
+/// file needed.
+#[tauri::command]
+fn parse_elf_memory_map(path: String) -> Result<elf_analysis::MemoryMap, String> {
+    elf_analysis::parse_memory_map(&path)
+}
+
+/// Decodes a pasted crash backtrace (Debug tab, "Crash decoder") against
+/// the project's `.elf` — extracts PC addresses from the pasted text, then
+/// resolves each to a function/file/line via DWARF debug info.
+#[tauri::command]
+fn decode_esp32_backtrace(
+    elf_path: String,
+    text: String,
+) -> Result<Vec<elf_analysis::DecodedFrame>, String> {
+    let addresses = flash::backtrace::parse_addresses(&text);
+    if addresses.is_empty() {
+        return Err("no addresses found in the pasted text".to_string());
+    }
+    elf_analysis::decode_addresses(&elf_path, &addresses)
 }
 
 // `otadata`-partition binary from espressif/arduino-esp32
@@ -1723,6 +1749,8 @@ pub fn run() {
             set_keep_awake,
             detect_esp32_chip,
             parse_esp32_partition_table,
+            parse_elf_memory_map,
+            decode_esp32_backtrace,
             bundled_boot_app0_path,
             flash_esp32,
             erase_esp32_flash,

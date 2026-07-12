@@ -6,8 +6,8 @@
 //! through the 60fps event-emitting bridge that only makes sense with a
 //! window to emit to.
 //!
-//! `monitor` is the first command; more (`flash`, ...) can follow the same
-//! pattern once this one's proven out.
+//! `monitor` was the first command; `test` (Giai đoạn 3's CLI test
+//! runner) follows the same pattern.
 
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,6 +19,7 @@ use clap::{Parser, Subcommand};
 use edt_lib::core::event_bus::EventBus;
 use edt_lib::serial::manager::{DataBitsDto, FlowControlDto, ParityDto, StopBitsDto};
 use edt_lib::serial::{OpenPortRequest, PortManager, PortState};
+use edt_lib::testrunner;
 
 #[derive(Parser)]
 #[command(name = "edt-cli", version, about = "Headless CLI for Embedded DevTool")]
@@ -40,6 +41,19 @@ enum Command {
         #[arg(long)]
         timeout: Option<u64>,
     },
+    /// Run a YAML test suite (flash → send → expect) against a real
+    /// device and report pass/fail with a CI-friendly exit code.
+    Test {
+        /// Path to the test suite YAML file.
+        #[arg(long)]
+        suite: String,
+        /// Write a JUnit XML report here (for Jenkins/GitHub Actions).
+        #[arg(long)]
+        junit: Option<String>,
+        /// Write an HTML report here.
+        #[arg(long)]
+        html: Option<String>,
+    },
 }
 
 fn main() {
@@ -50,8 +64,63 @@ fn main() {
             baud,
             timeout,
         } => run_monitor(&port, baud, timeout),
+        Command::Test { suite, junit, html } => run_test(&suite, junit.as_deref(), html.as_deref()),
     };
     std::process::exit(exit_code);
+}
+
+fn run_test(suite_path: &str, junit_path: Option<&str>, html_path: Option<&str>) -> i32 {
+    let yaml = match std::fs::read_to_string(suite_path) {
+        Ok(y) => y,
+        Err(e) => {
+            eprintln!("error: failed to read {suite_path}: {e}");
+            return 1;
+        }
+    };
+    let suite = match testrunner::parse_suite(&yaml) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return 1;
+        }
+    };
+
+    eprintln!(
+        "Running {} step(s) against {}...",
+        suite.steps.len(),
+        suite.port
+    );
+    let report = testrunner::run_suite(&suite, |result| {
+        let status = if result.passed { "PASS" } else { "FAIL" };
+        eprintln!(
+            "  [{status}] {} ({:.3}s) — {}",
+            result.name,
+            result.duration.as_secs_f64(),
+            result.message,
+        );
+    });
+
+    if let Some(path) = junit_path {
+        if let Err(e) = testrunner::write_junit_report(&report, path) {
+            eprintln!("warning: {e}");
+        }
+    }
+    if let Some(path) = html_path {
+        if let Err(e) = testrunner::write_html_report(&report, path) {
+            eprintln!("warning: {e}");
+        }
+    }
+
+    eprintln!(
+        "\n{} assertion(s), {} failed.",
+        report.assertion_count(),
+        report.failed_count(),
+    );
+    if report.passed() {
+        0
+    } else {
+        1
+    }
 }
 
 const STREAM_ID: &str = "cli-monitor";

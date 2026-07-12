@@ -1,6 +1,6 @@
 # Quickstart
 
-> Covers building EDT from source and using the serial monitor, ESP32/STM32 flash tools, and the plotter. For the product roadmap see [ke-hoach-phat-trien-embedded-devtool.md](ke-hoach-phat-trien-embedded-devtool.md); for the task-level plan see [ke-hoach-chi-tiet-giai-doan-0-1.md](ke-hoach-chi-tiet-giai-doan-0-1.md).
+> Covers building EDT from source and using the serial monitor, ESP32/STM32 flash tools, and the plotter. For the headless CLI (`edt-cli monitor`/`edt-cli test`) see [cli.md](cli.md). For the product roadmap see [ke-hoach-phat-trien-embedded-devtool.md](ke-hoach-phat-trien-embedded-devtool.md); for the task-level plan see [ke-hoach-chi-tiet-giai-doan-0-1.md](ke-hoach-chi-tiet-giai-doan-0-1.md).
 
 ## Install
 

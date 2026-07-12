@@ -87,6 +87,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
+        <div className="settings-section-title">{t('settings.section.general')}</div>
         <div className="settings-row">
           <span>{t('settings.language')}</span>
           <select
@@ -181,6 +182,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <hr className="settings-divider" />
 
+        <div className="settings-section-title">{t('settings.section.advanced')}</div>
         <div className="settings-row">
           <span>{t('settings.restApi.title')}</span>
           <label className="switch">
@@ -236,6 +238,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <hr className="settings-divider" />
 
+        <div className="settings-section-title">{t('settings.section.appearance')}</div>
         <div className="settings-row">
           <span>{t('settings.personalization')}</span>
           <div className="seg">
@@ -253,6 +256,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <hr className="settings-divider" />
 
+        <div className="settings-section-title">{t('settings.section.help')}</div>
         <div className="settings-row">
           <span>{t('settings.feedback')}</span>
           <button
@@ -263,9 +267,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <MessageIcon /> {t('settings.sendFeedback')}
           </button>
         </div>
-
-        <hr className="settings-divider" />
-
         <div className="settings-row">
           <span>{t('settings.userGuide')}</span>
           <button type="button" className="feedback-button" onClick={() => setShowGuide(true)}>
@@ -275,6 +276,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <hr className="settings-divider" />
 
+        <div className="settings-section-title">{t('settings.section.about')}</div>
         <div className="settings-row">
           <span>{t('settings.appVersion')}</span>
           <span className="mono">{appVersion ?? '…'}</span>

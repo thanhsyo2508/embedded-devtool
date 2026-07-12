@@ -169,6 +169,7 @@ export function ConnectPanel({
   )
   const [scanning, setScanning] = useState(false)
   const [scanResults, setScanResults] = useState<MdnsService[] | null>(null)
+  const [hintDismissed, setHintDismissed] = useState(false)
   const openTab = useTabsStore((s) => s.openTab)
   const rememberLastConnection = useLastConnectionStore((s) => s.remember)
   const recentConnections = useRecentConnectionsStore((s) => s.items)
@@ -487,6 +488,21 @@ export function ConnectPanel({
             </button>
           )}
         </h2>
+
+        {!hintDismissed && recentConnections.length === 0 && profiles.length === 0 && (
+          <div className="onboarding-hint">
+            <span>{t('connect.onboardingHint')}</span>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={t('common.dismiss')}
+              title={t('common.dismiss')}
+              onClick={() => setHintDismissed(true)}
+            >
+              <XIcon />
+            </button>
+          </div>
+        )}
 
         {recentConnections.length > 0 && (
           <div className="recent-connections">

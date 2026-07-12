@@ -1,0 +1,45 @@
+# Example test suite for `edt-cli test --suite this-file.yaml`.
+#
+# Runs steps in order against a real device over serial, stops at the
+# first failure. `flash` and `expect` steps are assertions (they count
+# toward the pass/fail total); `send`/`sendHex`/`delayMs` alone are just
+# actions, reported for visibility but not counted as a test.
+#
+# Usage:
+#   edt-cli test --suite docs/example-test-suite.yaml --junit report.xml --html report.html
+
+port: COM3
+baud: 115200
+timeoutMs: 2000 # default `expect` timeout for steps that don't set their own
+
+steps:
+  # Optional: flash firmware before testing. Segments are the same
+  # offset/path pairs used elsewhere in the app.
+  - name: flash firmware
+    flash:
+      segments:
+        - offset: "0x1000"
+          path: bootloader.bin
+        - offset: "0x8000"
+          path: partitions.bin
+        - offset: "0x10000"
+          path: firmware.bin
+
+  - name: wait for boot
+    delayMs: 2000
+
+  # `send` and `expect` in the same step: sends the command, then waits
+  # for the response before moving on.
+  - name: device responds to AT
+    send: "AT\r\n"
+    expect: "OK"
+
+  - name: firmware version looks sane
+    send: "AT+VERSION?\r\n"
+    expect: "VERSION=\\d+\\.\\d+"
+    timeoutMs: 1000
+
+  # sendHex for binary commands.
+  - name: send a binary ping frame
+    sendHex: "7e 01 00 00 7e"
+    expect: "PONG"

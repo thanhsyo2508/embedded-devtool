@@ -1,3 +1,5 @@
+pub mod backtrace;
+pub mod elf_analysis;
 pub mod esp32;
 pub mod esp32_ota;
 pub mod partition_table;

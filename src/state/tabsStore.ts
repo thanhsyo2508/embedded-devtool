@@ -284,6 +284,10 @@ interface TabsStore {
   clearLines: (id: string) => void
   togglePause: (id: string) => void
   addFilter: (id: string, mode: FilterMode) => void
+  /** Same as `addFilter`, pre-populated with a pattern — the monitor's
+   * right-click "Add as filter" quick action uses this so the selected
+   * text becomes a ready-to-use filter in one step instead of add-then-type. */
+  addFilterWithPattern: (id: string, mode: FilterMode, pattern: string) => void
   removeFilter: (id: string, filterId: string) => void
   updateFilterPattern: (id: string, filterId: string, pattern: string) => void
   toggleFilterEnabled: (id: string, filterId: string) => void
@@ -1160,6 +1164,26 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
                 {
                   id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
                   pattern: '',
+                  mode,
+                  enabled: true,
+                },
+              ],
+            }
+          : tab,
+      ),
+    })),
+
+  addFilterWithPattern: (id, mode, pattern) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              filters: [
+                ...tab.filters,
+                {
+                  id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  pattern,
                   mode,
                   enabled: true,
                 },

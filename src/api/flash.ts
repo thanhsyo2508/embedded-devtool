@@ -65,6 +65,38 @@ export function parseEsp32PartitionTable(path: string): Promise<PartitionEntry[]
   return invoke('parse_esp32_partition_table', { path })
 }
 
+export interface SectionInfo {
+  name: string
+  address: number
+  size: number
+  kind: 'text' | 'data' | 'rodata' | 'bss' | 'other'
+}
+
+export interface MemoryMap {
+  sections: SectionInfo[]
+  flashBytes: number
+  ramBytes: number
+}
+
+/** Reads a build's `.elf` directly for a flash/RAM breakdown by section —
+ * no separate `.map` file needed. */
+export function parseElfMemoryMap(path: string): Promise<MemoryMap> {
+  return invoke('parse_elf_memory_map', { path })
+}
+
+export interface DecodedFrame {
+  address: number
+  function: string | null
+  file: string | null
+  line: number | null
+}
+
+/** Extracts addresses from a pasted crash backtrace and resolves each to
+ * a function/file/line via the `.elf`'s DWARF debug info. */
+export function decodeEsp32Backtrace(elfPath: string, text: string): Promise<DecodedFrame[]> {
+  return invoke('decode_esp32_backtrace', { elfPath, text })
+}
+
 /** Writes the bundled `boot_app0.bin` (see THIRD_PARTY_NOTICES.md) to a temp
  * file and returns its path — used by "Smart add" when an OTA-capable
  * partition table needs an `otadata` image the user's build output didn't

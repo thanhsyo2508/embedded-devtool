@@ -135,6 +135,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <li>
                 <Trans i18nKey="help.monitor.li7" components={G} />
               </li>
+              <li>
+                <Trans i18nKey="help.monitor.li8" components={G} />
+              </li>
             </ul>
             <p>
               <Trans i18nKey="help.monitor.autoReconnect" components={G} />
@@ -442,6 +445,19 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <Trans i18nKey="help.ota.p2" components={G} />
             </p>
             <p>{t('help.ota.toastNote')}</p>
+          </section>
+
+          <section className="guide-section">
+            <h3>{t('help.debug.heading')}</h3>
+            <p>
+              <Trans i18nKey="help.debug.p1" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.debug.p2" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.debug.p3" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">

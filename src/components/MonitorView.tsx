@@ -26,9 +26,15 @@ import { MacroPanel } from './MacroPanel'
 import { ModbusMasterPanel } from './ModbusMasterPanel'
 import { ModbusSlavePanel } from './ModbusSlavePanel'
 import { PluginBar } from './PluginBar'
+import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { useDebugHandoffStore } from '../state/debugHandoffStore'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function formatTimestamp(tab: TabState, atMs: number): string {
@@ -49,6 +55,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const clearLines = useTabsStore((s) => s.clearLines)
   const togglePause = useTabsStore((s) => s.togglePause)
   const toggleBookmark = useTabsStore((s) => s.toggleBookmark)
+  const addFilterWithPattern = useTabsStore((s) => s.addFilterWithPattern)
+  const requestBacktraceDecode = useDebugHandoffStore((s) => s.requestBacktraceDecode)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [logBusy, setLogBusy] = useState(false)
@@ -66,6 +74,12 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchIndex, setSearchIndex] = useState(0)
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    text: string
+    seq: number | null
+  } | null>(null)
 
   const paused = tab.pausedAtSeq !== null
   const displayedLines = useMemo(
@@ -136,6 +150,61 @@ export function MonitorView({ tab }: { tab: TabState }) {
     panel:
       'filters' | 'triggers' | 'script' | 'plugins' | 'macro' | 'modbus-master' | 'modbus-slave',
   ) => setOpenPanel((current) => (current === panel ? null : panel))
+
+  // Right-click quick actions on the log — prefers the current text
+  // selection (may span several lines) and falls back to whichever
+  // line's row was clicked so a plain right-click (no drag-select) still
+  // has something to act on.
+  const handleLogContextMenu = (e: React.MouseEvent) => {
+    const rowEl = (e.target as HTMLElement).closest<HTMLElement>('[data-seq]')
+    const seq = rowEl ? Number(rowEl.dataset.seq) : null
+    const selection = window.getSelection()?.toString().trim() ?? ''
+    const fallbackLine = seq !== null ? filteredLines.find((l) => l.seq === seq) : undefined
+    const text = selection.length > 0 ? selection : (fallbackLine?.text ?? '')
+    if (!text) return
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, text, seq })
+  }
+
+  const contextMenuItems: ContextMenuItem[] = contextMenu
+    ? [
+        {
+          label: t('monitor.contextMenu.copy'),
+          onClick: () => void navigator.clipboard.writeText(contextMenu.text),
+        },
+        {
+          label: t('monitor.contextMenu.searchForThis'),
+          separatorBefore: true,
+          onClick: () => {
+            setSearchQuery(escapeRegExp(contextMenu.text))
+            setSearchOpen(true)
+          },
+        },
+        {
+          label: t('monitor.contextMenu.addFilter'),
+          onClick: () => {
+            addFilterWithPattern(tab.id, 'include', escapeRegExp(contextMenu.text))
+            setOpenPanel('filters')
+          },
+        },
+        {
+          label: t('monitor.contextMenu.decodeBacktrace'),
+          separatorBefore: true,
+          onClick: () => requestBacktraceDecode(contextMenu.text),
+        },
+        ...(contextMenu.seq !== null
+          ? [
+              {
+                label: tab.bookmarks.includes(contextMenu.seq)
+                  ? t('monitor.contextMenu.removeBookmark')
+                  : t('monitor.contextMenu.addBookmark'),
+                separatorBefore: true,
+                onClick: () => toggleBookmark(tab.id, contextMenu.seq as number),
+              },
+            ]
+          : []),
+      ]
+    : []
 
   const virtualizer = useVirtualizer({
     count: filteredLines.length,
@@ -266,7 +335,12 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
       <div className="monitor-body">
         <div className="loglist-wrapper">
-          <div className="loglist" ref={scrollRef} onScroll={handleScroll}>
+          <div
+            className="loglist"
+            ref={scrollRef}
+            onScroll={handleScroll}
+            onContextMenu={handleLogContextMenu}
+          >
             <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
               {virtualizer.getVirtualItems().map((item) => {
                 const line = filteredLines[item.index]
@@ -275,6 +349,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                 return (
                   <div
                     key={line.seq}
+                    data-seq={line.seq}
                     className={`logline level-${line.level ?? 'none'} dir-${line.direction}${isCurrentSearchMatch ? ' current-match' : ''}`}
                     style={{
                       position: 'absolute',
@@ -510,6 +585,15 @@ export function MonitorView({ tab }: { tab: TabState }) {
           )}
         </div>
       </div>
+
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenuItems}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   )
 }

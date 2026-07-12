@@ -5,14 +5,20 @@ import { useTranslation } from 'react-i18next'
 import './App.css'
 import { useTabsStore } from './state/tabsStore'
 import { useLayoutStore } from './state/layoutStore'
-import { findPane, makePane, mapTabIds, removeTab } from './lib/layoutTree'
+import { findPane, findPaneForTab, makePane, mapTabIds, removeTab } from './lib/layoutTree'
 import {
   buildProjectProfile,
   connectionConfigToOpenRequest,
   type ProjectProfileFile,
 } from './lib/projectProfile'
-import { FONT_SIZE_PX, useSettingsStore } from './state/settingsStore'
+import { FONT_SIZE_PX, useSettingsStore, type Language, type Theme } from './state/settingsStore'
 import { restApiStart, restApiStop } from './api/restapi'
+import { useDebugHandoffStore } from './state/debugHandoffStore'
+import {
+  useRecentConnectionsStore,
+  recentConnectionToOpenRequest,
+  type RecentConnection,
+} from './state/recentConnectionsStore'
 import { useFlashStore } from './state/flashStore'
 import { useStm32Store } from './state/stm32Store'
 import { usePlotStore } from './state/plotStore'
@@ -77,6 +83,11 @@ function App() {
   const restApiEnabled = useSettingsStore((s) => s.restApiEnabled)
   const restApiPort = useSettingsStore((s) => s.restApiPort)
   const restApiToken = useSettingsStore((s) => s.restApiToken)
+  const setTheme = useSettingsStore((s) => s.setTheme)
+  const setLanguage = useSettingsStore((s) => s.setLanguage)
+  const recentConnections = useRecentConnectionsStore((s) => s.items)
+  const pushRecentConnection = useRecentConnectionsStore((s) => s.push)
+  const pendingBacktraceText = useDebugHandoffStore((s) => s.pendingBacktraceText)
   const plotVisible = usePlotStore((s) => s.visible)
   const setPlotVisible = usePlotStore((s) => s.setVisible)
   const plotSourceTabId = usePlotStore((s) => s.sourceTabId)
@@ -124,6 +135,18 @@ function App() {
   useEffect(() => {
     void invoke('set_keep_awake', { enabled: keepAwake }).catch(() => {})
   }, [keepAwake])
+
+  // The monitor's right-click "Decode as crash backtrace" action requests
+  // this from deep inside a pane — react to it here rather than threading
+  // a callback all the way down, since FlashPanel already reads the same
+  // handoff store to default its target to the Debug tab. Adjusted during
+  // render rather than in an effect, per React's guidance for reacting to
+  // a changed value (same pattern as ConnectPanel's presetsFor).
+  const [handledBacktraceText, setHandledBacktraceText] = useState<string | null>(null)
+  if (pendingBacktraceText !== null && pendingBacktraceText !== handledBacktraceText) {
+    setHandledBacktraceText(pendingBacktraceText)
+    setShowFlash(true)
+  }
 
   // Restarts the server (stop, then start with whatever's current) on any
   // change so toggling the setting, or editing the port/token while
@@ -260,6 +283,33 @@ function App() {
     }
   }
 
+  // One-click reconnect from the command palette — SSH is the only kind
+  // that needs a prompt first, since its password is deliberately never
+  // persisted (see ConnectPanel's currentConfigData / ssh case).
+  const handleReconnectRecent = async (recent: RecentConnection) => {
+    let sshPassword: string | undefined
+    if (recent.kind === 'ssh') {
+      const entered = window.prompt(
+        t('app.sshPasswordPrompt', {
+          username: recent.config.username,
+          host: recent.config.host,
+          port: recent.config.port,
+        }),
+      )
+      if (entered === null) return
+      sshPassword = entered
+    }
+    const id = `${recent.kind}-${Date.now()}`
+    try {
+      await openTab(recentConnectionToOpenRequest(recent, id, sshPassword))
+      pushRecentConnection(recent.kind, recent.config, recent.label)
+      openTabInFocusedPane(id)
+      setShowConnect(false)
+    } catch (err) {
+      window.alert(String(err))
+    }
+  }
+
   // Ctrl+K quick-open — see CommandPalette's module doc. Built here (not
   // inside that component) since every action needs this component's own
   // setShowX state/handlers; recomputed whenever what a command should do
@@ -268,6 +318,8 @@ function App() {
     const navigate = t('commandPalette.category.navigate')
     const project = t('commandPalette.category.project')
     const tabCategory = t('commandPalette.category.tab')
+    const recentCategory = t('commandPalette.category.recent')
+    const preferences = t('commandPalette.category.preferences')
     const commands: PaletteCommand[] = [
       {
         id: 'new-connection',
@@ -346,9 +398,57 @@ function App() {
         },
       )
     }
+
+    for (const tab of tabs) {
+      commands.push({
+        id: `switch-tab-${tab.id}`,
+        category: tabCategory,
+        label: t('commandPalette.switchToTab', { label: tab.connectionLabel }),
+        run: () => {
+          const pane = findPaneForTab(layoutRoot, tab.id)
+          if (pane) setActiveTabInPane(pane.id, tab.id)
+          setShowConnect(false)
+        },
+      })
+    }
+
+    // Capped at 5 — the palette is for quick recall, not a full duplicate
+    // of ConnectPanel's Recent list (which shows all of them).
+    for (const recent of recentConnections.slice(0, 5)) {
+      commands.push({
+        id: `reconnect-${recent.id}`,
+        category: recentCategory,
+        label: t('commandPalette.reconnectTo', { label: recent.label }),
+        run: () => void handleReconnectRecent(recent),
+      })
+    }
+
+    const themes: Theme[] = ['system', 'dark', 'light']
+    for (const themeOption of themes) {
+      commands.push({
+        id: `theme-${themeOption}`,
+        category: preferences,
+        label: t('commandPalette.setTheme', { theme: t(`settings.theme.${themeOption}`) }),
+        run: () => setTheme(themeOption),
+      })
+    }
+
+    const languages: [Language, string][] = [
+      ['en', t('settings.languageEnglish')],
+      ['vi', t('settings.languageVietnamese')],
+    ]
+    for (const [code, label] of languages) {
+      commands.push({
+        id: `language-${code}`,
+        category: preferences,
+        label: t('commandPalette.setLanguage', { language: label }),
+        run: () => setLanguage(code),
+      })
+    }
+
     return commands
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, hasAnyTabs, focusedTab, plotVisible])
+  }, [t, hasAnyTabs, focusedTab, plotVisible, tabs, layoutRoot, recentConnections])
 
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
   // Shortcuts that target "the current tab" now act on the focused pane's
@@ -459,89 +559,97 @@ function App() {
     <div className="app">
       <div className="app-topbar">
         <div className="app-topbar-spacer" />
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.openProject')}
-          title={t('app.topbar.openProjectTitle')}
-          onClick={() => void handleOpenProject()}
-        >
-          <FolderIcon />
-        </button>
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.saveProject')}
-          title={t('app.topbar.saveProjectTitle')}
-          disabled={!hasAnyTabs}
-          onClick={() => void handleSaveProject()}
-        >
-          <DiskIcon />
-        </button>
-        <button
-          type="button"
-          className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}
-          aria-label={t('app.topbar.plotter')}
-          title={t('app.topbar.plotterTitle')}
-          onClick={() => setPlotVisible(!plotVisible)}
-        >
-          <ChartIcon />
-        </button>
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.flashEsp32')}
-          title={t('app.topbar.flashEsp32Title')}
-          onClick={() => setShowFlash(true)}
-        >
-          <ZapIcon />
-        </button>
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.networkScanner')}
-          title={t('app.topbar.networkScanner')}
-          onClick={() => setShowNetScan(true)}
-        >
-          <GlobeIcon />
-        </button>
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.ftp')}
-          title={t('app.topbar.ftp')}
-          onClick={() => setShowFtp(true)}
-        >
-          <ServerIcon />
-        </button>
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.plugins')}
-          title={t('app.topbar.plugins')}
-          onClick={() => setShowPlugins(true)}
-        >
-          <PuzzleIcon />
-        </button>
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('commandPalette.open')}
-          title={t('commandPalette.openTitle')}
-          onClick={() => setShowPalette(true)}
-        >
-          <CommandIcon />
-        </button>
-        <NotificationBell />
-        <button
-          type="button"
-          className="icon-button settings-trigger"
-          aria-label={t('app.topbar.settings')}
-          title={t('app.topbar.settingsTitle')}
-          onClick={() => setShowSettings(true)}
-        >
-          <GearIcon />
-        </button>
+        <div className="topbar-group">
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.openProject')}
+            title={t('app.topbar.openProjectTitle')}
+            onClick={() => void handleOpenProject()}
+          >
+            <FolderIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.saveProject')}
+            title={t('app.topbar.saveProjectTitle')}
+            disabled={!hasAnyTabs}
+            onClick={() => void handleSaveProject()}
+          >
+            <DiskIcon />
+          </button>
+        </div>
+        <div className="topbar-group">
+          <button
+            type="button"
+            className={`icon-button settings-trigger ${plotVisible ? 'on' : ''}`}
+            aria-label={t('app.topbar.plotter')}
+            title={t('app.topbar.plotterTitle')}
+            onClick={() => setPlotVisible(!plotVisible)}
+          >
+            <ChartIcon />
+          </button>
+        </div>
+        <div className="topbar-group">
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.flashEsp32')}
+            title={t('app.topbar.flashEsp32Title')}
+            onClick={() => setShowFlash(true)}
+          >
+            <ZapIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.networkScanner')}
+            title={t('app.topbar.networkScanner')}
+            onClick={() => setShowNetScan(true)}
+          >
+            <GlobeIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.ftp')}
+            title={t('app.topbar.ftp')}
+            onClick={() => setShowFtp(true)}
+          >
+            <ServerIcon />
+          </button>
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.plugins')}
+            title={t('app.topbar.plugins')}
+            onClick={() => setShowPlugins(true)}
+          >
+            <PuzzleIcon />
+          </button>
+        </div>
+        <div className="topbar-group">
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('commandPalette.open')}
+            title={t('commandPalette.openTitle')}
+            onClick={() => setShowPalette(true)}
+          >
+            <CommandIcon />
+          </button>
+          <NotificationBell />
+          <button
+            type="button"
+            className="icon-button settings-trigger"
+            aria-label={t('app.topbar.settings')}
+            title={t('app.topbar.settingsTitle')}
+            onClick={() => setShowSettings(true)}
+          >
+            <GearIcon />
+          </button>
+        </div>
       </div>
       <div className="workspace">
         <div className="pane-tree">

@@ -19,9 +19,11 @@ import { Stm32Body } from './Stm32Body'
 import { FlashBatchPanel } from './FlashBatchPanel'
 import { ProvisionPanel } from './ProvisionPanel'
 import { OtaPanel } from './OtaPanel'
+import { DebugPanel } from './DebugPanel'
 import { Spinner } from './Spinner'
+import { useDebugHandoffStore } from '../state/debugHandoffStore'
 
-type Target = 'esp32' | 'stm32' | 'ota'
+type Target = 'esp32' | 'stm32' | 'ota' | 'debug'
 type FlashMode = 'single' | 'batch' | 'provision'
 
 const BAUD_OPTIONS = [115_200, 230_400, 460_800, 921_600]
@@ -34,7 +36,9 @@ function formatBytes(n: number): string {
 
 export function FlashPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
-  const [target, setTarget] = useState<Target>('esp32')
+  const [target, setTarget] = useState<Target>(() =>
+    useDebugHandoffStore.getState().pendingBacktraceText !== null ? 'debug' : 'esp32',
+  )
   const [mode, setMode] = useState<FlashMode>('single')
   const [ports, setPorts] = useState<PortInfo[]>([])
   const portSelectRef = useRef<HTMLSelectElement>(null)
@@ -194,9 +198,13 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
           <span className={target === 'ota' ? 'on' : ''} onClick={() => setTarget('ota')}>
             {t('ota.tabLabel')}
           </span>
+          <span className={target === 'debug' ? 'on' : ''} onClick={() => setTarget('debug')}>
+            {t('debug.tabLabel')}
+          </span>
         </div>
         {target === 'stm32' && <Stm32Body />}
         {target === 'ota' && <OtaPanel />}
+        {target === 'debug' && <DebugPanel />}
 
         {target === 'esp32' && (
           <>
