@@ -124,7 +124,7 @@ pub fn parse_memory_map(elf_path: &str) -> Result<MemoryMap, String> {
         });
     }
 
-    sections.sort_by(|a, b| b.size.cmp(&a.size));
+    sections.sort_by_key(|s| std::cmp::Reverse(s.size));
 
     Ok(MemoryMap {
         sections,

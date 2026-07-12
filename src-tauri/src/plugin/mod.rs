@@ -255,7 +255,7 @@ mod tests {
             .eval()
             .unwrap();
         let mut pairs = table_to_numeric_pairs(&table);
-        pairs.sort_by(|a, b| a.0.cmp(&b.0));
+        pairs.sort_by_key(|p| p.0.clone());
         assert_eq!(
             pairs,
             vec![("count".to_string(), 3.0), ("temp".to_string(), 21.5)]

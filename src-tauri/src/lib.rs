@@ -161,7 +161,7 @@ fn mdns_scan(service_type: String, timeout_ms: u64) -> Result<Vec<MdnsServiceDto
     let _ = daemon.shutdown();
 
     let mut services: Vec<MdnsServiceDto> = found.into_values().collect();
-    services.sort_by(|a, b| a.fullname.cmp(&b.fullname));
+    services.sort_by_key(|s| s.fullname.clone());
     Ok(services)
 }
 

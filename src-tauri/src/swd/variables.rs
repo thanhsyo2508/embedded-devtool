@@ -164,7 +164,7 @@ pub fn list_variables(elf_path: &str) -> Result<Vec<VariableInfo>, String> {
         }
     }
 
-    variables.sort_by(|a, b| a.name.cmp(&b.name));
+    variables.sort_by_key(|v| v.name.clone());
     Ok(variables)
 }
 
