@@ -234,6 +234,11 @@
     "close": "Close",
     "closeOthers": "Close others"
   },
+  "ssh": {
+    "reconnect": "Reconnect",
+    "reconnecting": "Reconnecting…",
+    "passwordPlaceholder": "Password"
+  },
   "library": {
     "namePrompt": "{{label}} name?",
     "deleteConfirm": "Delete {{label}} \"{{name}}\"?",

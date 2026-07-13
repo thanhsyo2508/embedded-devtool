@@ -234,6 +234,11 @@
     "close": "Đóng",
     "closeOthers": "Đóng các tab khác"
   },
+  "ssh": {
+    "reconnect": "Kết nối lại",
+    "reconnecting": "Đang kết nối lại…",
+    "passwordPlaceholder": "Mật khẩu"
+  },
   "library": {
     "namePrompt": "Tên {{label}}?",
     "deleteConfirm": "Xóa {{label}} \"{{name}}\"?",

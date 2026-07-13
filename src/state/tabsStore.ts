@@ -285,7 +285,12 @@ interface TabsStore {
   openTab: (req: OpenTabRequest) => Promise<void>
   closeTab: (id: string) => Promise<void>
   disconnectTab: (id: string) => Promise<void>
-  reconnectTab: (id: string) => Promise<void>
+  /** `sshPasswordOverride` lets an SSH tab reconnect with a freshly typed
+   * password (e.g. after a wrong-password disconnect) instead of the one
+   * remembered from when the tab was first opened — every other kind
+   * ignores it. On success the tab's remembered password is updated too,
+   * so a *later* reconnect (e.g. from the tab context menu) uses it. */
+  reconnectTab: (id: string, sshPasswordOverride?: string) => Promise<void>
   /** Sets (or clears, on empty string) the tab's user-chosen display name. */
   renameTab: (id: string, label: string) => void
   setActiveTab: (id: string) => void
@@ -1009,7 +1014,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
 
   // Mirrors openTab: success flips this tab to 'open' via the
   // serial://lifecycle listener in wireEventsOnce, not here directly.
-  reconnectTab: async (id) => {
+  reconnectTab: async (id, sshPasswordOverride) => {
     const tab = get().tabs.find((t) => t.id === id)
     if (!tab) return
     try {
@@ -1022,9 +1027,19 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       else if (config.kind === 'ws-client') await openWsClient(id, config.url)
       else if (config.kind === 'ws-server') await openWsServer(id, config.port)
       else if (config.kind === 'mqtt') await openMqtt(id, config)
-      else if (config.kind === 'ssh')
-        await openSsh(id, config.host, config.port, config.username, config.password)
-      else await openRtt(id, config.probeSerial, config.chip)
+      else if (config.kind === 'ssh') {
+        const password = sshPasswordOverride ?? config.password
+        await openSsh(id, config.host, config.port, config.username, password)
+        if (sshPasswordOverride !== undefined) {
+          set((state) => ({
+            tabs: state.tabs.map((t) =>
+              t.id === id && t.connectionConfig.kind === 'ssh'
+                ? { ...t, connectionConfig: { ...t.connectionConfig, password } }
+                : t,
+            ),
+          }))
+        }
+      } else await openRtt(id, config.probeSerial, config.chip)
     } catch (err) {
       set((state) => ({
         tabs: state.tabs.map((t) =>

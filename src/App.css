@@ -783,6 +783,20 @@ body,
   color: var(--text-muted);
 }
 
+/* Inline reconnect (SSH tab, shown once disconnected) — lets a wrong or
+   expired password be corrected and retried right there instead of
+   closing the tab and reconnecting from scratch via New Connection. */
+.ssh-reconnect {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.ssh-reconnect input {
+  width: 140px;
+}
+
 .monitor-body {
   display: flex;
   flex: 1;
