@@ -26,6 +26,7 @@ export const PROJECT_PROFILE_VERSION = 1
 
 export interface ProjectProfileTab {
   connectionConfig: ConnectionConfig
+  customLabel?: string
   filters: FilterRule[]
   triggers: TriggerRule[]
   scriptCode: string
@@ -39,6 +40,7 @@ export interface ProjectProfilePlotter {
   mathChannels: MathChannelDef[]
   thresholds: ThresholdLine[]
   chartType: ChartType
+  channelColors?: Record<string, string>
 }
 
 export interface ProjectProfileFile {
@@ -75,6 +77,7 @@ export function buildProjectProfile(
     savedAt: Date.now(),
     tabs: tabs.map((tab) => ({
       connectionConfig: sanitizeConnectionConfig(tab.connectionConfig),
+      customLabel: tab.customLabel,
       filters: tab.filters,
       triggers: tab.triggers,
       scriptCode: tab.scriptCode,

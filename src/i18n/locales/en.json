@@ -11,7 +11,8 @@
       "heading": "Multi-pane Layout (Snap Layouts)",
       "p1": "Drag a tab by its label and drop it on the left/right/top/bottom edge of any pane's content area to split the workspace and view two tabs side by side — drop on the edge of an existing pane again to split it further, nesting as many rows/columns as you need. A thin divider appears between panes; drag it to resize.",
       "p2": "To merge panes back, drag a tab onto another pane's tab strip (or drop it in the middle of that pane's content area instead of an edge) — the tab moves there, and if that was the last tab in its old pane, the now-empty pane and its split collapse away automatically. Clicking anywhere in a pane focuses it, which is what <kbd>Ctrl+1</kbd>-<kbd>9</kbd>, <kbd>Ctrl+W</kbd>, <kbd>Ctrl+L</kbd>, and <kbd>Space</kbd> act on.",
-      "p3": "The Plotter is shared across the whole window rather than living inside one pane — toggle it from the top bar and pick its source tab from its own dropdown regardless of which pane that tab is currently showing in."
+      "p3": "The Plotter is shared across the whole window rather than living inside one pane — toggle it from the top bar and pick its source tab from its own dropdown regardless of which pane that tab is currently showing in.",
+      "p4": "Each tab shows a small icon for its connection family (serial / network / terminal / SWD), coloured by status — green connected, grey disconnected, red error. <b>Right-click</b> a tab for <b>Rename</b> (give it a meaningful name like \"Sensor board\" instead of \"COM3 · 115200\"; it's saved in a project profile), <b>Disconnect</b>/<b>Reconnect</b>, <b>Duplicate</b> (opens a second tab with the same settings), and <b>Close</b> / <b>Close others</b>. Drag a tab left/right past its neighbours in the same strip to reorder it."
     },
     "monitor": {
       "heading": "Serial Monitor",
@@ -131,6 +132,8 @@
       "math": "<b>Math</b> — derived channels computed from real ones: A+B, A−B, A×B, A÷B, moving average, derivative (units/second), or RMS over a sample window. They show up in the legend prefixed with <code>ƒ</code> and behave like normal channels everywhere — stats, FFT, CSV export.",
       "levels": "<b>Levels</b> — horizontal alert lines. Pick a channel and a value; a dashed line is drawn at that level and a beep sounds whenever the channel crosses it upward. <b>Example:</b> channel <code>temp</code> &gt; <code>80</code> beeps the moment a temperature reading exceeds 80.",
       "stats": "<b>Stats</b> — a live strip showing each visible channel's min / max / avg / peak-to-peak and an estimated frequency (blank for flat or non-periodic signals).",
+      "measure": "<b>Measure</b> — click two points on the chart to read the exact Δt (and its 1/Δt frequency) and each channel's Δy between them, like an oscilloscope's cursors. Turning it on freezes the chart so the markers stay put; click a third point to start a new measurement, and turn Measure off (then Freeze off) to resume live plotting.",
+      "colors": "<b>Channel colours</b> — the swatch next to each channel in the legend is a colour picker; click it to recolour that channel. The choice sticks to the channel by name and is saved in a project profile. The checkbox beside it hides/shows the channel without deleting its data.",
       "fft": "<b>FFT</b> — switches the chart to the frequency domain: the current buffer is resampled to a uniform rate, a window function (Hann by default, Hamming or rectangular selectable) is applied, and the amplitude spectrum is shown with Hz on the x axis. Needs at least 64 samples. Note: values between real samples are held constant by the plotter's ingest (a zero-order hold), which adds small artificial harmonics — fine for spotting dominant frequencies, not for precision measurement.",
       "csvPng": "<b>CSV / PNG</b> — export the whole buffer (timestamps + every channel including math channels) as CSV, or the chart as a PNG image (the HTML legend below the chart isn't part of the image)."
     },
@@ -221,6 +224,15 @@
   },
   "layout": {
     "noTabOpen": "No tab open"
+  },
+  "tabMenu": {
+    "rename": "Rename…",
+    "renamePrompt": "Tab name (leave empty to reset):",
+    "reconnect": "Reconnect",
+    "disconnect": "Disconnect",
+    "duplicate": "Duplicate",
+    "close": "Close",
+    "closeOthers": "Close others"
   },
   "library": {
     "namePrompt": "{{label}} name?",
@@ -543,6 +555,10 @@
     "levels": "Levels",
     "statsTitle": "Per-channel min/max/avg/peak-to-peak/frequency",
     "stats": "Stats",
+    "measure": "Measure",
+    "measureTitle": "Measure Δt / Δy between two points (freezes the chart, click two points)",
+    "measureHint": "Click two points on the chart to measure the time and value between them.",
+    "channelColorTitle": "Change this channel's colour",
     "csvTitle": "Export the whole buffer (including math channels) as CSV",
     "pngTitle": "Export the chart as a PNG image (legend not included)",
     "pointCount": "{{count}} pts",

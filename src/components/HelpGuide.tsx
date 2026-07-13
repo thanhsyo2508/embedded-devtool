@@ -106,6 +106,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             <p>
               <Trans i18nKey="help.layout.p3" components={G} />
             </p>
+            <p>
+              <Trans i18nKey="help.layout.p4" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">
@@ -409,6 +412,12 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <Trans i18nKey="help.plotter.stats" components={G} />
+              </li>
+              <li>
+                <Trans i18nKey="help.plotter.measure" components={G} />
+              </li>
+              <li>
+                <Trans i18nKey="help.plotter.colors" components={G} />
               </li>
               <li>
                 <Trans i18nKey="help.plotter.fft" components={G} />

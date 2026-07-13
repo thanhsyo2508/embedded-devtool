@@ -174,8 +174,8 @@ export function ProvisionPanel({ ports }: { ports: PortInfo[] }) {
         )}
         {devices.map((d) => (
           <div key={d.portName} className="provision-device-row">
-            <span className="flash-batch-port">{d.portName}</span>
-            <span className={`flash-batch-status status-${d.status}`}>{statusLabel(d)}</span>
+            <span className="provision-device-port">{d.portName}</span>
+            <span className={`provision-device-status status-${d.status}`}>{statusLabel(d)}</span>
             <span className="provision-device-log">{d.log[d.log.length - 1] ?? ''}</span>
           </div>
         ))}

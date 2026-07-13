@@ -80,6 +80,25 @@ export function FlashBatchPanel({
     return t('flashBatch.statusQueued')
   }
 
+  // A card is driven by *either* source, never just `ports`: an ESP32-S2/S3/C3
+  // with native USB commonly disconnects and re-enumerates while it resets
+  // into the bootloader mid-flash, which drops it from `ports` for a moment
+  // (or, on some hosts, for good). Flashing itself is unaffected — it holds
+  // its own exclusive serial handle, independent of this list (see
+  // esp32.rs) — but if the card only rendered `ports.map(...)`, that same
+  // blip would make the card (and its progress bar) vanish while the flash
+  // was still running fine underneath, so a real, in-progress or just-
+  // finished flash could silently show no progress at all. Tracked devices
+  // that fell off `ports` are kept as "ghost" cards (no checkbox, no
+  // product name — nothing to select or re-derive) until they're cleared
+  // by picking a fresh port selection.
+  const rows: { port: PortInfo | null; device: BatchDevice | undefined }[] = [
+    ...ports.map((port) => ({ port, device: devices.find((d) => d.portName === port.portName) })),
+    ...devices
+      .filter((d) => !ports.some((p) => p.portName === d.portName))
+      .map((device) => ({ port: null, device })),
+  ]
+
   return (
     <div className="flash-batch">
       <label className="flash-batch-autoflash">
@@ -98,29 +117,59 @@ export function FlashBatchPanel({
         <div className="flash-batch-autoflash-warn">{t('flashBatch.autoFlashNoSegments')}</div>
       )}
       <div className="flash-batch-ports">
-        {ports.length === 0 && (
+        {rows.length === 0 && (
           <div className="flash-log-empty">{t('flashBatch.noPortsDetected')}</div>
         )}
-        {ports.map((p) => {
-          const device = devices.find((d) => d.portName === p.portName)
+        {rows.map(({ port, device }) => {
+          const portName = port?.portName ?? device?.portName
+          if (!portName) return null
+          const isSelected = port !== null && selectedPortNames.has(portName)
+          // A visible fill even at rest (0%) keeps every card the same
+          // height instead of the bar popping in only once flashing starts.
+          const pct =
+            device?.status === 'done' || device?.status === 'error'
+              ? 100
+              : device && device.progressTotal > 0
+                ? Math.round((device.progressCurrent / device.progressTotal) * 100)
+                : 0
           return (
-            <label key={p.portName} className="flash-batch-row">
-              <input
-                type="checkbox"
-                checked={selectedPortNames.has(p.portName)}
-                disabled={busy}
-                onChange={() => togglePort(p.portName)}
-              />
-              <span className="flash-batch-port">
-                {p.portName}
-                {p.product ? ` — ${p.product}` : ''}
-              </span>
-              {device && (
-                <span className={`flash-batch-status status-${device.status}`}>
-                  {statusLabel(device)}
+            <div
+              key={portName}
+              className={`flash-batch-card ${isSelected ? 'selected' : ''} ${port ? '' : 'ghost'}`}
+              onClick={() => {
+                if (port && !busy) togglePort(portName)
+              }}
+            >
+              <div className="flash-batch-card-head">
+                {port && (
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    disabled={busy}
+                    onChange={() => togglePort(portName)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                )}
+                <span className="flash-batch-card-name">{portName}</span>
+                {device && (
+                  <span className={`flash-batch-card-status status-${device.status}`}>
+                    {statusLabel(device)}
+                  </span>
+                )}
+              </div>
+              <span className="flash-batch-card-product">{port?.product ?? ' '}</span>
+              <div className="flash-batch-card-progress-bar">
+                <div
+                  className={`flash-batch-card-progress-fill status-${device?.status ?? 'idle'}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              {device?.status === 'error' && (
+                <span className="flash-batch-card-message" title={device.message}>
+                  {device.message}
                 </span>
               )}
-            </label>
+            </div>
           )
         })}
       </div>

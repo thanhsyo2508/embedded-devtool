@@ -222,6 +222,10 @@ export interface TabState {
    * used anywhere a tab needs a one-line label (tab strip, plotter source
    * picker) instead of each display spot re-deriving it per connection kind. */
   connectionLabel: string
+  /** A user-chosen name shown instead of `connectionLabel` when set (via the
+   * tab's right-click Rename) — for telling apart three "COM3 · 115200" tabs
+   * as "Sensor board" / "Gateway" / etc. Persists in a project profile. */
+  customLabel?: string
   portName: string
   baudRate: number
   status: TabStatus
@@ -282,6 +286,8 @@ interface TabsStore {
   closeTab: (id: string) => Promise<void>
   disconnectTab: (id: string) => Promise<void>
   reconnectTab: (id: string) => Promise<void>
+  /** Sets (or clears, on empty string) the tab's user-chosen display name. */
+  renameTab: (id: string, label: string) => void
   setActiveTab: (id: string) => void
   setViewMode: (id: string, mode: ViewMode) => void
   setTimestampMode: (id: string, mode: TimestampMode) => void
@@ -1027,6 +1033,13 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       }))
     }
   },
+
+  renameTab: (id, label) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, customLabel: label.trim() || undefined } : tab,
+      ),
+    })),
 
   setActiveTab: (id) => set({ activeTabId: id }),
 

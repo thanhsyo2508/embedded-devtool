@@ -10,7 +10,7 @@ import { computeSpectrum, type FftWindow } from '../lib/fft'
 import { computeMathChannel, MATH_OPS } from '../lib/plotMath'
 import { measure } from '../lib/plotMeasure'
 import { playBeep } from '../lib/beep'
-import { FilterIcon, PlusIcon, TrashIcon, XIcon } from './icons'
+import { FilterIcon, PlusIcon, TargetIcon, TrashIcon, XIcon } from './icons'
 
 const PALETTE = [
   '#c4472b',
@@ -85,6 +85,7 @@ export function PlotDock() {
     timestamps,
     dockHeight,
     hiddenChannels,
+    channelColors,
     chartType,
     extractors,
     mathChannels,
@@ -98,6 +99,7 @@ export function PlotDock() {
     ingest,
     setVisible,
     toggleChannelVisibility,
+    setChannelColor,
     setChartType,
     setFftMode,
     setFftWindow,
@@ -118,8 +120,23 @@ export function PlotDock() {
   const sourceTab = tabs.find((tab) => tab.id === sourceTabId) ?? null
   const [openPanel, setOpenPanel] = useState<'extractors' | 'math' | 'thresholds' | null>(null)
 
+  // Measurement cursors: click two points to read Δt / Δy / frequency
+  // between them. Markers are stored as data indices — only meaningful
+  // while the data underneath isn't shifting, so entering measure mode
+  // freezes ingestion (see the toggle below). Kept as local state, not in
+  // the store: nothing else needs it and it shouldn't persist.
+  const [measureMode, setMeasureMode] = useState(false)
+  const [markers, setMarkers] = useState<{ a: number | null; b: number | null }>({
+    a: null,
+    b: null,
+  })
+
   const containerRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot | null>(null)
+
+  // A channel's colour: an explicit override, else its slot in the palette.
+  const colorFor = (ch: string, i: number): string =>
+    channelColors[ch] ?? PALETTE[i % PALETTE.length]
 
   useEffect(() => {
     if (!sourceTab) return
@@ -172,6 +189,39 @@ export function PlotDock() {
       .map((ch) => ({ ch, m: measure(displayData[ch] ?? [], timestamps) }))
   }, [showStats, fftMode, displayOrder, displayData, timestamps, hiddenChannels])
 
+  // Δt / Δy / frequency between the two placed markers (null until both are
+  // set). Frequency is 1/Δt — handy for reading a period straight off two
+  // successive peaks.
+  const measurement = useMemo(() => {
+    const { a, b } = markers
+    if (a === null || b === null) return null
+    const ta = timestamps[a]
+    const tb = timestamps[b]
+    if (ta === undefined || tb === undefined) return null
+    const dt = (tb - ta) / 1000
+    const freq = dt !== 0 ? 1 / Math.abs(dt) : null
+    const channels = displayOrder
+      .filter((ch) => !hiddenChannels.includes(ch))
+      .map((ch) => {
+        const arr = displayData[ch]
+        const ya = arr?.[a]
+        const yb = arr?.[b]
+        const dy =
+          ya !== null && ya !== undefined && yb !== null && yb !== undefined ? yb - ya : null
+        return { ch, dy }
+      })
+    return { dt, freq, channels }
+  }, [markers, timestamps, displayOrder, displayData, hiddenChannels])
+
+  const toggleMeasure = () => {
+    const next = !measureMode
+    setMeasureMode(next)
+    setMarkers({ a: null, b: null })
+    // Freeze so the marker indices keep pointing at the same samples while
+    // you read them — measuring a moving trace would be meaningless.
+    if (next) setFrozen(true)
+  }
+
   // Threshold lines are drawn from a mutable ref inside the uPlot draw hook
   // so editing a value never rebuilds the chart — only a repaint is needed
   // (and live setData ticks repaint anyway; the explicit redraw covers
@@ -179,6 +229,13 @@ export function PlotDock() {
   const thresholdsRef = useRef(thresholds)
   const displayOrderRef = useRef(displayOrder)
   const fftModeRef = useRef(fftMode)
+  // Markers/colours/timestamps are read by the uPlot draw hook (installed
+  // once at chart build) — routing them through refs lets a marker move or
+  // a colour change repaint without tearing the chart down.
+  const markersRef = useRef(markers)
+  const channelColorsRef = useRef(channelColors)
+  const timestampsRef = useRef(timestamps)
+  const measureModeRef = useRef(measureMode)
   useEffect(() => {
     thresholdsRef.current = thresholds
     plotRef.current?.redraw(false)
@@ -189,6 +246,19 @@ export function PlotDock() {
   useEffect(() => {
     fftModeRef.current = fftMode
   }, [fftMode])
+  useEffect(() => {
+    markersRef.current = markers
+    plotRef.current?.redraw(false)
+  }, [markers])
+  useEffect(() => {
+    channelColorsRef.current = channelColors
+  }, [channelColors])
+  useEffect(() => {
+    timestampsRef.current = timestamps
+  }, [timestamps])
+  useEffect(() => {
+    measureModeRef.current = measureMode
+  }, [measureMode])
 
   // Threshold crossing alert: compares each threshold's channel-latest
   // sample against its state on the previous data tick (NOT the previous
@@ -219,7 +289,11 @@ export function PlotDock() {
     ]
   }
 
-  const channelKey = `${displayOrder.join(',')}|${chartType}|${fftMode}`
+  // A colour override changes a series' stroke, which uPlot bakes in at
+  // build time — fold the overrides into the rebuild key so editing one
+  // re-strokes the chart (color edits are infrequent, a rebuild is cheap).
+  const colorsKey = displayOrder.map((ch, i) => colorFor(ch, i)).join(',')
+  const channelKey = `${displayOrder.join(',')}|${chartType}|${fftMode}|${colorsKey}`
 
   // useLayoutEffect (not useEffect): reads the container's real, laid-out
   // pixel size before paint. Measuring in a plain useEffect risks a 0x0
@@ -254,7 +328,7 @@ export function PlotDock() {
       series: [
         {},
         ...displayOrder.map((ch, i) => {
-          const color = PALETTE[i % PALETTE.length]
+          const color = colorFor(ch, i)
           return {
             label: ch,
             stroke: color,
@@ -277,7 +351,10 @@ export function PlotDock() {
               const y = u.valToPos(t.value, 'y', true)
               if (y < u.bbox.top || y > u.bbox.top + u.bbox.height) continue
               const chIndex = displayOrderRef.current.indexOf(t.channel)
-              const color = chIndex >= 0 ? PALETTE[chIndex % PALETTE.length] : '#888'
+              const color =
+                chIndex >= 0
+                  ? (channelColorsRef.current[t.channel] ?? PALETTE[chIndex % PALETTE.length])
+                  : '#888'
               u.ctx.save()
               u.ctx.strokeStyle = color
               u.ctx.setLineDash([6, 4])
@@ -288,6 +365,23 @@ export function PlotDock() {
               u.ctx.stroke()
               u.ctx.restore()
             }
+            // Measurement cursors: a solid vertical line per placed marker.
+            const ts = timestampsRef.current
+            const firstMs = ts[0] ?? 0
+            const markerColor = themeColor('--accent', '#c4472b')
+            for (const idx of [markersRef.current.a, markersRef.current.b]) {
+              if (idx === null || idx < 0 || idx >= ts.length) continue
+              const x = u.valToPos((ts[idx] - firstMs) / 1000, 'x', true)
+              if (x < u.bbox.left || x > u.bbox.left + u.bbox.width) continue
+              u.ctx.save()
+              u.ctx.strokeStyle = markerColor
+              u.ctx.lineWidth = 1
+              u.ctx.beginPath()
+              u.ctx.moveTo(x, u.bbox.top)
+              u.ctx.lineTo(x, u.bbox.top + u.bbox.height)
+              u.ctx.stroke()
+              u.ctx.restore()
+            }
           },
         ],
       },
@@ -295,6 +389,21 @@ export function PlotDock() {
 
     const plot = new uPlot(opts, buildAlignedData(), el)
     plotRef.current = plot
+
+    // Click-to-place a measurement marker (only while measure mode is on).
+    // uPlot tracks the nearest data index under the cursor as `cursor.idx`;
+    // the first two clicks set A then B, a third restarts from A.
+    const handleMeasureClick = () => {
+      if (!measureModeRef.current) return
+      const idx = plot.cursor.idx
+      if (idx === null || idx === undefined) return
+      setMarkers((prev) => {
+        if (prev.a === null) return { a: idx, b: null }
+        if (prev.b === null) return { a: prev.a, b: idx }
+        return { a: idx, b: null }
+      })
+    }
+    plot.over.addEventListener('click', handleMeasureClick)
 
     return () => {
       plot.destroy()
@@ -500,6 +609,15 @@ export function PlotDock() {
           disabled={fftMode}
         >
           {t('plot.stats')}
+        </button>
+        <button
+          type="button"
+          className={measureMode ? 'on' : ''}
+          title={t('plot.measureTitle')}
+          onClick={toggleMeasure}
+          disabled={fftMode}
+        >
+          <TargetIcon /> {t('plot.measure')}
         </button>
         <button
           type="button"
@@ -712,18 +830,25 @@ export function PlotDock() {
       {displayOrder.length > 0 && (
         <div className="plot-channels">
           {displayOrder.map((ch, i) => (
-            <label key={ch} className="plot-channel-toggle">
+            // A <div>, not a <label>: the colour picker sits inside, and a
+            // wrapping label would toggle visibility every time the picker
+            // is clicked.
+            <div key={ch} className="plot-channel-toggle">
               <input
                 type="checkbox"
                 checked={!hiddenChannels.includes(ch)}
                 onChange={() => toggleChannelVisibility(ch)}
+                aria-label={ch}
               />
-              <span
-                className="plot-channel-swatch"
-                style={{ background: PALETTE[i % PALETTE.length] }}
+              <input
+                type="color"
+                className="plot-channel-color"
+                value={colorFor(ch, i)}
+                title={t('plot.channelColorTitle')}
+                onChange={(e) => setChannelColor(ch, e.target.value)}
               />
               <span>{ch}</span>
-            </label>
+            </div>
           ))}
         </div>
       )}
@@ -749,6 +874,26 @@ export function PlotDock() {
               )}
             </span>
           ))}
+        </div>
+      )}
+
+      {measureMode && (
+        <div className="plot-measure-readout">
+          {measurement ? (
+            <>
+              <span className="plot-measure-delta">
+                Δt {formatStat(measurement.dt)} s
+                {measurement.freq !== null ? ` · ${formatStat(measurement.freq)} Hz` : ''}
+              </span>
+              {measurement.channels.map(({ ch, dy }) => (
+                <span key={ch} className="plot-stat">
+                  <b>{ch}</b> Δ{dy !== null ? formatStat(dy) : '—'}
+                </span>
+              ))}
+            </>
+          ) : (
+            <span className="plot-measure-hint">{t('plot.measureHint')}</span>
+          )}
         </div>
       )}
 

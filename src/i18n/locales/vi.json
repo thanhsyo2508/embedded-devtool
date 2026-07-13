@@ -11,7 +11,8 @@
       "heading": "Bố cục nhiều pane (Snap Layouts)",
       "p1": "Kéo 1 tab bằng nhãn của nó và thả vào cạnh trái/phải/trên/dưới của vùng nội dung 1 pane bất kỳ để chia đôi không gian làm việc và xem 2 tab cạnh nhau — thả vào cạnh 1 pane đã có tiếp tục chia nhỏ hơn nữa, lồng bao nhiêu hàng/cột tùy ý. Một đường chia mảnh xuất hiện giữa các pane; kéo nó để đổi kích thước.",
       "p2": "Để gộp pane lại, kéo 1 tab thả vào thanh tab của pane khác (hoặc thả vào giữa vùng nội dung của pane đó thay vì cạnh) — tab sẽ chuyển tới đó, và nếu đó là tab cuối cùng của pane cũ, pane trống và phần chia đó tự động biến mất. Bấm vào bất kỳ đâu trong 1 pane sẽ focus nó, đây chính là thứ mà <kbd>Ctrl+1</kbd>-<kbd>9</kbd>, <kbd>Ctrl+W</kbd>, <kbd>Ctrl+L</kbd>, và <kbd>Space</kbd> tác động vào.",
-      "p3": "Biểu đồ (Plotter) dùng chung cho cả cửa sổ thay vì nằm trong 1 pane riêng — bật/tắt nó từ thanh trên cùng và chọn tab nguồn từ dropdown riêng của nó, bất kể tab đó đang hiển thị ở pane nào."
+      "p3": "Biểu đồ (Plotter) dùng chung cho cả cửa sổ thay vì nằm trong 1 pane riêng — bật/tắt nó từ thanh trên cùng và chọn tab nguồn từ dropdown riêng của nó, bất kể tab đó đang hiển thị ở pane nào.",
+      "p4": "Mỗi tab hiện 1 icon nhỏ cho họ kết nối (serial / mạng / terminal / SWD), tô màu theo trạng thái — xanh lá đang kết nối, xám đã ngắt, đỏ lỗi. <b>Chuột phải</b> vào 1 tab để <b>Đổi tên</b> (đặt tên dễ hiểu như \"Board cảm biến\" thay vì \"COM3 · 115200\"; được lưu trong project profile), <b>Ngắt kết nối</b>/<b>Kết nối lại</b>, <b>Nhân bản</b> (mở tab thứ 2 cùng thiết lập), và <b>Đóng</b> / <b>Đóng các tab khác</b>. Kéo 1 tab qua trái/phải vượt các tab lân cận trong cùng thanh để đổi thứ tự."
     },
     "monitor": {
       "heading": "Serial Monitor",
@@ -131,6 +132,8 @@
       "math": "<b>Math</b> — các kênh tính toán suy ra từ kênh thật: A+B, A−B, A×B, A÷B, trung bình trượt, đạo hàm (đơn vị/giây), hoặc RMS trên 1 cửa sổ mẫu. Chúng hiện trong chú giải với tiền tố <code>ƒ</code> và hoạt động như kênh bình thường ở mọi nơi — thống kê, FFT, xuất CSV.",
       "levels": "<b>Levels</b> — các đường cảnh báo ngang. Chọn 1 kênh và 1 giá trị; 1 đường nét đứt được vẽ ở mức đó và kêu bíp mỗi khi kênh vượt lên trên nó. <b>Ví dụ:</b> kênh <code>temp</code> &gt; <code>80</code> kêu bíp ngay khi 1 số liệu nhiệt độ vượt quá 80.",
       "stats": "<b>Stats</b> — 1 dải hiển thị thời gian thực min / max / avg / peak-to-peak và tần số ước tính của từng kênh đang hiện (để trống với tín hiệu phẳng hoặc không tuần hoàn).",
+      "measure": "<b>Đo</b> — bấm 2 điểm trên biểu đồ để đọc chính xác Δt (và tần số 1/Δt) cùng Δy của từng kênh giữa 2 điểm đó, giống con trỏ đo của máy hiện sóng. Bật tính năng này sẽ đóng băng biểu đồ để 2 mốc giữ nguyên; bấm điểm thứ 3 để bắt đầu đo mới, và tắt Đo (rồi tắt Freeze) để tiếp tục vẽ trực tiếp.",
+      "colors": "<b>Màu kênh</b> — ô màu cạnh mỗi kênh trong chú giải là 1 bộ chọn màu; bấm vào để đổi màu kênh đó. Lựa chọn gắn với kênh theo tên và được lưu trong project profile. Ô tích bên cạnh dùng để ẩn/hiện kênh mà không xóa dữ liệu.",
       "fft": "<b>FFT</b> — chuyển biểu đồ sang miền tần số: bộ đệm hiện tại được lấy mẫu lại về tốc độ đều, 1 hàm cửa sổ (mặc định Hann, có thể chọn Hamming hoặc rectangular) được áp dụng, và phổ biên độ hiển thị với trục x là Hz. Cần ít nhất 64 mẫu. Lưu ý: giá trị giữa các mẫu thật được giữ cố định bởi cách nạp dữ liệu của biểu đồ (zero-order hold), gây ra vài họa ba giả nhỏ — đủ tốt để phát hiện tần số trội, không dùng để đo chính xác.",
       "csvPng": "<b>CSV / PNG</b> — xuất toàn bộ bộ đệm (timestamp + mọi kênh kể cả kênh toán) ra CSV, hoặc biểu đồ ra ảnh PNG (chú giải HTML bên dưới biểu đồ không nằm trong ảnh)."
     },
@@ -221,6 +224,15 @@
   },
   "layout": {
     "noTabOpen": "Chưa mở tab nào"
+  },
+  "tabMenu": {
+    "rename": "Đổi tên…",
+    "renamePrompt": "Tên tab (để trống để đặt lại):",
+    "reconnect": "Kết nối lại",
+    "disconnect": "Ngắt kết nối",
+    "duplicate": "Nhân bản",
+    "close": "Đóng",
+    "closeOthers": "Đóng các tab khác"
   },
   "library": {
     "namePrompt": "Tên {{label}}?",
@@ -538,6 +550,10 @@
     "levels": "Ngưỡng",
     "statsTitle": "Min/max/avg/peak-to-peak/tần số theo từng kênh",
     "stats": "Thống kê",
+    "measure": "Đo",
+    "measureTitle": "Đo Δt / Δy giữa 2 điểm (đóng băng biểu đồ, bấm chọn 2 điểm)",
+    "measureHint": "Bấm 2 điểm trên biểu đồ để đo thời gian và giá trị giữa chúng.",
+    "channelColorTitle": "Đổi màu kênh này",
     "csvTitle": "Xuất toàn bộ bộ đệm (gồm cả kênh toán) ra CSV",
     "pngTitle": "Xuất biểu đồ ra ảnh PNG (không gồm chú giải)",
     "pointCount": "{{count}} điểm",

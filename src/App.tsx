@@ -69,6 +69,7 @@ function App() {
   const setScriptCode = useTabsStore((s) => s.setScriptCode)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
   const setChecksumMode = useTabsStore((s) => s.setChecksumMode)
+  const renameTab = useTabsStore((s) => s.renameTab)
   const [showConnect, setShowConnect] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
@@ -95,6 +96,7 @@ function App() {
   const plotMathChannels = usePlotStore((s) => s.mathChannels)
   const plotThresholds = usePlotStore((s) => s.thresholds)
   const plotChartType = usePlotStore((s) => s.chartType)
+  const plotChannelColors = usePlotStore((s) => s.channelColors)
   const plotLoadConfig = usePlotStore((s) => s.loadConfig)
 
   const layoutRoot = useLayoutStore((s) => s.root)
@@ -185,6 +187,7 @@ function App() {
             mathChannels: plotMathChannels,
             thresholds: plotThresholds,
             chartType: plotChartType,
+            channelColors: plotChannelColors,
           }
         : null,
     )
@@ -254,6 +257,7 @@ function App() {
       setScriptCode(newId, tabConfig.scriptCode)
       setLineEnding(newId, tabConfig.lineEnding)
       setChecksumMode(newId, tabConfig.checksumMode)
+      if (tabConfig.customLabel) renameTab(newId, tabConfig.customLabel)
       idByIndex.set(i, newId)
     }
 

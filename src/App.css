@@ -9,6 +9,19 @@
   --err: #b23b3b;
   --log-font-size: 12px;
 
+  /* Design tokens (theme-independent) — a small, deliberate scale so
+     radius/elevation/motion stay consistent instead of each component
+     picking its own value. */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.12);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.18);
+  --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.28);
+  --transition-fast: 0.12s ease;
+  --transition-med: 0.2s ease;
+
   font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
   color: var(--text);
   background-color: var(--bg);
@@ -58,6 +71,23 @@
   box-sizing: border-box;
 }
 
+/* Honour the OS "reduce motion" setting: kill decorative transitions and
+   entrance animations, but keep the loading spinner meaningful (a frozen
+   spinner reads as a hang). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .spinner {
+    animation-duration: 0.8s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
 /* Tauri only ships Chromium (WebView2) or WebKit (WKWebView/WebKitGTK)
    runtimes — never Gecko — so the -webkit- pseudo-elements are the real
    target here, not a progressive-enhancement fallback. scrollbar-width/
@@ -81,7 +111,7 @@
   background-color: var(--border);
   background-clip: padding-box;
   border: 2px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 *::-webkit-scrollbar-thumb:hover {
@@ -171,6 +201,14 @@ body,
   border-right: 1px solid var(--border);
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
+}
+
+.tab:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .tab.active {
@@ -179,17 +217,19 @@ body,
   border-bottom: 2px solid var(--accent);
 }
 
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-muted);
+/* Tab type icon — shape says the connection family, colour says status
+   (green open / grey closed / red error), so one small glyph does both. */
+.tab-icon {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--text-muted);
 }
-.status-dot.open {
-  background: var(--ok);
+.tab-icon.status-open {
+  color: var(--ok);
 }
-.status-dot.error {
-  background: var(--err);
+.tab-icon.status-error {
+  color: var(--err);
 }
 
 .tab-close {
@@ -199,7 +239,7 @@ body,
   cursor: pointer;
   padding: 0 2px;
   font-size: 13px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
 }
 
 .tab-close:hover {
@@ -224,14 +264,17 @@ body,
 /* ---- connect panel ---- */
 .connect-panel {
   max-width: 380px;
-  margin: 48px auto;
+  width: 100%;
+  margin: auto;
   padding: 22px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
   gap: 14px;
+  box-shadow: var(--shadow-lg);
+  animation: panel-pop-in var(--transition-med);
 }
 
 .connect-panel h2 {
@@ -254,7 +297,7 @@ body,
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   font-size: 12px;
   color: var(--text-muted);
@@ -301,7 +344,7 @@ body,
   text-align: left;
   padding: 6px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   font-size: 12.5px;
   min-width: 0;
@@ -381,6 +424,10 @@ body,
   padding: 0;
 }
 
+.icon-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+
 .port-details {
   display: flex;
   align-items: baseline;
@@ -388,7 +435,7 @@ body,
   gap: 4px 8px;
   padding: 7px 10px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--accent) 6%, transparent);
   font-size: 11px;
   color: var(--text-muted);
@@ -425,11 +472,6 @@ body,
   font-size: 12.5px;
   color: var(--text-muted);
   cursor: pointer;
-}
-
-.checkbox-field input {
-  margin: 0;
-  width: auto;
 }
 
 .connect-button {
@@ -581,10 +623,14 @@ body,
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
   display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 10;
   overflow-y: auto;
+  /* Gutter kept via padding, and centring done with `margin: auto` on the
+     panel (below) rather than `align-items: center` — a centred flex child
+     taller than the viewport has its top clipped and unreachable, whereas
+     margin-auto falls back to top-aligned + scrollable on short screens. */
+  padding: 24px 16px;
+  animation: overlay-fade-in var(--transition-med);
 }
 
 /* ---- monitor ---- */
@@ -610,8 +656,9 @@ body,
   display: flex;
   flex-wrap: wrap;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   overflow: hidden;
+  min-height: 24px;
 }
 
 /* Sub-choice toggle (e.g. Client/Server under a protocol family) — shrinks
@@ -629,9 +676,16 @@ body,
   color: var(--text-muted);
   cursor: pointer;
   border-right: 1px solid var(--border);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 .seg span:last-child {
   border-right: none;
+}
+.seg span:hover:not(.on) {
+  color: var(--text);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 .signal-bar {
   display: flex;
@@ -667,7 +721,7 @@ body,
   font-size: 10.5px;
   padding: 3px 7px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   color: var(--text-muted);
 }
 
@@ -775,7 +829,7 @@ body,
   height: 32px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--text-muted);
 }
 
@@ -797,7 +851,7 @@ body,
   min-width: 14px;
   height: 14px;
   padding: 0 3px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--panel);
   font-size: 9px;
@@ -826,7 +880,7 @@ body,
   max-height: calc(100% - 16px);
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
 }
@@ -887,7 +941,7 @@ body,
 .logline .msg mark {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
   color: inherit;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .logline.current-match .msg mark {
@@ -1010,7 +1064,7 @@ body,
   font-size: 11px;
   padding: 2px 7px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
 }
 
@@ -1051,7 +1105,7 @@ body,
   position: relative;
   padding: 8px 36px 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .plugin-library-row-main {
@@ -1111,7 +1165,7 @@ body,
   font-size: 10.5px;
   text-transform: uppercase;
   padding: 2px 6px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   font-weight: 600;
 }
 
@@ -1157,7 +1211,7 @@ body,
   gap: 6px;
   padding: 5px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--panel);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
@@ -1178,7 +1232,7 @@ body,
   font-family: ui-monospace, Consolas, monospace;
   font-size: 11px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 4px 12px;
   background: var(--panel);
   color: var(--text-muted);
@@ -1216,7 +1270,7 @@ body,
   flex: none;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--panel);
   font-size: 12px;
   white-space: nowrap;
@@ -1324,13 +1378,35 @@ body,
 input,
 select,
 button {
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   padding: 5px 8px;
   font-size: 12.5px;
   font-family: inherit;
   color: var(--text);
   background-color: var(--panel);
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    color var(--transition-fast);
+}
+
+/* A calm accent ring when a control is focused via input the user drives
+   with intent — text field click or keyboard Tab (:focus-visible), not a
+   mouse click on a button, so ordinary clicking doesn't leave rings behind. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+[tabindex]:focus-visible,
+[role='button']:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px;
+}
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
 }
 
 button {
@@ -1339,9 +1415,95 @@ button {
 button:hover:not(:disabled) {
   border-color: var(--accent);
 }
+button:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
 button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* Custom checkbox appearance — every plain checkbox in the app (flash-batch
+   rows, checkbox-field toggles, plotter channel list, ...) shares this, so
+   they read as one design instead of inconsistent, chunky OS chrome that
+   clashes with the rest of the theme. */
+input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  min-width: 15px;
+  padding: 0;
+  margin: 0;
+  border-radius: var(--radius-sm);
+  position: relative;
+  flex: none;
+}
+
+input[type='checkbox']:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+input[type='checkbox']:checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+input[type='checkbox']:checked::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+input[type='checkbox']:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- entrance animations (see prefers-reduced-motion guard below) ---- */
+@keyframes overlay-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes panel-slide-in-right {
+  from {
+    transform: translateX(18px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes panel-pop-in {
+  from {
+    transform: scale(0.98) translateY(6px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes menu-pop-in {
+  from {
+    transform: translateY(-4px) scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
 }
 
 /* ---- settings ---- */
@@ -1352,6 +1514,7 @@ button:disabled {
   display: flex;
   justify-content: flex-end;
   z-index: 10;
+  animation: overlay-fade-in var(--transition-med);
 }
 
 .settings-panel {
@@ -1364,6 +1527,8 @@ button:disabled {
   flex-direction: column;
   gap: 16px;
   overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: panel-slide-in-right var(--transition-med);
 }
 
 .settings-header {
@@ -1450,11 +1615,18 @@ button:disabled {
   height: 0;
 }
 
+/* This checkbox already drives a custom .switch-track/thumb visual, not the
+   generic checkmark — suppress the shared input[type='checkbox']::after so
+   a stray tick doesn't render on top of (or under) the switch. */
+.switch input::after {
+  content: none;
+}
+
 .switch-track {
   position: absolute;
   inset: 0;
   background: var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   transition: background 0.15s;
 }
 
@@ -1490,6 +1662,8 @@ button:disabled {
   flex-direction: column;
   gap: 14px;
   overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+  animation: panel-slide-in-right var(--transition-med);
 }
 
 .flash-connect-row {
@@ -1564,7 +1738,7 @@ button:disabled {
   flex: 1;
   height: 8px;
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -1597,7 +1771,7 @@ button:disabled {
   flex: 1;
   min-height: 100px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 8px 10px;
   overflow-y: auto;
   background: var(--bg);
@@ -1628,59 +1802,135 @@ button:disabled {
 .flash-batch-ports {
   flex: 1;
   min-height: 100px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 4px;
   overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  align-content: start;
+  gap: 8px;
+  padding: 2px;
+}
+
+.flash-batch-card {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 6px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
-.flash-batch-row {
+.flash-batch-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.flash-batch-card.selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+}
+
+/* A tracked device whose port fell out of the OS's port list mid-flash
+   (common on native-USB ESP32-S2/S3/C3 boards, which re-enumerate while
+   resetting into the bootloader) — kept visible with its progress/result
+   rather than vanishing, since the flash itself is unaffected. Nothing
+   here is selectable, so no checkbox and a resting cursor. */
+.flash-batch-card.ghost {
+  cursor: default;
+  border-style: dashed;
+}
+
+.flash-batch-card-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
-  border-radius: 4px;
-  cursor: pointer;
+  gap: 6px;
 }
 
-.flash-batch-row:hover {
-  background: var(--panel);
-}
-
-.flash-batch-row input[type='checkbox'] {
-  width: auto;
-  margin: 0;
-}
-
-.flash-batch-port {
+.flash-batch-card-name {
   flex: 1;
   min-width: 0;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.flash-batch-status {
+.flash-batch-card-product {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* Reserves a line even with no product string, so cards stay the same
+     height whether or not the OS reported one. */
+  min-height: 13px;
+}
+
+.flash-batch-card-status {
   flex: none;
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 14%, transparent);
 }
 
-.flash-batch-status.status-flashing,
-.flash-batch-status.status-running {
+.flash-batch-card-status.status-flashing,
+.flash-batch-card-status.status-running {
   color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
-.flash-batch-status.status-done {
+.flash-batch-card-status.status-done {
   color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, transparent);
 }
 
-.flash-batch-status.status-error {
+.flash-batch-card-status.status-error {
   color: var(--err);
+  background: color-mix(in srgb, var(--err) 16%, transparent);
+}
+
+.flash-batch-card-progress-bar {
+  height: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+}
+
+.flash-batch-card-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s;
+}
+
+.flash-batch-card-progress-fill.status-idle {
+  background: transparent;
+}
+
+.flash-batch-card-progress-fill.status-done {
+  background: var(--ok);
+}
+
+.flash-batch-card-progress-fill.status-error {
+  background: var(--err);
+}
+
+.flash-batch-card-message {
+  font-size: 10px;
+  color: var(--err);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .flash-batch-autoflash {
@@ -1689,11 +1939,6 @@ button:disabled {
   gap: 8px;
   font-size: 12px;
   cursor: pointer;
-}
-
-.flash-batch-autoflash input[type='checkbox'] {
-  width: auto;
-  margin: 0;
 }
 
 .flash-batch-autoflash-warn {
@@ -1745,11 +1990,6 @@ button:disabled {
   cursor: pointer;
 }
 
-.provision-step-wait input[type='checkbox'] {
-  width: auto;
-  margin: 0;
-}
-
 .provision-step-match {
   flex: 1;
   min-width: 0;
@@ -1774,7 +2014,7 @@ button:disabled {
   flex: 1;
   min-height: 80px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 4px;
   overflow-y: auto;
   display: flex;
@@ -1787,6 +2027,36 @@ button:disabled {
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
+}
+
+.provision-device-port {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.provision-device-status {
+  flex: none;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.provision-device-status.status-running {
+  color: var(--accent);
+}
+
+.provision-device-status.status-done {
+  color: var(--ok);
+}
+
+.provision-device-status.status-error {
+  color: var(--err);
 }
 
 .provision-device-log {
@@ -1937,7 +2207,7 @@ button:disabled {
   max-height: 88vh;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1948,7 +2218,7 @@ button:disabled {
 .netscan-table-wrap {
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .netscan-table {
@@ -1996,7 +2266,7 @@ button:disabled {
   max-width: 92vw;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -2020,7 +2290,7 @@ button:disabled {
   font-size: 11.5px;
   padding: 3px 8px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text-muted);
 }
 
@@ -2090,7 +2360,7 @@ button:disabled {
   font-size: 11.5px;
   padding: 3px 6px 3px 9px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text);
 }
 
@@ -2135,7 +2405,7 @@ button:disabled {
   flex-direction: column;
   gap: 6px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -2204,7 +2474,7 @@ button:disabled {
   font-size: 10.5px;
   color: var(--text-muted);
   padding: 1px 6px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
@@ -2214,7 +2484,7 @@ button:disabled {
   font-weight: 600;
   color: var(--accent);
   border: 1px solid var(--accent);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   padding: 0 4px;
 }
 
@@ -2225,7 +2495,7 @@ button:disabled {
   flex-direction: column;
   gap: 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 8px;
   overflow: hidden;
 }
@@ -2254,7 +2524,7 @@ button:disabled {
 
 .mqtt-history-entry {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 8px;
 }
 
@@ -2366,7 +2636,7 @@ button:disabled {
 
 .packet-entry {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 6px 8px;
   flex: none;
 }
@@ -2388,7 +2658,7 @@ button:disabled {
   font-size: 10px;
   font-weight: 600;
   padding: 0 5px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   text-transform: uppercase;
 }
@@ -2445,17 +2715,55 @@ button:disabled {
   width: auto;
 }
 
-.plot-channel-swatch {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
+/* Native colour picker styled down to a small swatch — clicking it opens
+   the OS colour dialog to recolour that channel. */
+.plot-channel-color {
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
   flex: none;
+}
+.plot-channel-color::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+.plot-channel-color::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+/* Measurement-cursor readout row (Δt / frequency / per-channel Δy). */
+.plot-measure-readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 5px 10px;
+  border-bottom: 1px dashed var(--border);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.plot-measure-delta {
+  color: var(--accent);
+  font-weight: 600;
+}
+.plot-measure-readout b {
+  color: var(--text);
+  font-weight: 600;
+}
+.plot-measure-hint {
+  color: var(--text-muted);
 }
 
 /* ---- shortcuts reference ---- */
 .shortcuts-title,
 .settings-section-title {
   font-size: 11px;
+  font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2481,6 +2789,8 @@ button:disabled {
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  animation: panel-slide-in-right var(--transition-med);
 }
 
 .help-body {
@@ -2527,14 +2837,14 @@ button:disabled {
   font-size: 11.5px;
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .guide-code {
   margin: 0 0 8px;
   padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   font-family: ui-monospace, Consolas, monospace;
   font-size: 11.5px;
@@ -2556,7 +2866,7 @@ kbd {
   font-family: ui-monospace, Consolas, monospace;
   font-size: 10.5px;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   padding: 2px 6px;
   background: var(--bg);
   color: var(--text);
@@ -2582,7 +2892,7 @@ kbd {
   flex: 1;
   min-height: 0;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--text);
   font-family: ui-monospace, Consolas, monospace;
@@ -2646,7 +2956,7 @@ kbd {
   flex: 1;
   min-width: 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
@@ -2697,7 +3007,7 @@ kbd {
   gap: 2px;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   max-height: 220px;
   overflow-y: auto;
   font-size: 11.5px;
@@ -2761,11 +3071,23 @@ kbd {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-md);
   pointer-events: auto;
+  animation: toast-slide-in var(--transition-med);
+}
+
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .toast-success {
@@ -2813,10 +3135,12 @@ kbd {
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   z-index: 50;
   overflow: hidden;
+  transform-origin: top right;
+  animation: menu-pop-in var(--transition-fast);
 }
 
 .notification-dropdown-header {
@@ -2846,7 +3170,7 @@ kbd {
   flex-direction: column;
   gap: 2px;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 12.5px;
 }
 
@@ -2873,22 +3197,29 @@ kbd {
   min-width: 200px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
   padding: 4px;
   z-index: 300;
   display: flex;
   flex-direction: column;
+  transform-origin: top left;
+  animation: menu-pop-in var(--transition-fast);
 }
 
 .context-menu-item {
   text-align: left;
   padding: 6px 10px;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: transparent;
   border: none;
   font-size: 12.5px;
   color: var(--text);
+  transition: background-color var(--transition-fast);
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .context-menu-item:disabled {
@@ -2911,6 +3242,7 @@ kbd {
   align-items: flex-start;
   padding-top: 12vh;
   z-index: 200;
+  animation: overlay-fade-in var(--transition-fast);
 }
 
 .command-palette {
@@ -2918,11 +3250,12 @@ kbd {
   max-height: 60vh;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  animation: panel-pop-in var(--transition-fast);
 }
 
 .command-palette-input-row {
@@ -2962,7 +3295,7 @@ kbd {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   border: none;
   text-align: left;
@@ -3017,7 +3350,7 @@ kbd {
   max-height: 260px;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .debug-table {
@@ -3047,7 +3380,7 @@ kbd {
 
 .debug-bar {
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: var(--accent);
   opacity: 0.6;
 }
@@ -3079,7 +3412,7 @@ kbd {
   gap: 2px;
   padding: 10px 6px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .production-stats-value {
@@ -3159,7 +3492,7 @@ kbd {
   gap: 12px;
   padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .stm32-security-level p {
@@ -3192,7 +3525,7 @@ kbd {
   flex-wrap: wrap;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .esp32-security-burn-input {

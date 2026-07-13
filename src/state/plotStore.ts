@@ -82,6 +82,11 @@ interface PlotState {
   lastProcessedLineSeq: number
   dockHeight: number
   hiddenChannels: string[]
+  /** Per-channel colour overrides, keyed by channel name. A channel not
+   * listed here falls back to its position in the default palette (see
+   * PlotDock). Keyed by name (not index) so a channel keeps its colour
+   * even as others come and go. */
+  channelColors: Record<string, string>
   chartType: ChartType
   extractors: Extractor[]
   mathChannels: MathChannelDef[]
@@ -95,6 +100,7 @@ interface PlotState {
   setFrozen: (v: boolean) => void
   setDockHeight: (v: number) => void
   toggleChannelVisibility: (ch: string) => void
+  setChannelColor: (ch: string, color: string) => void
   setChartType: (t: ChartType) => void
   setFftMode: (v: boolean) => void
   setFftWindow: (w: FftWindow) => void
@@ -109,6 +115,7 @@ interface PlotState {
     mathChannels: MathChannelDef[]
     thresholds: ThresholdLine[]
     chartType: ChartType
+    channelColors?: Record<string, string>
   }) => void
   ingest: (tab: TabState) => void
   ingestScriptPoint: (streamId: string, channel: string, value: number) => void
@@ -134,6 +141,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   frozen: false,
   dockHeight: 280,
   hiddenChannels: [],
+  channelColors: {},
   chartType: 'line',
   extractors: [],
   mathChannels: [],
@@ -153,19 +161,22 @@ export const usePlotStore = create<PlotState>((set, get) => ({
         ? state.hiddenChannels.filter((c) => c !== ch)
         : [...state.hiddenChannels, ch],
     })),
+  setChannelColor: (ch, color) =>
+    set((state) => ({ channelColors: { ...state.channelColors, [ch]: color } })),
   setChartType: (chartType) => set({ chartType }),
   setFftMode: (fftMode) => set({ fftMode }),
   setFftWindow: (fftWindow) => set({ fftWindow }),
   setShowStats: (showStats) => set({ showStats }),
   reset: () => set({ ...emptyData }),
 
-  loadConfig: ({ sourceTabId, extractors, mathChannels, thresholds, chartType }) =>
+  loadConfig: ({ sourceTabId, extractors, mathChannels, thresholds, chartType, channelColors }) =>
     set({
       sourceTabId,
       extractors,
       mathChannels,
       thresholds,
       chartType,
+      channelColors: channelColors ?? {},
       hiddenChannels: [],
       ...emptyData,
     }),

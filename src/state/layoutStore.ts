@@ -27,6 +27,10 @@ interface LayoutState {
   setActiveTabInPane: (paneId: string, tabId: string) => void
   closeTab: (tabId: string) => void
   moveTabToPane: (tabId: string, targetPaneId: string) => void
+  /** Reorders `draggedId` to sit where `targetId` currently is, within the
+   * one pane both belong to — the within-strip counterpart to
+   * `moveTabToPane`'s cross-pane move. No-op if either tab isn't in the pane. */
+  reorderTabInPane: (paneId: string, draggedId: string, targetId: string) => void
   splitPaneWithTab: (targetPaneId: string, tabId: string, zone: DropZone) => void
   resizeSplit: (splitId: string, index: number, sizeA: number, sizeB: number) => void
   /** Replaces the whole tree wholesale — for restoring a saved project
@@ -72,6 +76,23 @@ export const useLayoutStore = create<LayoutState>((set) => ({
       const root = moveTab(state.root, tabId, targetPaneId)
       return { root, focusedPaneId: resolveFocus(root, targetPaneId) }
     }),
+
+  reorderTabInPane: (paneId, draggedId, targetId) =>
+    set((state) => ({
+      root: updatePane(state.root, paneId, (pane) => {
+        if (
+          draggedId === targetId ||
+          !pane.tabIds.includes(draggedId) ||
+          !pane.tabIds.includes(targetId)
+        ) {
+          return pane
+        }
+        const without = pane.tabIds.filter((id) => id !== draggedId)
+        const targetIndex = without.indexOf(targetId)
+        const tabIds = [...without.slice(0, targetIndex), draggedId, ...without.slice(targetIndex)]
+        return { ...pane, tabIds }
+      }),
+    })),
 
   splitPaneWithTab: (targetPaneId, tabId, zone) =>
     set((state) => {
