@@ -97,6 +97,12 @@ export function decodeEsp32Backtrace(elfPath: string, text: string): Promise<Dec
   return invoke('decode_esp32_backtrace', { elfPath, text })
 }
 
+/** Jumps straight from a resolved crash-decoder frame to its source line in
+ * VS Code, via the `code` CLI. */
+export function openInEditor(file: string, line?: number | null): Promise<void> {
+  return invoke('open_in_editor', { file, line: line ?? undefined })
+}
+
 /** Writes the bundled `boot_app0.bin` (see THIRD_PARTY_NOTICES.md) to a temp
  * file and returns its path — used by "Smart add" when an OTA-capable
  * partition table needs an `otadata` image the user's build output didn't

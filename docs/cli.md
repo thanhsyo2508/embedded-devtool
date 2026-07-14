@@ -66,6 +66,7 @@ suite that fails to parse, or a port that fails to open).
 port: COM3
 baud: 115200 # optional, default 115200
 timeoutMs: 2000 # optional, default 2000 — per-step `expect` timeout unless overridden
+webhookUrl: "https://hooks.slack.com/services/..." # optional — see "Webhook notifications" below
 
 steps:
   - name: flash firmware # optional; auto-named "step N" if omitted
@@ -127,6 +128,17 @@ report; the ones after the failure simply never execute.
   JUnit plugin and GitHub Actions' test-reporting actions.
 - **HTML** (`--html`): a self-contained page listing every step (actions
   included) with pass/fail styling, for a human to skim after a run.
+
+### Webhook notifications
+
+Setting `webhookUrl` posts a one-line pass/fail summary (e.g. `edt-cli
+test [FAIL] COM3 — 2/3 assertions passed`) there once the suite finishes —
+useful for a CI runner or a production-line script you're not actively
+watching. The same URL works for either a Slack or a Discord incoming
+webhook without saying which: the POST body includes both `text` (what
+Slack reads) and `content` (what Discord reads), and each service ignores
+the field it doesn't recognize. A failed POST only prints a warning; it
+never changes the suite's own pass/fail result or exit code.
 
 ### Using it in CI
 

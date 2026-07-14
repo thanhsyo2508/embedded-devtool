@@ -3,6 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useTranslation } from 'react-i18next'
 import {
   decodeEsp32Backtrace,
+  openInEditor,
   parseElfMemoryMap,
   type DecodedFrame,
   type MemoryMap,
@@ -71,6 +72,13 @@ export function DebugPanel() {
     } finally {
       setMapBusy(false)
     }
+  }
+
+  const handleOpenInEditor = (frame: DecodedFrame) => {
+    if (!frame.file) return
+    openInEditor(frame.file, frame.line ?? undefined).catch((err: unknown) => {
+      setDecodeError(String(err))
+    })
   }
 
   const handleDecode = async () => {
@@ -197,7 +205,20 @@ export function DebugPanel() {
                   <tr key={i}>
                     <td className="mono">{formatAddress(f.address)}</td>
                     <td className="mono">{f.function ?? t('debug.crashDecoder.unknown')}</td>
-                    <td className="mono">{f.file ? `${f.file}:${f.line ?? '?'}` : '—'}</td>
+                    <td className="mono">
+                      {f.file ? (
+                        <button
+                          type="button"
+                          className="debug-frame-location"
+                          title={t('debug.crashDecoder.openInEditor')}
+                          onClick={() => handleOpenInEditor(f)}
+                        >
+                          {f.file}:{f.line ?? '?'}
+                        </button>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

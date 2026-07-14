@@ -11,6 +11,7 @@
 port: COM3
 baud: 115200
 timeoutMs: 2000 # default `expect` timeout for steps that don't set their own
+# webhookUrl: "https://hooks.slack.com/services/..." # optional — posts a pass/fail summary when the suite finishes (Slack or Discord)
 
 steps:
   # Optional: flash firmware before testing. Segments are the same

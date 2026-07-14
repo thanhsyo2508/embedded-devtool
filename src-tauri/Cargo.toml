@@ -92,6 +92,15 @@ tiny_http = "0.12"
 object = "0.36"
 addr2line = "0.24"
 
+# Outbound HTTPS client -- "install plugin from URL" (plugin/mod.rs) and the
+# CLI test runner's optional webhook notification (testrunner/mod.rs).
+# Blocking, matching this codebase's established preference (see suppaftp/
+# tiny_http above) over pulling in a second async runtime just for occasional
+# one-shot requests. Default features already pull in rustls with the `ring`
+# crypto backend -- same backend already used by russh/libunftp, so this
+# doesn't add a second one.
+ureq = "3"
+
 # Only pulled in for the `edt-cli` binary (via the `cli` feature below) â€”
 # optional so a normal GUI build never compiles or links them.
 clap = { version = "4", features = ["derive"], optional = true }
@@ -100,6 +109,20 @@ ctrlc = { version = "3", optional = true }
 serde_yaml = { version = "0.9", optional = true }
 probe-rs = "0.31.0"
 gimli = { version = "0.34.0", default-features = false, features = ["read", "std"] }
+
+# OS keychain (Windows Credential Manager / macOS Keychain / Linux Secret
+# Service) for the opt-in "remember this password" toggle on SSH/network
+# connections -- an explicit choice over the in-memory-only default so a
+# saved password survives an app restart without sitting in plaintext in a
+# project profile or connection preset. The Linux backend goes through
+# zbus (pure Rust, no libdbus needed) rather than dbus-secret-service, same
+# "avoid native build deps" reasoning as libunftp's rustls backend above.
+keyring = { version = "4", default-features = false, features = [
+    "v1",
+    "windows-native-keyring-store",
+    "apple-native-keyring-store",
+    "zbus-secret-service-keyring-store",
+] }
 
 [features]
 cli = ["dep:clap", "dep:ctrlc", "dep:serde_yaml"]

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -6,6 +6,7 @@ import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import '@xterm/xterm/css/xterm.css'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
+import { keychainDeletePassword, keychainLoadPassword, keychainSavePassword } from '../api/keychain'
 import { RepeatIcon } from './icons'
 
 function pasteFromClipboard(term: Terminal) {
@@ -51,11 +52,49 @@ export function SshPanel({ tab }: { tab: TabState }) {
     tab.connectionConfig.kind === 'ssh' ? tab.connectionConfig.password : '',
   )
   const [reconnecting, setReconnecting] = useState(false)
+  const [rememberPassword, setRememberPassword] = useState(false)
+
+  // Stable per-connection identifier for the OS keychain entry -- not the
+  // tab id, which is fresh every time this same connection is (re)opened
+  // from the New Connection panel.
+  const keychainKey = useMemo(() => {
+    const config = tab.connectionConfig
+    return config.kind === 'ssh' ? `ssh://${config.username}@${config.host}:${config.port}` : null
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.id])
+
+  // Opt-in only: a password saved from an earlier session on this exact
+  // connection is offered here, but never auto-filled anywhere else (see
+  // ConnectPanel's "password intentionally never seeded" comment).
+  useEffect(() => {
+    if (!keychainKey) return
+    keychainLoadPassword(keychainKey)
+      .then((saved) => {
+        if (saved !== null) {
+          setPassword(saved)
+          setRememberPassword(true)
+        }
+      })
+      .catch(() => {})
+  }, [keychainKey])
+
+  const handleToggleRemember = (checked: boolean) => {
+    setRememberPassword(checked)
+    if (!keychainKey) return
+    if (checked) {
+      if (password) void keychainSavePassword(keychainKey, password).catch(() => {})
+    } else {
+      void keychainDeletePassword(keychainKey).catch(() => {})
+    }
+  }
 
   const handleReconnect = async () => {
     setReconnecting(true)
     try {
       await reconnectTab(tab.id, password)
+      if (rememberPassword && keychainKey) {
+        void keychainSavePassword(keychainKey, password).catch(() => {})
+      }
     } finally {
       setReconnecting(false)
     }
@@ -191,6 +230,14 @@ export function SshPanel({ tab }: { tab: TabState }) {
             <button type="button" disabled={reconnecting} onClick={() => void handleReconnect()}>
               <RepeatIcon /> {reconnecting ? t('ssh.reconnecting') : t('ssh.reconnect')}
             </button>
+            <label className="ssh-remember-password" title={t('ssh.rememberPasswordHint')}>
+              <input
+                type="checkbox"
+                checked={rememberPassword}
+                onChange={(e) => handleToggleRemember(e.target.checked)}
+              />
+              {t('ssh.rememberPassword')}
+            </label>
           </div>
         )}
       </div>

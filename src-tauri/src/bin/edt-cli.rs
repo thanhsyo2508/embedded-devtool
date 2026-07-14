@@ -110,6 +110,11 @@ fn run_test(suite_path: &str, junit_path: Option<&str>, html_path: Option<&str>)
             eprintln!("warning: {e}");
         }
     }
+    if let Some(url) = &suite.webhook_url {
+        if let Err(e) = testrunner::send_webhook(&report, url) {
+            eprintln!("warning: {e}");
+        }
+    }
 
     eprintln!(
         "\n{} assertion(s), {} failed.",

@@ -237,7 +237,9 @@
   "ssh": {
     "reconnect": "Kết nối lại",
     "reconnecting": "Đang kết nối lại…",
-    "passwordPlaceholder": "Mật khẩu"
+    "passwordPlaceholder": "Mật khẩu",
+    "rememberPassword": "Ghi nhớ",
+    "rememberPasswordHint": "Lưu mật khẩu này vào kho lưu trữ thông tin đăng nhập của hệ điều hành (Windows Credential Manager / macOS Keychain / Linux Secret Service) để không mất khi khởi động lại app."
   },
   "library": {
     "namePrompt": "Tên {{label}}?",
@@ -301,7 +303,8 @@
     "connecting": "Đang kết nối…",
     "connect": "Kết nối",
     "recentLabel": "Gần đây",
-    "recentApply": "Điền cấu hình kết nối này vào form",
+    "recentApply": "Kết nối lại với cấu hình này",
+    "recentEmpty": "Chưa có kết nối gần đây.",
     "recentJustNow": "vừa xong",
     "recentMinutesAgo_other": "{{count}} phút trước",
     "recentHoursAgo_other": "{{count}} giờ trước",
@@ -396,6 +399,12 @@
       "preferences": "Tùy chọn"
     }
   },
+  "globalSearch": {
+    "title": "Tìm trong mọi tab",
+    "placeholder": "Tìm trong buffer của mọi tab đang mở…",
+    "hint": "Gõ để tìm xuyên suốt mọi tab đang mở, không chỉ tab hiện tại.",
+    "noMatches": "Không có dòng nào khớp trong bất kỳ tab nào."
+  },
   "ota": {
     "tabLabel": "OTA (WiFi)",
     "hint": "Nạp firmware qua Wi-Fi bằng giao thức ArduinoOTA — thiết bị phải đang chạy firmware build với ArduinoOTA.h (project Arduino/PlatformIO framework Arduino). Không cần cổng serial hay cáp USB.",
@@ -427,7 +436,8 @@
       "address": "Địa chỉ",
       "function": "Hàm",
       "location": "Vị trí",
-      "unknown": "(không có debug info)"
+      "unknown": "(không có debug info)",
+      "openInEditor": "Mở trong VS Code"
     }
   },
   "productionStats": {
@@ -616,7 +626,9 @@
     "installDialogTitle": "Chọn file plugin .lua",
     "luaFilterName": "Plugin Lua",
     "noneInstalled": "Chưa cài plugin nào.",
-    "deleteConfirm": "Gỡ cài đặt \"{{name}}\"? Tab nào đang chạy nó sẽ dừng lại."
+    "deleteConfirm": "Gỡ cài đặt \"{{name}}\"? Tab nào đang chạy nó sẽ dừng lại.",
+    "installUrlPlaceholder": "https://example.com/plugin.lua",
+    "installFromUrl": "Cài từ URL"
   },
   "modbus": {
     "coilValue": "Giá trị coil (0/1)",

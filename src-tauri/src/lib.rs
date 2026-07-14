@@ -99,6 +99,59 @@ fn read_text_file(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
+/// Opens a file at a specific line in VS Code, via its `code -g file:line`
+/// CLI (already on PATH for anyone with the `code` shell command installed,
+/// which is the common case for VS Code users) -- used by the crash
+/// decoder's resolved frames so jumping from a backtrace address to its
+/// source line is one click instead of a manual file/line lookup. `code` on
+/// Windows is a `.cmd` shim, which `Command::new` can't exec directly, so
+/// it's run through `cmd /C` there.
+#[tauri::command]
+fn open_in_editor(file: String, line: Option<u32>) -> Result<(), String> {
+    let location = match line {
+        Some(l) => format!("{file}:{l}"),
+        None => file,
+    };
+    let spawned = if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd")
+            .args(["/C", "code", "-g", &location])
+            .spawn()
+    } else {
+        std::process::Command::new("code")
+            .args(["-g", &location])
+            .spawn()
+    };
+    spawned
+        .map(|_| ())
+        .map_err(|e| format!("could not launch VS Code ('code' CLI): {e}"))
+}
+
+/// Downloads a plugin's Lua source so PluginLibraryPanel's "install from
+/// URL" flow can hand it to the same `parsePlugin` the local-file flow
+/// already uses -- see `plugin::fetch_plugin_source`'s doc comment.
+#[tauri::command]
+fn fetch_plugin_from_url(url: String) -> Result<String, String> {
+    plugin::fetch_plugin_source(&url)
+}
+
+/// Backs the opt-in "remember password" toggle on SSH/network connections
+/// -- see `core::keychain`'s module doc for why this is separate from the
+/// in-memory-only password already kept on the tab/connection profile.
+#[tauri::command]
+fn keychain_save_password(key: String, password: String) -> Result<(), String> {
+    core::keychain::save_password(&key, &password)
+}
+
+#[tauri::command]
+fn keychain_load_password(key: String) -> Result<Option<String>, String> {
+    core::keychain::load_password(&key)
+}
+
+#[tauri::command]
+fn keychain_delete_password(key: String) -> Result<(), String> {
+    core::keychain::delete_password(&key)
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct MdnsServiceDto {
@@ -1851,6 +1904,11 @@ pub fn run() {
             write_text_file,
             write_binary_file,
             read_text_file,
+            open_in_editor,
+            fetch_plugin_from_url,
+            keychain_save_password,
+            keychain_load_password,
+            keychain_delete_password,
             mdns_scan,
             detect_local_subnet,
             common_scan_ports,

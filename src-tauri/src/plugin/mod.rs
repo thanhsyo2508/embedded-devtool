@@ -24,6 +24,31 @@ use crate::core::event_bus::{Event, EventBus};
 
 const POLL_INTERVAL_MS: u64 = 200;
 
+// A Lua plugin file is a few KB at most; this just bounds a malicious or
+// misbehaving server's response so "install from URL" can't be used to
+// exhaust memory.
+const MAX_PLUGIN_SOURCE_BYTES: u64 = 2 * 1024 * 1024;
+
+/// Downloads a plugin's Lua source from a URL -- the "install from URL"
+/// counterpart to `read_text_file`'s local-file install, both of which just
+/// hand the frontend's `parsePlugin` raw text (see PluginLibraryPanel.tsx).
+/// Restricted to http(s) so this can't be pointed at e.g. `file://` to read
+/// an arbitrary local file back out through the plugin-install flow.
+pub fn fetch_plugin_source(url: &str) -> Result<String, String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("plugin URL must start with http:// or https://".to_string());
+    }
+    let mut response = ureq::get(url)
+        .call()
+        .map_err(|e| format!("request failed: {e}"))?;
+    response
+        .body_mut()
+        .with_config()
+        .limit(MAX_PLUGIN_SOURCE_BYTES)
+        .read_to_string()
+        .map_err(|e| format!("failed to read response body: {e}"))
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum PluginKind {
@@ -225,6 +250,12 @@ fn extract_lines(pending: &mut Vec<u8>, incoming: &[u8]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn fetch_plugin_source_rejects_non_http_schemes() {
+        assert!(fetch_plugin_source("file:///etc/passwd").is_err());
+        assert!(fetch_plugin_source("ftp://example.com/plugin.lua").is_err());
+    }
 
     #[test]
     fn extract_lines_splits_and_keeps_partial_tail() {

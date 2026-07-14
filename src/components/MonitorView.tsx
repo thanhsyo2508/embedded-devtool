@@ -28,6 +28,7 @@ import { ModbusSlavePanel } from './ModbusSlavePanel'
 import { PluginBar } from './PluginBar'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { useDebugHandoffStore } from '../state/debugHandoffStore'
+import { useSearchHandoffStore } from '../state/searchHandoffStore'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
@@ -57,6 +58,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const toggleBookmark = useTabsStore((s) => s.toggleBookmark)
   const addFilterWithPattern = useTabsStore((s) => s.addFilterWithPattern)
   const requestBacktraceDecode = useDebugHandoffStore((s) => s.requestBacktraceDecode)
+  const clearPendingSearch = useSearchHandoffStore((s) => s.clearPendingSearch)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [autoScroll, setAutoScroll] = useState(true)
   const [logBusy, setLogBusy] = useState(false)
@@ -73,6 +75,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchIndex, setSearchIndex] = useState(0)
+  const [pendingJumpSeq, setPendingJumpSeq] = useState<number | null>(null)
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
   const [contextMenu, setContextMenu] = useState<{
     x: number
@@ -264,6 +267,32 @@ export function MonitorView({ tab }: { tab: TabState }) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Consumes GlobalSearchPanel's one-shot handoff (see searchHandoffStore) —
+  // switching to this tab from a cross-tab search match mounts this
+  // component fresh, so reading it once on mount (rather than subscribing)
+  // is enough; the jump-to-line itself waits for searchMatchIndices below
+  // since that's only computed once searchOpen/searchQuery are set.
+  useEffect(() => {
+    const pending = useSearchHandoffStore.getState().pendingSearch
+    if (pending && pending.tabId === tab.id) {
+      setSearchQuery(pending.query)
+      setSearchOpen(true)
+      setPendingJumpSeq(pending.seq)
+      clearPendingSearch()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab.id])
+
+  useEffect(() => {
+    if (pendingJumpSeq === null) return
+    const idx = filteredLines.findIndex((l) => l.seq === pendingJumpSeq)
+    if (idx === -1) return
+    const matchIdx = searchMatchIndices.indexOf(idx)
+    if (matchIdx !== -1) setSearchIndex(matchIdx)
+    virtualizer.scrollToIndex(idx, { align: 'center' })
+    setPendingJumpSeq(null)
+  }, [pendingJumpSeq, filteredLines, searchMatchIndices, virtualizer])
 
   return (
     <div className="monitor-view">

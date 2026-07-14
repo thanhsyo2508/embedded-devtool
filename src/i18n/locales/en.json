@@ -237,7 +237,9 @@
   "ssh": {
     "reconnect": "Reconnect",
     "reconnecting": "Reconnecting…",
-    "passwordPlaceholder": "Password"
+    "passwordPlaceholder": "Password",
+    "rememberPassword": "Remember",
+    "rememberPasswordHint": "Saves this password in your OS credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service) so it survives an app restart."
   },
   "library": {
     "namePrompt": "{{label}} name?",
@@ -301,7 +303,8 @@
     "connecting": "Connecting…",
     "connect": "Connect",
     "recentLabel": "Recent",
-    "recentApply": "Fill in this connection's settings",
+    "recentApply": "Reconnect with these settings",
+    "recentEmpty": "No recent connections yet.",
     "recentJustNow": "just now",
     "recentMinutesAgo_one": "{{count}}m ago",
     "recentMinutesAgo_other": "{{count}}m ago",
@@ -399,6 +402,12 @@
       "preferences": "Preferences"
     }
   },
+  "globalSearch": {
+    "title": "Search all tabs",
+    "placeholder": "Search every open tab's buffer…",
+    "hint": "Type to search across every open tab, not just the current one.",
+    "noMatches": "No matching lines in any open tab."
+  },
   "ota": {
     "tabLabel": "OTA (WiFi)",
     "hint": "Flashes a device over WiFi using the ArduinoOTA protocol — the device must already be running firmware built with ArduinoOTA.h (Arduino/PlatformIO Arduino-framework projects). No serial port or USB cable involved.",
@@ -430,7 +439,8 @@
       "address": "Address",
       "function": "Function",
       "location": "Location",
-      "unknown": "(no debug info)"
+      "unknown": "(no debug info)",
+      "openInEditor": "Open in VS Code"
     }
   },
   "productionStats": {
@@ -621,7 +631,9 @@
     "installDialogTitle": "Select a plugin .lua file",
     "luaFilterName": "Lua plugin",
     "noneInstalled": "No plugins installed yet.",
-    "deleteConfirm": "Uninstall \"{{name}}\"? Any tab currently running it will stop."
+    "deleteConfirm": "Uninstall \"{{name}}\"? Any tab currently running it will stop.",
+    "installUrlPlaceholder": "https://example.com/plugin.lua",
+    "installFromUrl": "Install from URL"
   },
   "modbus": {
     "coilValue": "Coil value (0/1)",

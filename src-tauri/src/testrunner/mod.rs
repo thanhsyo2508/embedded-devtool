@@ -31,6 +31,11 @@ pub struct TestSuite {
     #[serde(default = "default_timeout_ms")]
     pub timeout_ms: u64,
     pub steps: Vec<Step>,
+    /// Posted a pass/fail summary to after the suite finishes -- accepts
+    /// either a Slack or a Discord incoming-webhook URL (see
+    /// `send_webhook`'s doc comment for how one payload satisfies both).
+    /// Optional: most suites just rely on the CLI's own exit code for CI.
+    pub webhook_url: Option<String>,
 }
 
 fn default_baud() -> u32 {
@@ -317,6 +322,32 @@ fn execute_step(
     }
 }
 
+fn build_webhook_message(report: &SuiteReport) -> String {
+    let status = if report.passed() { "PASS" } else { "FAIL" };
+    let passed = report.assertion_count() - report.failed_count();
+    format!(
+        "edt-cli test [{status}] {} — {passed}/{} assertions passed",
+        report.port,
+        report.assertion_count(),
+    )
+}
+
+/// Posts a pass/fail summary to `url` after a suite finishes. Slack and
+/// Discord incoming webhooks expect the message under a different JSON
+/// key (`text` for Slack, `content` for Discord) -- sending both in the
+/// same body lets one `webhookUrl` work with either without the suite
+/// needing to say which service it's pointed at, since each service just
+/// ignores the field it doesn't recognize.
+pub fn send_webhook(report: &SuiteReport, url: &str) -> Result<(), String> {
+    let message = build_webhook_message(report);
+    let body = serde_json::json!({ "text": message, "content": message }).to_string();
+    ureq::post(url)
+        .header("Content-Type", "application/json")
+        .send(body)
+        .map(|_| ())
+        .map_err(|e| format!("webhook request failed: {e}"))
+}
+
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -461,5 +492,64 @@ steps:
         assert_eq!(report.assertion_count(), 1);
         assert_eq!(report.failed_count(), 1);
         assert!(!report.passed());
+    }
+
+    #[test]
+    fn webhook_url_defaults_to_none() {
+        let yaml = r#"
+port: COM3
+steps:
+  - name: ping
+    send: "AT\r\n"
+    expect: "OK"
+"#;
+        let suite = parse_suite(yaml).unwrap();
+        assert_eq!(suite.webhook_url, None);
+
+        let yaml_with_webhook = r#"
+port: COM3
+webhookUrl: "https://hooks.example.com/abc"
+steps:
+  - name: ping
+    send: "AT\r\n"
+    expect: "OK"
+"#;
+        let suite = parse_suite(yaml_with_webhook).unwrap();
+        assert_eq!(
+            suite.webhook_url.as_deref(),
+            Some("https://hooks.example.com/abc")
+        );
+    }
+
+    #[test]
+    fn webhook_message_reports_pass_and_fail_counts() {
+        let passing = SuiteReport {
+            port: "COM3".to_string(),
+            results: vec![StepResult {
+                name: "expect".to_string(),
+                passed: true,
+                message: String::new(),
+                duration: Duration::ZERO,
+                is_assertion: true,
+            }],
+        };
+        let message = build_webhook_message(&passing);
+        assert!(message.contains("[PASS]"));
+        assert!(message.contains("COM3"));
+        assert!(message.contains("1/1"));
+
+        let failing = SuiteReport {
+            port: "COM3".to_string(),
+            results: vec![StepResult {
+                name: "expect".to_string(),
+                passed: false,
+                message: "timeout".to_string(),
+                duration: Duration::ZERO,
+                is_assertion: true,
+            }],
+        };
+        let message = build_webhook_message(&failing);
+        assert!(message.contains("[FAIL]"));
+        assert!(message.contains("0/1"));
     }
 }

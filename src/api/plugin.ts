@@ -16,6 +16,12 @@ export function pluginStop(id: string): Promise<void> {
   return invoke('plugin_stop', { id })
 }
 
+/** Downloads a plugin's Lua source from a URL -- the frontend still parses
+ * it with `parsePlugin` exactly like the local-file install flow. */
+export function fetchPluginFromUrl(url: string): Promise<string> {
+  return invoke('fetch_plugin_from_url', { url })
+}
+
 export interface PluginDecodedEvent {
   id: string
   fields: Record<string, string>

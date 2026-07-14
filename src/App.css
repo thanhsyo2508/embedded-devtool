@@ -307,28 +307,6 @@ body,
   flex: none;
 }
 
-.recent-connections {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.recent-connections-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  color: var(--text-muted);
-}
-
-.recent-connections-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 140px;
-  overflow-y: auto;
-}
-
 .recent-connection-chip {
   display: flex;
   align-items: center;
@@ -793,8 +771,17 @@ body,
   margin-left: auto;
 }
 
-.ssh-reconnect input {
+.ssh-reconnect input[type='password'] {
   width: 140px;
+}
+
+.ssh-remember-password {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .monitor-body {
@@ -1106,6 +1093,18 @@ body,
 
 .plugin-library-panel {
   width: min(560px, 94vw);
+}
+
+.plugin-library-url-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+
+.plugin-library-url-row input {
+  flex: 1;
 }
 
 .plugin-library-list {
@@ -3179,6 +3178,12 @@ kbd {
   margin: 0;
 }
 
+.recent-connections-dropdown .notification-dropdown-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .notification-entry {
   display: flex;
   flex-direction: column;
@@ -3333,6 +3338,33 @@ kbd {
   flex: 1;
 }
 
+.global-search-item {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.global-search-tab-label {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.global-search-line-text {
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.global-search-line-text mark {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: inherit;
+  border-radius: var(--radius-sm);
+}
+
 /* ---- debug panel (ELF memory map + crash decoder) ---- */
 .debug-panel {
   display: flex;
@@ -3404,6 +3436,20 @@ kbd {
   resize: vertical;
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;
+}
+
+.debug-frame-location {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+
+.debug-frame-location:hover {
+  text-decoration: underline;
 }
 
 /* ---- production stats ---- */

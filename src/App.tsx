@@ -33,7 +33,10 @@ import { FtpPanel } from './components/FtpPanel'
 import { PluginLibraryPanel } from './components/PluginLibraryPanel'
 import { ToastStack } from './components/ToastStack'
 import { NotificationBell } from './components/NotificationBell'
+import { RecentConnectionsMenu } from './components/RecentConnectionsMenu'
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette'
+import { GlobalSearchPanel } from './components/GlobalSearchPanel'
+import { useSearchHandoffStore } from './state/searchHandoffStore'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
 import { useWsStore } from './state/wsStore'
@@ -77,6 +80,7 @@ function App() {
   const [showFtp, setShowFtp] = useState(false)
   const [showPlugins, setShowPlugins] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false)
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
@@ -347,6 +351,13 @@ function App() {
         run: () => setShowFlash(true),
       },
       {
+        id: 'global-search',
+        category: navigate,
+        label: t('globalSearch.title'),
+        shortcut: 'Ctrl+Shift+G',
+        run: () => setShowGlobalSearch(true),
+      },
+      {
         id: 'netscan',
         category: navigate,
         label: t('app.topbar.networkScanner'),
@@ -466,6 +477,7 @@ function App() {
 
       if (e.key === 'Escape') {
         if (showPalette) setShowPalette(false)
+        else if (showGlobalSearch) setShowGlobalSearch(false)
         else if (showSettings) setShowSettings(false)
         else if (showFlash) setShowFlash(false)
         else if (showNetScan) setShowNetScan(false)
@@ -484,6 +496,11 @@ function App() {
       if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         setShowFlash((v) => !v)
+        return
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        setShowGlobalSearch((v) => !v)
         return
       }
       if (mod && e.shiftKey && e.key.toLowerCase() === 'p') {
@@ -549,6 +566,7 @@ function App() {
     showFtp,
     showPlugins,
     showPalette,
+    showGlobalSearch,
     hasAnyTabs,
     plotVisible,
     closeTab,
@@ -563,6 +581,9 @@ function App() {
     <div className="app">
       <div className="app-topbar">
         <div className="app-topbar-spacer" />
+        <div className="topbar-group">
+          <RecentConnectionsMenu onReconnect={(recent) => void handleReconnectRecent(recent)} />
+        </div>
         <div className="topbar-group">
           <button
             type="button"
@@ -682,6 +703,16 @@ function App() {
       {showPlugins && <PluginLibraryPanel onClose={() => setShowPlugins(false)} />}
       {showPalette && (
         <CommandPalette commands={paletteCommands} onClose={() => setShowPalette(false)} />
+      )}
+      {showGlobalSearch && (
+        <GlobalSearchPanel
+          onClose={() => setShowGlobalSearch(false)}
+          onJumpToMatch={(tabId, query, seq) => {
+            const pane = findPaneForTab(layoutRoot, tabId)
+            if (pane) setActiveTabInPane(pane.id, tabId)
+            useSearchHandoffStore.getState().requestJumpToMatch(tabId, query, seq)
+          }}
+        />
       )}
       <ToastStack />
     </div>

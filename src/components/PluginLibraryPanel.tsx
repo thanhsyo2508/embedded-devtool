@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { useTranslation } from 'react-i18next'
 import { usePluginLibraryStore } from '../state/pluginLibraryStore'
 import { parsePlugin } from '../lib/pluginManifest'
-import { FolderIcon, PuzzleIcon, TrashIcon, XIcon } from './icons'
+import { fetchPluginFromUrl } from '../api/plugin'
+import { FolderIcon, GlobeIcon, PuzzleIcon, TrashIcon, XIcon } from './icons'
 
 /** Install/manage plugins (custom protocol decoders and plotter parsers) —
  * a global library, not a tab; attaching an installed plugin to a
@@ -15,6 +17,18 @@ export function PluginLibraryPanel({ onClose }: { onClose: () => void }) {
   const plugins = usePluginLibraryStore((s) => s.items)
   const savePlugin = usePluginLibraryStore((s) => s.save)
   const removePlugin = usePluginLibraryStore((s) => s.remove)
+  const [urlValue, setUrlValue] = useState('')
+  const [urlBusy, setUrlBusy] = useState(false)
+
+  const installFromSource = (source: string) => {
+    const { manifest, code } = parsePlugin(source)
+    savePlugin(manifest.name, {
+      version: manifest.version,
+      description: manifest.description,
+      kind: manifest.kind,
+      code,
+    })
+  }
 
   const handleInstall = async () => {
     const picked = await open({
@@ -24,15 +38,24 @@ export function PluginLibraryPanel({ onClose }: { onClose: () => void }) {
     if (typeof picked !== 'string') return
     try {
       const source = await invoke<string>('read_text_file', { path: picked })
-      const { manifest, code } = parsePlugin(source)
-      savePlugin(manifest.name, {
-        version: manifest.version,
-        description: manifest.description,
-        kind: manifest.kind,
-        code,
-      })
+      installFromSource(source)
     } catch (err) {
       window.alert(String(err))
+    }
+  }
+
+  const handleInstallFromUrl = async () => {
+    const url = urlValue.trim()
+    if (!url) return
+    setUrlBusy(true)
+    try {
+      const source = await fetchPluginFromUrl(url)
+      installFromSource(source)
+      setUrlValue('')
+    } catch (err) {
+      window.alert(String(err))
+    } finally {
+      setUrlBusy(false)
     }
   }
 
@@ -68,6 +91,29 @@ export function PluginLibraryPanel({ onClose }: { onClose: () => void }) {
             onClick={() => void handleInstall()}
           >
             <FolderIcon /> {t('pluginLibrary.install')}
+          </button>
+        </div>
+
+        <div className="plugin-library-url-row">
+          <GlobeIcon />
+          <input
+            type="text"
+            value={urlValue}
+            placeholder={t('pluginLibrary.installUrlPlaceholder')}
+            disabled={urlBusy}
+            onChange={(e) => setUrlValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleInstallFromUrl()
+            }}
+          />
+          <button
+            type="button"
+            className="icon-button"
+            title={t('pluginLibrary.installFromUrl')}
+            disabled={urlBusy || !urlValue.trim()}
+            onClick={() => void handleInstallFromUrl()}
+          >
+            {urlBusy ? '…' : t('pluginLibrary.installFromUrl')}
           </button>
         </div>
 
