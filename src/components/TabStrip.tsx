@@ -14,6 +14,11 @@ function freshTabId(kind: string): string {
   return `${kind}-${Date.now()}`
 }
 
+// Curated quick-picks for the tab context menu's color/emoji rows; a blank
+// entry (rendered as a slash) clears the current choice.
+const TAB_COLORS = ['#e05252', '#e0952b', '#4a9e4a', '#3b82c4', '#8b5cf6', '#c4519e']
+const TAB_EMOJIS = ['🔴', '🟢', '🔵', '⚡', '🐛', '📟', '🚀', '⚙️']
+
 // One glyph carries the connection's *type* (its shape) and *status* (its
 // colour, via the status-* class) so a strip of same-looking labels — three
 // "COM3 · 115200" tabs, say — is still scannable at a glance. Grouped by
@@ -56,6 +61,8 @@ export function TabStrip({
   const allTabs = useTabsStore((s) => s.tabs)
   const openTab = useTabsStore((s) => s.openTab)
   const renameTab = useTabsStore((s) => s.renameTab)
+  const setTabColor = useTabsStore((s) => s.setTabColor)
+  const setTabEmoji = useTabsStore((s) => s.setTabEmoji)
   const reconnectTab = useTabsStore((s) => s.reconnectTab)
   const disconnectTab = useTabsStore((s) => s.disconnectTab)
   const setActiveTabInPane = useLayoutStore((s) => s.setActiveTabInPane)
@@ -101,9 +108,61 @@ export function TabStrip({
   const menuItems: ContextMenuItem[] = menuTab
     ? [
         { label: t('tabMenu.rename'), onClick: () => handleRename(menuTab) },
+        {
+          separatorBefore: true,
+          render: (
+            <div className="tab-menu-picker" role="group" aria-label={t('tabMenu.color')}>
+              <button
+                type="button"
+                className="tab-menu-swatch tab-menu-clear"
+                title={t('tabMenu.clearColor')}
+                onClick={() => setTabColor(menuTab.id, '')}
+              />
+              {TAB_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className={`tab-menu-swatch ${menuTab.tabColor === color ? 'on' : ''}`}
+                  style={{ background: color }}
+                  onClick={() => setTabColor(menuTab.id, color)}
+                />
+              ))}
+            </div>
+          ),
+        },
+        {
+          render: (
+            <div className="tab-menu-picker" role="group" aria-label={t('tabMenu.emoji')}>
+              <button
+                type="button"
+                className="tab-menu-emoji tab-menu-clear"
+                title={t('tabMenu.clearEmoji')}
+                onClick={() => setTabEmoji(menuTab.id, '')}
+              />
+              {TAB_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  className={`tab-menu-emoji ${menuTab.tabEmoji === emoji ? 'on' : ''}`}
+                  onClick={() => setTabEmoji(menuTab.id, emoji)}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          ),
+        },
         menuTab.status === 'open'
-          ? { label: t('tabMenu.disconnect'), onClick: () => void disconnectTab(menuTab.id) }
-          : { label: t('tabMenu.reconnect'), onClick: () => void reconnectTab(menuTab.id) },
+          ? {
+              label: t('tabMenu.disconnect'),
+              onClick: () => void disconnectTab(menuTab.id),
+              separatorBefore: true,
+            }
+          : {
+              label: t('tabMenu.reconnect'),
+              onClick: () => void reconnectTab(menuTab.id),
+              separatorBefore: true,
+            },
         {
           label: t('tabMenu.duplicate'),
           onClick: () => void handleDuplicate(menuTab),
@@ -164,8 +223,15 @@ export function TabStrip({
             setMenu({ x: e.clientX, y: e.clientY, tabId: tab.id })
           }}
           title={tab.customLabel ? tab.connectionLabel : undefined}
+          style={tab.tabColor ? { boxShadow: `inset 3px 0 0 ${tab.tabColor}` } : undefined}
         >
-          <TabTypeIcon kind={tab.connectionKind} status={tab.status} />
+          {tab.tabEmoji ? (
+            <span className="tab-emoji" aria-hidden>
+              {tab.tabEmoji}
+            </span>
+          ) : (
+            <TabTypeIcon kind={tab.connectionKind} status={tab.status} />
+          )}
           <span className="tab-label">{tab.customLabel ?? tab.connectionLabel}</span>
           <button
             type="button"

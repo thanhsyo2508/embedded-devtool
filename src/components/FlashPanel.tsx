@@ -24,10 +24,8 @@ import { ProductionStatsPanel } from './ProductionStatsPanel'
 import { Esp32SecurityPanel } from './Esp32SecurityPanel'
 import { Spinner } from './Spinner'
 import { useDebugHandoffStore } from '../state/debugHandoffStore'
+import { useFlashPanelStore } from '../state/flashPanelStore'
 import { authorizeFlash } from '../lib/flashLock'
-
-type Target = 'esp32' | 'stm32' | 'ota' | 'debug' | 'stats'
-type FlashMode = 'single' | 'batch' | 'provision' | 'security'
 
 const BAUD_OPTIONS = [115_200, 230_400, 460_800, 921_600]
 
@@ -39,10 +37,10 @@ function formatBytes(n: number): string {
 
 export function FlashPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
-  const [target, setTarget] = useState<Target>(() =>
-    useDebugHandoffStore.getState().pendingBacktraceText !== null ? 'debug' : 'esp32',
-  )
-  const [mode, setMode] = useState<FlashMode>('single')
+  const target = useFlashPanelStore((s) => s.target)
+  const setTarget = useFlashPanelStore((s) => s.setTarget)
+  const mode = useFlashPanelStore((s) => s.mode)
+  const setMode = useFlashPanelStore((s) => s.setMode)
   const [ports, setPorts] = useState<PortInfo[]>([])
   const portSelectRef = useRef<HTMLSelectElement>(null)
   const {
@@ -68,6 +66,16 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
     loadProfile,
   } = useFlashStore()
   const [smartAdding, setSmartAdding] = useState(false)
+
+  // The monitor's right-click "Decode as crash backtrace" handoff always
+  // wins over whichever tab was last open here -- it's a one-shot user
+  // action requesting the Debug tab specifically, not just a reopen.
+  useEffect(() => {
+    if (useDebugHandoffStore.getState().pendingBacktraceText !== null) {
+      setTarget('debug')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     const refresh = () => {
@@ -296,7 +304,7 @@ export function FlashPanel({ onClose }: { onClose: () => void }) {
                       className="flash-path"
                       value={seg.path}
                       placeholder={t('flash.noFileSelected')}
-                      readOnly
+                      onChange={(e) => updateSegment(i, { path: e.target.value })}
                     />
                     <button
                       type="button"

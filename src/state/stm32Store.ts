@@ -6,7 +6,9 @@ import {
   massEraseStm32,
   onStm32Done,
   onStm32Output,
+  parseStm32HexAddress,
   readStm32OptionBytes,
+  writeStm32Memory,
   writeStm32OptionByte,
   type StmInterface,
   type StmMcuInfo,
@@ -45,6 +47,7 @@ interface Stm32State {
   eraseFull: () => Promise<void>
   readOptionBytes: () => Promise<void>
   writeOptionByte: (name: string, value: string) => Promise<void>
+  writeMemory: (address: string, data: number[]) => Promise<void>
   currentInterface: () => StmInterface
 }
 
@@ -95,7 +98,20 @@ export const useStm32Store = create<Stm32State>((set, get) => ({
   setInterfaceKind: (interfaceKind) => set({ interfaceKind, mcuInfo: null }),
   setUartPort: (uartPort) => set({ uartPort }),
   setUartBaud: (uartBaud) => set({ uartBaud }),
-  setFilePath: (filePath) => set({ filePath }),
+  // A .hex file's own records carry an absolute address -- unlike a .bin
+  // (a raw memory dump with no address information at all), so this is
+  // the one format worth auto-filling the address field from instead of
+  // making the user look it up and type it in.
+  setFilePath: (filePath) => {
+    set({ filePath })
+    if (/\.hex$/i.test(filePath)) {
+      parseStm32HexAddress(filePath)
+        .then((address) => {
+          if (address) set({ address })
+        })
+        .catch(() => {})
+    }
+  },
   setAddress: (address) => set({ address }),
   setVerify: (verify) => set({ verify }),
   setReset: (reset) => set({ reset }),
@@ -171,6 +187,31 @@ export const useStm32Store = create<Stm32State>((set, get) => ({
     set((state) => ({ busy: true, ...appendLog(state, `Writing option byte ${name}=${value}…`) }))
     try {
       await writeStm32OptionByte(SESSION_ID, cliPath, get().currentInterface(), name, value)
+    } catch (err) {
+      set((state) => ({ busy: false, ...appendLog(state, `✗ ${String(err)}`) }))
+    }
+  },
+
+  // Pokes arbitrary bytes at `address`, independent of the main firmware
+  // file/address fields above -- see stm32::write_memory's doc comment for
+  // how this reuses the same flash mechanism via a small staged temp file.
+  writeMemory: async (address, data) => {
+    const { cliPath, verify, reset } = get()
+    if (!cliPath) return
+    set((state) => ({
+      busy: true,
+      ...appendLog(state, `Writing ${data.length} byte(s) at ${address}…`),
+    }))
+    try {
+      await writeStm32Memory({
+        id: SESSION_ID,
+        cliPath,
+        interface: get().currentInterface(),
+        address,
+        data,
+        verify,
+        reset,
+      })
     } catch (err) {
       set((state) => ({ busy: false, ...appendLog(state, `✗ ${String(err)}`) }))
     }

@@ -27,6 +27,8 @@ export const PROJECT_PROFILE_VERSION = 1
 export interface ProjectProfileTab {
   connectionConfig: ConnectionConfig
   customLabel?: string
+  tabColor?: string
+  tabEmoji?: string
   filters: FilterRule[]
   triggers: TriggerRule[]
   scriptCode: string
@@ -78,6 +80,8 @@ export function buildProjectProfile(
     tabs: tabs.map((tab) => ({
       connectionConfig: sanitizeConnectionConfig(tab.connectionConfig),
       customLabel: tab.customLabel,
+      tabColor: tab.tabColor,
+      tabEmoji: tab.tabEmoji,
       filters: tab.filters,
       triggers: tab.triggers,
       scriptCode: tab.scriptCode,

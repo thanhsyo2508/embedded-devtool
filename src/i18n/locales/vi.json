@@ -228,6 +228,10 @@
   "tabMenu": {
     "rename": "Đổi tên…",
     "renamePrompt": "Tên tab (để trống để đặt lại):",
+    "color": "Màu tab",
+    "clearColor": "Không màu",
+    "emoji": "Emoji tab",
+    "clearEmoji": "Không emoji",
     "reconnect": "Kết nối lại",
     "disconnect": "Ngắt kết nối",
     "duplicate": "Nhân bản",
@@ -340,6 +344,7 @@
     "plugins": "Plugin",
     "macro": "Macro",
     "macroRecording": "Macro (đang ghi)",
+    "frameBuilder": "Trình dựng khung",
     "modbusMaster": "Modbus Master",
     "modbusSlave": "Modbus Slave",
     "modbusSlaveListening": "Modbus Slave (đang lắng nghe)",
@@ -349,9 +354,39 @@
       "copy": "Sao chép",
       "searchForThis": "Tìm trong buffer",
       "addFilter": "Thêm làm bộ lọc",
+      "inspectBytes": "Xem byte",
       "decodeBacktrace": "Giải mã crash backtrace",
       "addBookmark": "Đánh dấu",
       "removeBookmark": "Bỏ đánh dấu"
+    }
+  },
+  "dataInspector": {
+    "title": "Bộ xem dữ liệu",
+    "hexPlaceholder": "Byte hex, vd. 01 02 FF",
+    "invalidHex": "Nhập byte hex hợp lệ (từng cặp chữ số hex).",
+    "littleEndian": "Little-endian",
+    "bigEndian": "Big-endian",
+    "ascii": "ASCII",
+    "binary": "Nhị phân"
+  },
+  "frameBuilder": {
+    "addField": "Thêm trường",
+    "preview": "Xem trước",
+    "send": "Gửi khung",
+    "empty": "(trống)",
+    "type": {
+      "hex": "Byte hex",
+      "text": "Văn bản",
+      "uint8": "uint8",
+      "uint16": "uint16",
+      "uint32": "uint32",
+      "length": "Độ dài (tự động)",
+      "crc": "CRC (tự động)"
+    },
+    "placeholder": {
+      "hex": "vd. AA BB",
+      "text": "văn bản",
+      "int": "số"
     }
   },
   "filterBar": {
@@ -404,6 +439,19 @@
     "placeholder": "Tìm trong buffer của mọi tab đang mở…",
     "hint": "Gõ để tìm xuyên suốt mọi tab đang mở, không chỉ tab hiện tại.",
     "noMatches": "Không có dòng nào khớp trong bất kỳ tab nào."
+  },
+  "logCompare": {
+    "title": "So sánh log",
+    "left": "Log A",
+    "right": "Log B",
+    "loadFromTab": "Nạp từ tab…",
+    "placeholder": "Dán nội dung log, hoặc nạp từ một tab đang mở",
+    "compare": "So sánh",
+    "edit": "Sửa dữ liệu",
+    "unchanged": "{{count}} dòng không đổi",
+    "truncated": "Đã so sánh {{max}} dòng cuối của mỗi bên.",
+    "onlyInA": "Chỉ có ở A",
+    "onlyInB": "Chỉ có ở B"
   },
   "ota": {
     "tabLabel": "OTA (WiFi)",
@@ -740,6 +788,18 @@
     "obNamePlaceholder": "Tên (vd. RDP)",
     "obValuePlaceholder": "Giá trị (vd. 0xBB)",
     "write": "Ghi",
+    "writeMemory": {
+      "title": "Ghi bộ nhớ",
+      "hint": "Ghi nội dung bất kỳ vào 1 địa chỉ, độc lập với file firmware ở trên — nội dung được lưu vào 1 file tạm nhỏ và nạp giống hệt như nạp 1 file firmware đầy đủ.",
+      "kind": "Loại nội dung",
+      "kindText": "Văn bản",
+      "kindHex": "Byte hex",
+      "kindDec": "Số thập phân (32-bit)",
+      "kindJson": "JSON",
+      "contentPlaceholder": "Nội dung cần ghi…",
+      "write": "Ghi",
+      "confirm": "Ghi {{count}} byte tại {{address}}?"
+    },
     "security": {
       "rdpTitle": "Readout Protection (RDP)",
       "rdpHint": "Kiểm soát việc flash của chip có thể đọc được qua SWD/JTAG hay bootloader hay không. Đọc option bytes trước để biết mức đang áp dụng.",
@@ -921,6 +981,9 @@
       "startError": "Không thể khởi động REST API cục bộ: {{error}}"
     },
     "personalization": "Cá nhân hóa",
+    "accentColor": "Màu nhấn",
+    "accentDefault": "Mặc định (theo giao diện)",
+    "accentCustom": "Màu tùy chỉnh",
     "theme": {
       "system": "hệ thống",
       "dark": "tối",
@@ -949,11 +1012,31 @@
       "switchTab": "Chuyển tới tab N",
       "clearTab": "Xóa nội dung tab hiện tại",
       "searchBuffer": "Tìm trong bộ đệm",
+      "globalSearch": "Tìm trong mọi tab",
       "pauseResume": "Tạm dừng / tiếp tục monitor",
       "togglePlotter": "Bật/tắt biểu đồ",
       "toggleFlashPanel": "Bật/tắt bảng nạp firmware",
       "toggleSettings": "Bật/tắt cài đặt",
+      "showShortcuts": "Hiện phím tắt",
       "closeSettingsFlash": "Đóng cài đặt / bảng nạp firmware"
     }
+  },
+  "shortcutOverlay": {
+    "title": "Phím tắt"
+  },
+  "onboarding": {
+    "welcome": "Chào mừng đến Embedded DevTool",
+    "subtitle": "Một công cụ cho serial, mạng, nạp firmware và biểu đồ — thay vì ba bốn phần mềm.",
+    "monitorTitle": "Monitor serial & mạng",
+    "monitorDesc": "Đa tab, hex/ASCII, bộ lọc, trigger, scripting — cho serial, TCP/UDP, MQTT, WebSocket và SSH.",
+    "flashTitle": "Nạp ESP32 & STM32",
+    "flashDesc": "Nhận diện chip, nạp nhiều segment có tiến trình, chế độ batch/OTA, giải mã crash.",
+    "plotTitle": "Biểu đồ realtime",
+    "plotDesc": "Tối đa 8 kênh với FFT, kênh toán học, ngưỡng và con trỏ đo.",
+    "networkTitle": "Công cụ mạng",
+    "networkDesc": "Quét LAN, FTP client/server, Modbus RTU/TCP — mỗi loại có giao diện phù hợp.",
+    "tipPalette": "mở command palette",
+    "tipShortcuts": "hiện tất cả phím tắt",
+    "getStarted": "Bắt đầu"
   }
 }

@@ -36,6 +36,9 @@ import { NotificationBell } from './components/NotificationBell'
 import { RecentConnectionsMenu } from './components/RecentConnectionsMenu'
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette'
 import { GlobalSearchPanel } from './components/GlobalSearchPanel'
+import { ShortcutOverlay } from './components/ShortcutOverlay'
+import { OnboardingScreen } from './components/OnboardingScreen'
+import { LogComparePanel } from './components/LogComparePanel'
 import { useSearchHandoffStore } from './state/searchHandoffStore'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
@@ -73,6 +76,8 @@ function App() {
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
   const setChecksumMode = useTabsStore((s) => s.setChecksumMode)
   const renameTab = useTabsStore((s) => s.renameTab)
+  const setTabColor = useTabsStore((s) => s.setTabColor)
+  const setTabEmoji = useTabsStore((s) => s.setTabEmoji)
   const [showConnect, setShowConnect] = useState(true)
   const [showSettings, setShowSettings] = useState(false)
   const [showFlash, setShowFlash] = useState(false)
@@ -81,9 +86,14 @@ function App() {
   const [showPlugins, setShowPlugins] = useState(false)
   const [showPalette, setShowPalette] = useState(false)
   const [showGlobalSearch, setShowGlobalSearch] = useState(false)
+  const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showLogCompare, setShowLogCompare] = useState(false)
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
+  const accentColor = useSettingsStore((s) => s.accentColor)
+  const onboardingDone = useSettingsStore((s) => s.onboardingDone)
+  const setOnboardingDone = useSettingsStore((s) => s.setOnboardingDone)
   const keepAwake = useSettingsStore((s) => s.keepAwake)
   const restApiEnabled = useSettingsStore((s) => s.restApiEnabled)
   const restApiPort = useSettingsStore((s) => s.restApiPort)
@@ -137,6 +147,17 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty('--log-font-size', FONT_SIZE_PX[fontSize])
   }, [fontSize])
+
+  // A custom accent wins over the stylesheet's per-theme --accent (inline
+  // styles beat stylesheet rules), so it applies in both light and dark;
+  // clearing it removes the override and lets the theme's default show.
+  useEffect(() => {
+    if (accentColor) {
+      document.documentElement.style.setProperty('--accent', accentColor)
+    } else {
+      document.documentElement.style.removeProperty('--accent')
+    }
+  }, [accentColor])
 
   useEffect(() => {
     void invoke('set_keep_awake', { enabled: keepAwake }).catch(() => {})
@@ -262,6 +283,8 @@ function App() {
       setLineEnding(newId, tabConfig.lineEnding)
       setChecksumMode(newId, tabConfig.checksumMode)
       if (tabConfig.customLabel) renameTab(newId, tabConfig.customLabel)
+      if (tabConfig.tabColor) setTabColor(newId, tabConfig.tabColor)
+      if (tabConfig.tabEmoji) setTabEmoji(newId, tabConfig.tabEmoji)
       idByIndex.set(i, newId)
     }
 
@@ -356,6 +379,12 @@ function App() {
         label: t('globalSearch.title'),
         shortcut: 'Ctrl+Shift+G',
         run: () => setShowGlobalSearch(true),
+      },
+      {
+        id: 'log-compare',
+        category: navigate,
+        label: t('logCompare.title'),
+        run: () => setShowLogCompare(true),
       },
       {
         id: 'netscan',
@@ -476,7 +505,9 @@ function App() {
       const isTyping = !!target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 
       if (e.key === 'Escape') {
-        if (showPalette) setShowPalette(false)
+        if (showShortcuts) setShowShortcuts(false)
+        else if (showLogCompare) setShowLogCompare(false)
+        else if (showPalette) setShowPalette(false)
         else if (showGlobalSearch) setShowGlobalSearch(false)
         else if (showSettings) setShowSettings(false)
         else if (showFlash) setShowFlash(false)
@@ -484,6 +515,14 @@ function App() {
         else if (showFtp) setShowFtp(false)
         else if (showPlugins) setShowPlugins(false)
         else if (showConnect && hasAnyTabs) setShowConnect(false)
+        return
+      }
+
+      // `?` (Shift+/) opens the shortcut cheat-sheet — only when not typing,
+      // so it doesn't hijack a literal question mark in a text field.
+      if (!mod && !isTyping && e.key === '?') {
+        e.preventDefault()
+        setShowShortcuts((v) => !v)
         return
       }
 
@@ -567,6 +606,8 @@ function App() {
     showPlugins,
     showPalette,
     showGlobalSearch,
+    showShortcuts,
+    showLogCompare,
     hasAnyTabs,
     plotVisible,
     closeTab,
@@ -714,6 +755,9 @@ function App() {
           }}
         />
       )}
+      {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
+      {showLogCompare && <LogComparePanel onClose={() => setShowLogCompare(false)} />}
+      {!onboardingDone && <OnboardingScreen onDismiss={() => setOnboardingDone(true)} />}
       <ToastStack />
     </div>
   )

@@ -84,7 +84,7 @@ export function Stm32MassProductionPanel() {
             className="flash-path"
             value={filePath}
             placeholder={t('flash.noFileSelected')}
-            readOnly
+            onChange={(e) => setFilePath(e.target.value)}
           />
           <button
             type="button"

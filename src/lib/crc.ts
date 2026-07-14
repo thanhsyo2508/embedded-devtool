@@ -64,20 +64,26 @@ export const CHECKSUM_MODES: { value: ChecksumMode; label: string }[] = [
   { value: 'sum8', label: 'Sum checksum' },
 ]
 
-/** Appends the checksum for `mode` to `bytes`; returns `bytes` unchanged for `'none'`. */
-export function applyChecksum(bytes: number[], mode: ChecksumMode): number[] {
+/** Just the checksum bytes for `mode` over `bytes` (empty for `'none'`) —
+ * unlike applyChecksum, which appends them to the input. */
+export function checksumBytes(bytes: number[], mode: ChecksumMode): number[] {
   switch (mode) {
     case 'none':
-      return bytes
+      return []
     case 'crc16-modbus':
-      return [...bytes, ...crc16Modbus(bytes)]
+      return crc16Modbus(bytes)
     case 'crc16-ccitt':
-      return [...bytes, ...crc16Ccitt(bytes)]
+      return crc16Ccitt(bytes)
     case 'crc8':
-      return [...bytes, ...crc8(bytes)]
+      return crc8(bytes)
     case 'xor8':
-      return [...bytes, ...xorChecksum8(bytes)]
+      return xorChecksum8(bytes)
     case 'sum8':
-      return [...bytes, ...sumChecksum8(bytes)]
+      return sumChecksum8(bytes)
   }
+}
+
+/** Appends the checksum for `mode` to `bytes`; returns `bytes` unchanged for `'none'`. */
+export function applyChecksum(bytes: number[], mode: ChecksumMode): number[] {
+  return [...bytes, ...checksumBytes(bytes, mode)]
 }

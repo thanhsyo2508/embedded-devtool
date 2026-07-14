@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
 import { applyFilters, compileFilter } from '../lib/filterLines'
 import { highlightMatches } from '../lib/highlight'
+import { parseHex, formatHex } from '../lib/hex'
+import { DataInspector } from './DataInspector'
 import {
   BookmarkIcon,
   ChipIcon,
@@ -15,6 +17,7 @@ import {
   RepeatIcon,
   SearchIcon,
   TargetIcon,
+  UploadIcon,
   XIcon,
 } from './icons'
 import { SignalBar } from './SignalBar'
@@ -23,6 +26,7 @@ import { FilterBar } from './FilterBar'
 import { TriggerBar } from './TriggerBar'
 import { ScriptPanel } from './ScriptPanel'
 import { MacroPanel } from './MacroPanel'
+import { FrameBuilderPanel } from './FrameBuilderPanel'
 import { ModbusMasterPanel } from './ModbusMasterPanel'
 import { ModbusSlavePanel } from './ModbusSlavePanel'
 import { PluginBar } from './PluginBar'
@@ -32,6 +36,17 @@ import { useSearchHandoffStore } from '../state/searchHandoffStore'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
+}
+
+// Turns whatever text was selected in the log into a hex string for the
+// Data Inspector: if the selection already parses as hex (hex-view mode, or
+// the user selected a hex dump), keep those exact bytes; otherwise treat the
+// selection as text and use each character's byte value.
+function selectionToHex(text: string): string {
+  const trimmed = text.trim()
+  const asHex = parseHex(trimmed)
+  if (asHex && asHex.length > 0) return formatHex(asHex)
+  return formatHex(Array.from(new TextEncoder().encode(text)))
 }
 
 function escapeRegExp(text: string): string {
@@ -68,6 +83,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
     | 'script'
     | 'plugins'
     | 'macro'
+    | 'frame'
     | 'modbus-master'
     | 'modbus-slave'
     | null
@@ -75,6 +91,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchIndex, setSearchIndex] = useState(0)
+  const [inspectorHex, setInspectorHex] = useState<string | null>(null)
   const [pendingJumpSeq, setPendingJumpSeq] = useState<number | null>(null)
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
   const [contextMenu, setContextMenu] = useState<{
@@ -151,7 +168,14 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
   const togglePanel = (
     panel:
-      'filters' | 'triggers' | 'script' | 'plugins' | 'macro' | 'modbus-master' | 'modbus-slave',
+      | 'filters'
+      | 'triggers'
+      | 'script'
+      | 'plugins'
+      | 'macro'
+      | 'frame'
+      | 'modbus-master'
+      | 'modbus-slave',
   ) => setOpenPanel((current) => (current === panel ? null : panel))
 
   // Right-click quick actions on the log — prefers the current text
@@ -189,6 +213,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
             addFilterWithPattern(tab.id, 'include', escapeRegExp(contextMenu.text))
             setOpenPanel('filters')
           },
+        },
+        {
+          label: t('monitor.contextMenu.inspectBytes'),
+          onClick: () => setInspectorHex(selectionToHex(contextMenu.text)),
         },
         {
           label: t('monitor.contextMenu.decodeBacktrace'),
@@ -483,6 +511,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <MacroPanel tab={tab} />
             </div>
           )}
+          {openPanel === 'frame' && (
+            <div className="feature-flyout feature-flyout-wide">
+              <FrameBuilderPanel tab={tab} />
+            </div>
+          )}
           {openPanel === 'modbus-master' && (
             <div className="feature-flyout feature-flyout-wide">
               <ModbusMasterPanel tab={tab} />
@@ -563,6 +596,15 @@ export function MonitorView({ tab }: { tab: TabState }) {
               <span className="feature-rail-badge">{tab.macroSteps.length}</span>
             )}
           </button>
+          <button
+            type="button"
+            className={openPanel === 'frame' ? 'on' : ''}
+            title={t('monitor.frameBuilder')}
+            aria-label={t('monitor.frameBuilder')}
+            onClick={() => togglePanel('frame')}
+          >
+            <UploadIcon />
+          </button>
           {/* Master speaks Modbus RTU over serial and Modbus TCP over a TCP
               Client tab; the Slave emulator stays serial/RTU-only. */}
           {(tab.connectionKind === 'serial' || tab.connectionKind === 'tcp-client') && (
@@ -623,6 +665,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
           items={contextMenuItems}
           onClose={() => setContextMenu(null)}
         />
+      )}
+
+      {inspectorHex !== null && (
+        <DataInspector initialHex={inspectorHex} onClose={() => setInspectorHex(null)} />
       )}
     </div>
   )

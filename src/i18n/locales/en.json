@@ -228,6 +228,10 @@
   "tabMenu": {
     "rename": "Rename…",
     "renamePrompt": "Tab name (leave empty to reset):",
+    "color": "Tab color",
+    "clearColor": "No color",
+    "emoji": "Tab emoji",
+    "clearEmoji": "No emoji",
     "reconnect": "Reconnect",
     "disconnect": "Disconnect",
     "duplicate": "Duplicate",
@@ -343,6 +347,7 @@
     "plugins": "Plugins",
     "macro": "Macro",
     "macroRecording": "Macro (recording)",
+    "frameBuilder": "Frame builder",
     "modbusMaster": "Modbus Master",
     "modbusSlave": "Modbus Slave",
     "modbusSlaveListening": "Modbus Slave (listening)",
@@ -352,9 +357,39 @@
       "copy": "Copy",
       "searchForThis": "Search buffer for this",
       "addFilter": "Add as filter",
+      "inspectBytes": "Inspect bytes",
       "decodeBacktrace": "Decode as crash backtrace",
       "addBookmark": "Add bookmark",
       "removeBookmark": "Remove bookmark"
+    }
+  },
+  "dataInspector": {
+    "title": "Data inspector",
+    "hexPlaceholder": "Hex bytes, e.g. 01 02 FF",
+    "invalidHex": "Enter valid hex bytes (pairs of hex digits).",
+    "littleEndian": "Little-endian",
+    "bigEndian": "Big-endian",
+    "ascii": "ASCII",
+    "binary": "Binary"
+  },
+  "frameBuilder": {
+    "addField": "Add field",
+    "preview": "Preview",
+    "send": "Send frame",
+    "empty": "(empty)",
+    "type": {
+      "hex": "Hex bytes",
+      "text": "Text",
+      "uint8": "uint8",
+      "uint16": "uint16",
+      "uint32": "uint32",
+      "length": "Length (auto)",
+      "crc": "CRC (auto)"
+    },
+    "placeholder": {
+      "hex": "e.g. AA BB",
+      "text": "text",
+      "int": "number"
     }
   },
   "filterBar": {
@@ -407,6 +442,19 @@
     "placeholder": "Search every open tab's buffer…",
     "hint": "Type to search across every open tab, not just the current one.",
     "noMatches": "No matching lines in any open tab."
+  },
+  "logCompare": {
+    "title": "Compare logs",
+    "left": "Log A",
+    "right": "Log B",
+    "loadFromTab": "Load from tab…",
+    "placeholder": "Paste log text, or load from an open tab",
+    "compare": "Compare",
+    "edit": "Edit inputs",
+    "unchanged": "{{count}} unchanged",
+    "truncated": "Compared the last {{max}} lines of each side.",
+    "onlyInA": "Only in A",
+    "onlyInB": "Only in B"
   },
   "ota": {
     "tabLabel": "OTA (WiFi)",
@@ -747,6 +795,18 @@
     "obNamePlaceholder": "Name (e.g. RDP)",
     "obValuePlaceholder": "Value (e.g. 0xBB)",
     "write": "Write",
+    "writeMemory": {
+      "title": "Write memory",
+      "hint": "Writes arbitrary content to a single address, independent of the firmware file above — the content is staged into a small temp file and flashed the same way a full firmware image would be.",
+      "kind": "Content type",
+      "kindText": "Text",
+      "kindHex": "Hex bytes",
+      "kindDec": "Decimal (32-bit)",
+      "kindJson": "JSON",
+      "contentPlaceholder": "Content to write…",
+      "write": "Write",
+      "confirm": "Write {{count}} byte(s) at {{address}}?"
+    },
     "security": {
       "rdpTitle": "Readout Protection (RDP)",
       "rdpHint": "Controls whether the chip's flash can be read out via SWD/JTAG or the bootloader. Read the current option bytes first to see the active level.",
@@ -928,6 +988,9 @@
       "startError": "Could not start the local REST API: {{error}}"
     },
     "personalization": "Personalization",
+    "accentColor": "Accent color",
+    "accentDefault": "Default (follow theme)",
+    "accentCustom": "Custom color",
     "theme": {
       "system": "system",
       "dark": "dark",
@@ -956,11 +1019,31 @@
       "switchTab": "Switch to tab N",
       "clearTab": "Clear current tab",
       "searchBuffer": "Search buffer",
+      "globalSearch": "Search all tabs",
       "pauseResume": "Pause / resume monitor",
       "togglePlotter": "Toggle plotter",
       "toggleFlashPanel": "Toggle flash panel",
       "toggleSettings": "Toggle settings",
+      "showShortcuts": "Show keyboard shortcuts",
       "closeSettingsFlash": "Close settings / flash panel"
     }
+  },
+  "shortcutOverlay": {
+    "title": "Keyboard shortcuts"
+  },
+  "onboarding": {
+    "welcome": "Welcome to Embedded DevTool",
+    "subtitle": "One tool for serial, network, flashing and plotting — instead of three or four.",
+    "monitorTitle": "Serial & network monitor",
+    "monitorDesc": "Multi-tab, hex/ASCII, filters, triggers, scripting — for serial, TCP/UDP, MQTT, WebSocket and SSH.",
+    "flashTitle": "Flash ESP32 & STM32",
+    "flashDesc": "Chip detect, multi-segment flash with progress, batch/OTA modes, crash decoder.",
+    "plotTitle": "Realtime plotter",
+    "plotDesc": "Up to 8 channels with FFT, math channels, thresholds and measurement cursors.",
+    "networkTitle": "Network tools",
+    "networkDesc": "LAN scanner, FTP client/server, Modbus RTU/TCP — each with a fit-for-purpose view.",
+    "tipPalette": "opens the command palette",
+    "tipShortcuts": "shows all keyboard shortcuts",
+    "getStarted": "Get started"
   }
 }

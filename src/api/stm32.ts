@@ -14,7 +14,7 @@ export interface Stm32OutputEvent {
   line: string
 }
 
-export type Stm32Operation = 'flash' | 'eraseFull' | 'writeOptionByte'
+export type Stm32Operation = 'flash' | 'eraseFull' | 'writeOptionByte' | 'writeMemory'
 
 export interface Stm32DoneEvent {
   id: string
@@ -45,6 +45,24 @@ export function flashStm32(req: {
 
 export function massEraseStm32(id: string, cliPath: string, iface: StmInterface): Promise<void> {
   return invoke('mass_erase_stm32', { id, cliPath, interface: iface })
+}
+
+/** Reads the base address embedded in a `.hex` file's own records (a
+ * `.bin` has no such information -- it's a raw memory dump). */
+export function parseStm32HexAddress(path: string): Promise<string | null> {
+  return invoke('parse_stm32_hex_address', { path })
+}
+
+export function writeStm32Memory(req: {
+  id: string
+  cliPath: string
+  interface: StmInterface
+  address: string
+  data: number[]
+  verify: boolean
+  reset: boolean
+}): Promise<void> {
+  return invoke('write_stm32_memory', { req })
 }
 
 export function readStm32OptionBytes(cliPath: string, iface: StmInterface): Promise<string> {

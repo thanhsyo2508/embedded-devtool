@@ -106,7 +106,11 @@ export function DebugPanel() {
             className="flash-path"
             value={elfPath}
             placeholder={t('flash.noFileSelected')}
-            readOnly
+            onChange={(e) => {
+              setElfPath(e.target.value)
+              setMemoryMap(null)
+              setFrames(null)
+            }}
           />
           <button
             type="button"

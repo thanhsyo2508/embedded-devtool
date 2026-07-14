@@ -1,12 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 export interface ContextMenuItem {
-  label: string
-  onClick: () => void
+  label?: string
+  onClick?: () => void
   disabled?: boolean
   /** Inserts a divider above this item — for grouping (e.g. "Copy" apart
    * from the quick actions that jump elsewhere in the app). */
   separatorBefore?: boolean
+  /** Custom content rendered in place of the label button — for inline
+   * pickers (e.g. tab color swatches) that shouldn't dismiss the menu when
+   * clicked. When set, `label`/`onClick` are ignored. */
+  render?: ReactNode
 }
 
 /** Generic right-click menu, positioned at the click point and clamped to
@@ -52,20 +56,29 @@ export function ContextMenu({
 
   return (
     <div className="context-menu" style={style} ref={menuRef}>
-      {items.map((item, i) => (
-        <button
-          key={i}
-          type="button"
-          className={`context-menu-item ${item.separatorBefore ? 'context-menu-separator' : ''}`}
-          disabled={item.disabled}
-          onClick={() => {
-            item.onClick()
-            onClose()
-          }}
-        >
-          {item.label}
-        </button>
-      ))}
+      {items.map((item, i) =>
+        item.render ? (
+          <div
+            key={i}
+            className={`context-menu-custom ${item.separatorBefore ? 'context-menu-separator' : ''}`}
+          >
+            {item.render}
+          </div>
+        ) : (
+          <button
+            key={i}
+            type="button"
+            className={`context-menu-item ${item.separatorBefore ? 'context-menu-separator' : ''}`}
+            disabled={item.disabled}
+            onClick={() => {
+              item.onClick?.()
+              onClose()
+            }}
+          >
+            {item.label}
+          </button>
+        ),
+      )}
     </div>
   )
 }

@@ -5,10 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { listSerialPorts, onUsbPlugged, onUsbUnplugged, type PortInfo } from '../api/serial'
 import { useStm32Store } from '../state/stm32Store'
 import { authorizeFlash } from '../lib/flashLock'
+import { encodeMemoryContent, type MemoryContentKind } from '../lib/memoryContent'
 import { ChipIcon, FolderIcon, GearIcon, RefreshIcon, ZapIcon } from './icons'
 import { Stm32MassProductionPanel } from './Stm32MassProductionPanel'
 import { Stm32SecurityPanel } from './Stm32SecurityPanel'
 import { CollapsibleSection } from './CollapsibleSection'
+
+const MEMORY_CONTENT_KINDS: MemoryContentKind[] = ['text', 'hex', 'dec', 'json']
 
 const STM32CUBEPROG_URL = 'https://www.st.com/en/development-tools/stm32cubeprog.html'
 
@@ -49,7 +52,12 @@ export function Stm32Body() {
     eraseFull,
     readOptionBytes,
     writeOptionByte,
+    writeMemory,
   } = useStm32Store()
+  const [wmAddress, setWmAddress] = useState('0x08000000')
+  const [wmKind, setWmKind] = useState<MemoryContentKind>('text')
+  const [wmContent, setWmContent] = useState('')
+  const [wmError, setWmError] = useState<string | null>(null)
 
   useEffect(() => {
     void checkCli()
@@ -99,6 +107,22 @@ export function Stm32Body() {
       )
     ) {
       void writeOptionByte(obName, obValue)
+    }
+  }
+
+  const handleWriteMemory = () => {
+    setWmError(null)
+    let bytes: number[]
+    try {
+      bytes = encodeMemoryContent(wmKind, wmContent)
+    } catch (err) {
+      setWmError(err instanceof Error ? err.message : String(err))
+      return
+    }
+    if (
+      window.confirm(t('stm32.writeMemory.confirm', { count: bytes.length, address: wmAddress }))
+    ) {
+      void writeMemory(wmAddress, bytes)
     }
   }
 
@@ -217,7 +241,7 @@ export function Stm32Body() {
                 className="flash-path"
                 value={filePath}
                 placeholder={t('flash.noFileSelected')}
-                readOnly
+                onChange={(e) => setFilePath(e.target.value)}
               />
               <button
                 type="button"
@@ -295,6 +319,50 @@ export function Stm32Body() {
               />
               <button type="button" className="flash-erase" onClick={handleWriteOptionByte}>
                 {t('stm32.write')}
+              </button>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title={t('stm32.writeMemory.title')}>
+            <p className="ota-hint">{t('stm32.writeMemory.hint')}</p>
+            <div className="field-grid">
+              <label className="field-group">
+                <span className="field-caption">{t('stm32.address')}</span>
+                <input
+                  className="mono"
+                  value={wmAddress}
+                  onChange={(e) => setWmAddress(e.target.value)}
+                />
+              </label>
+              <label className="field-group">
+                <span className="field-caption">{t('stm32.writeMemory.kind')}</span>
+                <select
+                  value={wmKind}
+                  onChange={(e) => setWmKind(e.target.value as MemoryContentKind)}
+                >
+                  {MEMORY_CONTENT_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {t(`stm32.writeMemory.kind${kind[0].toUpperCase()}${kind.slice(1)}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <textarea
+              className="stm32-write-memory-content mono"
+              value={wmContent}
+              placeholder={t('stm32.writeMemory.contentPlaceholder')}
+              onChange={(e) => setWmContent(e.target.value)}
+            />
+            {wmError && <p className="connect-error">{wmError}</p>}
+            <div className="flash-actions">
+              <button
+                type="button"
+                className="flash-erase"
+                disabled={busy || !wmContent}
+                onClick={handleWriteMemory}
+              >
+                {t('stm32.writeMemory.write')}
               </button>
             </div>
           </CollapsibleSection>

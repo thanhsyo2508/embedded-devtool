@@ -20,8 +20,20 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+
+// Prevents a console window from flashing up behind the app while
+// STM32_Programmer_CLI runs -- it's a console-subsystem executable, and
+// spawning one from a windows-subsystem GUI app (this one) makes Windows
+// allocate it a brand new console window even though stdout/stderr are
+// already piped here. Irrelevant on macOS/Linux, where a GUI app spawning
+// a child process never implies a visible terminal.
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[cfg(windows)]
 const CLI_EXE_NAME: &str = "STM32_Programmer_CLI.exe";
@@ -108,10 +120,15 @@ impl Interface {
 /// the process exited successfully — this, not the output text, is the
 /// authoritative result.
 fn run_cli(cli: &Path, args: &[String], mut on_line: impl FnMut(&str)) -> Result<bool, String> {
-    let mut child = Command::new(cli)
+    let mut command = Command::new(cli);
+    command
         .args(args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    let mut child = command
         .spawn()
         .map_err(|e| format!("failed to launch {}: {e}", cli.display()))?;
 
@@ -215,6 +232,109 @@ pub fn flash_binary(
     }
 }
 
+/// Reads the lowest address referenced anywhere in an Intel HEX file, e.g.
+/// `0x08000000` -- unlike a `.bin` (a raw memory dump with no address
+/// information at all), a `.hex` file's own records carry absolute
+/// addresses, so this is the one format that can be auto-filled instead of
+/// asking the user to type it in. Returns `None` (not an error) if the file
+/// has no data records to derive an address from.
+pub fn hex_file_base_address(path: &str) -> Result<Option<u32>, String> {
+    let text = std::fs::read_to_string(path).map_err(|e| format!("failed to read {path}: {e}"))?;
+    Ok(hex_base_address_from_text(&text))
+}
+
+fn hex_base_address_from_text(text: &str) -> Option<u32> {
+    let mut upper_linear: u32 = 0;
+    let mut upper_segment: u32 = 0;
+    let mut lowest: Option<u32> = None;
+
+    for line in text.lines() {
+        let line = line.trim();
+        let Some(rest) = line.strip_prefix(':') else {
+            continue;
+        };
+        // `:LLAAAATT<data...>CC` -- byte count, 16-bit address, record type,
+        // then LL data bytes and a trailing checksum byte, all hex-encoded.
+        if rest.len() < 8 {
+            continue;
+        }
+        let byte_count = u8::from_str_radix(&rest[0..2], 16).ok();
+        let address16 = u16::from_str_radix(&rest[2..6], 16).ok();
+        let record_type = u8::from_str_radix(&rest[6..8], 16).ok();
+        let (Some(byte_count), Some(address16), Some(record_type)) =
+            (byte_count, address16, record_type)
+        else {
+            continue;
+        };
+
+        match record_type {
+            // Data record: only these actually get written to flash, so
+            // only these count toward the base address.
+            0x00 => {
+                if byte_count > 0 {
+                    let absolute = upper_linear.max(upper_segment) + u32::from(address16);
+                    lowest = Some(lowest.map_or(absolute, |l: u32| l.min(absolute)));
+                }
+            }
+            // Extended Linear Address: data is the upper 16 bits of a
+            // 32-bit address (address16 itself is ignored for this type).
+            0x04 => {
+                if let Some(data) = rest.get(8..12) {
+                    if let Ok(hi) = u16::from_str_radix(data, 16) {
+                        upper_linear = u32::from(hi) << 16;
+                        upper_segment = 0;
+                    }
+                }
+            }
+            // Extended Segment Address: data * 16 is added to every
+            // subsequent 16-bit address (older, x86-style segmented form).
+            0x02 => {
+                if let Some(data) = rest.get(8..12) {
+                    if let Ok(seg) = u16::from_str_radix(data, 16) {
+                        upper_segment = u32::from(seg) << 4;
+                        upper_linear = 0;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    lowest
+}
+
+/// Writes arbitrary bytes to `address` by staging them in a temp file and
+/// reusing `flash_binary` -- the CLI only accepts a file argument for `-w`,
+/// not inline bytes, so a small generated blob is flashed exactly like a
+/// full firmware image would be. The temp file is removed afterward
+/// regardless of outcome.
+pub fn write_memory(
+    cli: &Path,
+    interface: &Interface,
+    address: &str,
+    data: &[u8],
+    verify: bool,
+    reset: bool,
+    on_line: impl FnMut(&str),
+) -> Result<(), String> {
+    let mut temp_path = std::env::temp_dir();
+    temp_path.push(format!("edt-stm32-write-{}.bin", std::process::id()));
+    std::fs::write(&temp_path, data)
+        .map_err(|e| format!("failed to stage write at {}: {e}", temp_path.display()))?;
+
+    let result = flash_binary(
+        cli,
+        interface,
+        &temp_path.to_string_lossy(),
+        address,
+        verify,
+        reset,
+        on_line,
+    );
+    let _ = std::fs::remove_file(&temp_path);
+    result
+}
+
 /// M2-T2.7: mass erase (`-e all`).
 pub fn mass_erase(
     cli: &Path,
@@ -310,6 +430,24 @@ mod tests {
     fn extract_field_returns_none_on_unrecognized_format() {
         let lines = vec!["Some totally different CLI output".to_string()];
         assert_eq!(extract_field(&lines, "Device ID"), None);
+    }
+
+    #[test]
+    fn hex_base_address_reads_extended_linear_address_record() {
+        let text = ":020000040800F2\n:04000000AABBCCDD00\n:00000001FF\n";
+        assert_eq!(hex_base_address_from_text(text), Some(0x0800_0000));
+    }
+
+    #[test]
+    fn hex_base_address_picks_the_lowest_data_record() {
+        let text = ":020000040800F2\n:04100000AABBCCDD00\n:04000000AABBCCDD00\n";
+        assert_eq!(hex_base_address_from_text(text), Some(0x0800_0000));
+    }
+
+    #[test]
+    fn hex_base_address_is_none_without_data_records() {
+        let text = ":020000040800F2\n:00000001FF\n";
+        assert_eq!(hex_base_address_from_text(text), None);
     }
 
     #[test]

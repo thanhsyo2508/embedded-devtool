@@ -132,7 +132,7 @@ export function OtaPanel() {
             className="flash-path"
             value={firmwarePath}
             placeholder={t('flash.noFileSelected')}
-            readOnly
+            onChange={(e) => setFirmwarePath(e.target.value)}
           />
           <button
             type="button"

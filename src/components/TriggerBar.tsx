@@ -93,7 +93,9 @@ export function TriggerBar({ tab }: { tab: TabState }) {
                 type="text"
                 className="trigger-file-path"
                 value={trigger.action.filePath}
-                readOnly
+                onChange={(e) =>
+                  updateTrigger(tab.id, trigger.id, { action: { filePath: e.target.value } })
+                }
               />
               <button
                 type="button"

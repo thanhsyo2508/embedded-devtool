@@ -35,6 +35,10 @@ interface SettingsState {
   newline: NewlineMode
   fontSize: FontSize
   theme: Theme
+  /** Custom accent color (any CSS color) overriding the theme's default
+   * accent in both light and dark; empty string means follow the theme's
+   * built-in accent (the default). */
+  accentColor: string
   keepAwake: boolean
   language: Language
   /** Whether the local REST API (see restapi::RestApiManager on the Rust
@@ -52,12 +56,16 @@ interface SettingsState {
    * PIN is stored in plain text like the REST API token above). */
   flashLockEnabled: boolean
   flashLockPin: string
+  /** Set once the first-run onboarding screen has been dismissed, so it
+   * only ever shows on a fresh install. */
+  onboardingDone: boolean
   setEncoding: (v: Encoding) => void
   setMaxLinesPerTab: (v: number) => void
   setPlotMaxPoints: (v: number) => void
   setNewline: (v: NewlineMode) => void
   setFontSize: (v: FontSize) => void
   setTheme: (v: Theme) => void
+  setAccentColor: (v: string) => void
   setKeepAwake: (v: boolean) => void
   setLanguage: (v: Language) => void
   setRestApiEnabled: (v: boolean) => void
@@ -65,6 +73,7 @@ interface SettingsState {
   regenerateRestApiToken: () => void
   setFlashLockEnabled: (v: boolean) => void
   setFlashLockPin: (v: string) => void
+  setOnboardingDone: (v: boolean) => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -76,6 +85,7 @@ export const useSettingsStore = create<SettingsState>()(
       newline: 'lf',
       fontSize: 'medium',
       theme: 'system',
+      accentColor: '',
       keepAwake: false,
       language: 'en',
       restApiEnabled: false,
@@ -83,12 +93,14 @@ export const useSettingsStore = create<SettingsState>()(
       restApiToken: generateToken(),
       flashLockEnabled: false,
       flashLockPin: '',
+      onboardingDone: false,
       setEncoding: (encoding) => set({ encoding }),
       setMaxLinesPerTab: (maxLinesPerTab) => set({ maxLinesPerTab }),
       setPlotMaxPoints: (plotMaxPoints) => set({ plotMaxPoints }),
       setNewline: (newline) => set({ newline }),
       setFontSize: (fontSize) => set({ fontSize }),
       setTheme: (theme) => set({ theme }),
+      setAccentColor: (accentColor) => set({ accentColor }),
       setKeepAwake: (keepAwake) => set({ keepAwake }),
       setLanguage: (language) => {
         set({ language })
@@ -99,6 +111,7 @@ export const useSettingsStore = create<SettingsState>()(
       regenerateRestApiToken: () => set({ restApiToken: generateToken() }),
       setFlashLockEnabled: (flashLockEnabled) => set({ flashLockEnabled }),
       setFlashLockPin: (flashLockPin) => set({ flashLockPin }),
+      setOnboardingDone: (onboardingDone) => set({ onboardingDone }),
     }),
     { name: 'edt-settings' },
   ),

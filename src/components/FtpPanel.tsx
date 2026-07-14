@@ -305,7 +305,8 @@ export function FtpPanel({ onClose }: { onClose: () => void }) {
                   className="flash-path"
                   value={serverRootDir}
                   placeholder={t('ftp.selectRootDir')}
-                  readOnly
+                  disabled={serverRunning}
+                  onChange={(e) => setServerRootDir(e.target.value)}
                 />
                 <button
                   type="button"

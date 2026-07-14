@@ -226,6 +226,11 @@ export interface TabState {
    * tab's right-click Rename) — for telling apart three "COM3 · 115200" tabs
    * as "Sensor board" / "Gateway" / etc. Persists in a project profile. */
   customLabel?: string
+  /** Optional per-tab color dot and emoji shown in the tab strip, for
+   * quicker visual identification when several similar tabs are open.
+   * Both persist in a project profile. */
+  tabColor?: string
+  tabEmoji?: string
   portName: string
   baudRate: number
   status: TabStatus
@@ -293,6 +298,9 @@ interface TabsStore {
   reconnectTab: (id: string, sshPasswordOverride?: string) => Promise<void>
   /** Sets (or clears, on empty string) the tab's user-chosen display name. */
   renameTab: (id: string, label: string) => void
+  /** Sets (or clears, on empty string) the tab's color dot / emoji. */
+  setTabColor: (id: string, color: string) => void
+  setTabEmoji: (id: string, emoji: string) => void
   setActiveTab: (id: string) => void
   setViewMode: (id: string, mode: ViewMode) => void
   setTimestampMode: (id: string, mode: TimestampMode) => void
@@ -1053,6 +1061,20 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((tab) =>
         tab.id === id ? { ...tab, customLabel: label.trim() || undefined } : tab,
+      ),
+    })),
+
+  setTabColor: (id, color) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, tabColor: color || undefined } : tab,
+      ),
+    })),
+
+  setTabEmoji: (id, emoji) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, tabEmoji: emoji || undefined } : tab,
       ),
     })),
 

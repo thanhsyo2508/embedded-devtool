@@ -16,10 +16,15 @@ import {
 } from '../state/settingsStore'
 import { useUpdateStore } from '../state/updateStore'
 import { buildConfigBundle, importConfigBundle, type ConfigBundle } from '../lib/configBundle'
+import { SHORTCUTS } from '../lib/shortcuts'
 import { BookOpenIcon, CopyIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
 import { HelpGuide } from './HelpGuide'
 
 const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
+
+// A small curated palette for one-click accents; the color input beside
+// them covers anything else. Default (follow theme) is a separate swatch.
+const ACCENT_PRESETS = ['#c4472b', '#2b6cb0', '#2f855a', '#805ad5', '#b7791f', '#c53081']
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation()
@@ -95,20 +100,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
       window.alert(t('settings.backup.importError', { error: String(err) }))
     }
   }
-
-  const shortcuts: [string, string][] = [
-    ['Ctrl+K', t('settings.shortcuts.commandPalette')],
-    ['Ctrl+N', t('settings.shortcuts.newConnection')],
-    ['Ctrl+W', t('settings.shortcuts.closeTab')],
-    ['Ctrl+1–9', t('settings.shortcuts.switchTab')],
-    ['Ctrl+L', t('settings.shortcuts.clearTab')],
-    ['Ctrl+F', t('settings.shortcuts.searchBuffer')],
-    ['Space', t('settings.shortcuts.pauseResume')],
-    ['Ctrl+Shift+P', t('settings.shortcuts.togglePlotter')],
-    ['Ctrl+Shift+F', t('settings.shortcuts.toggleFlashPanel')],
-    ['Ctrl+,', t('settings.shortcuts.toggleSettings')],
-    ['Esc', t('settings.shortcuts.closeSettingsFlash')],
-  ]
 
   return (
     <div className="settings-overlay" onClick={onClose}>
@@ -336,6 +327,35 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
 
+        <div className="settings-row">
+          <span>{t('settings.accentColor')}</span>
+          <div className="accent-picker">
+            <button
+              type="button"
+              className={`accent-swatch accent-default ${settings.accentColor === '' ? 'on' : ''}`}
+              title={t('settings.accentDefault')}
+              onClick={() => settings.setAccentColor('')}
+            />
+            {ACCENT_PRESETS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`accent-swatch ${settings.accentColor === color ? 'on' : ''}`}
+                style={{ background: color }}
+                title={color}
+                onClick={() => settings.setAccentColor(color)}
+              />
+            ))}
+            <input
+              type="color"
+              className="accent-custom"
+              value={settings.accentColor || '#c4472b'}
+              title={t('settings.accentCustom')}
+              onChange={(e) => settings.setAccentColor(e.target.value)}
+            />
+          </div>
+        </div>
+
         <hr className="settings-divider" />
 
         <div className="settings-section-title">{t('settings.section.help')}</div>
@@ -404,10 +424,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
 
         <div className="shortcuts-list">
           <div className="shortcuts-title">{t('settings.shortcutsTitle')}</div>
-          {shortcuts.map(([keys, label]) => (
-            <div key={keys} className="shortcut-row">
-              <kbd>{keys}</kbd>
-              <span>{label}</span>
+          {SHORTCUTS.map((shortcut) => (
+            <div key={shortcut.keys} className="shortcut-row">
+              <kbd>{shortcut.keys}</kbd>
+              <span>{t(shortcut.labelKey)}</span>
             </div>
           ))}
         </div>

@@ -1107,6 +1107,76 @@ fn flash_stm32(app: AppHandle, req: FlashStm32Request) {
     });
 }
 
+/// Auto-fills the flash address field when a `.hex` file is selected --
+/// see `stm32::hex_file_base_address`'s doc comment for why this only
+/// works for `.hex` (a `.bin` carries no address information at all).
+#[tauri::command]
+fn parse_stm32_hex_address(path: String) -> Result<Option<String>, String> {
+    Ok(stm32::hex_file_base_address(&path)?.map(|addr| format!("0x{addr:08X}")))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WriteStm32MemoryRequest {
+    id: String,
+    cli_path: String,
+    interface: StmInterface,
+    address: String,
+    data: Vec<u8>,
+    verify: bool,
+    reset: bool,
+}
+
+/// Backs the "write memory" panel -- pokes arbitrary bytes (encoded
+/// frontend-side from text/hex/decimal/JSON input) at a given address,
+/// independent of the main firmware file/address fields.
+#[tauri::command]
+fn write_stm32_memory(app: AppHandle, req: WriteStm32MemoryRequest) {
+    let WriteStm32MemoryRequest {
+        id,
+        cli_path,
+        interface,
+        address,
+        data,
+        verify,
+        reset,
+    } = req;
+    thread::spawn(move || {
+        let app_for_lines = app.clone();
+        let id_for_lines = id.clone();
+        let result = stm32::write_memory(
+            std::path::Path::new(&cli_path),
+            &interface,
+            &address,
+            &data,
+            verify,
+            reset,
+            |line| {
+                let _ = app_for_lines.emit(
+                    "stm32://output",
+                    Stm32OutputEvent {
+                        id: id_for_lines.clone(),
+                        line: line.to_string(),
+                    },
+                );
+            },
+        );
+        let (success, message) = match result {
+            Ok(()) => (true, format!("Wrote {} byte(s) at {address}", data.len())),
+            Err(e) => (false, e),
+        };
+        let _ = app.emit(
+            "stm32://done",
+            Stm32DoneEvent {
+                id,
+                operation: "writeMemory",
+                success,
+                message,
+            },
+        );
+    });
+}
+
 #[tauri::command]
 fn mass_erase_stm32(app: AppHandle, id: String, cli_path: String, interface: StmInterface) {
     thread::spawn(move || {
@@ -1939,6 +2009,8 @@ pub fn run() {
             find_stm32_cli,
             detect_stm32_mcu,
             flash_stm32,
+            parse_stm32_hex_address,
+            write_stm32_memory,
             prepare_provisioned_binary,
             mass_erase_stm32,
             read_stm32_option_bytes,
