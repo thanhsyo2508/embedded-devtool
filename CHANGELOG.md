@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.6 — 2026-07-14
+
+- **SSH:** the terminal no longer loses its scrollback when you switch to
+  another tab and back; a reconnect UI (with an opt-in "remember password"
+  backed by the OS credential store — Windows Credential Manager / macOS
+  Keychain / Linux Secret Service) lets a dropped or wrong-password
+  connection be retried right there instead of closing and re-adding the tab.
+- **Cross-tab search (`Ctrl+Shift+G`):** searches every open tab's buffer
+  at once and jumps straight to a match, instead of one tab at a time.
+- **Crash decoder:** a resolved backtrace frame's file:line is now
+  clickable, opening it directly in VS Code.
+- **Plugins:** install a decoder/plotter-parser plugin from a URL, not
+  just a local `.lua` file.
+- **`edt-cli test`:** an optional `webhookUrl` posts a pass/fail summary
+  to a Slack or Discord webhook once a suite finishes.
+- **Recent Connections** moved from an always-visible list inside the
+  connect panel to a topbar dropdown — picking an entry reconnects
+  immediately instead of just prefilling the form.
+- Fixed `Ctrl+Shift+F` also popping open the monitor's in-tab search
+  bar in addition to toggling the Flash panel.
+
 ## v0.1.5 — 2026-07-12
 
 - **SWD debug (new connection kind):** attaches to a debug probe
