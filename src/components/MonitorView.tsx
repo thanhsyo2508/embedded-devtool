@@ -255,11 +255,12 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
   // M4-search: Ctrl+F opens the buffer search bar; scoped to this component
   // (rather than App.tsx's global shortcut handler) since jumping to a match
-  // needs direct access to this tab's virtualizer.
+  // needs direct access to this tab's virtualizer. Excludes Shift so
+  // Ctrl+Shift+F (App.tsx's Flash panel toggle) doesn't also pop this open.
   useEffect(() => {
     const handleKeyDown = (e: globalThis.KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
-      if (mod && e.key.toLowerCase() === 'f') {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         setSearchOpen(true)
       }
