@@ -513,7 +513,9 @@ pub fn spawn_reconnect_watcher(manager: Arc<PortManager>) -> thread::JoinHandle<
                     mp.stream = new_stream;
                     mp.state = PortState::Open;
                 }
-                manager.event_bus.publish(Event::PortOpened { stream_id: id });
+                manager
+                    .event_bus
+                    .publish(Event::PortOpened { stream_id: id });
             }
         }
     })
