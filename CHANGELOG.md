@@ -1,5 +1,50 @@
 # Changelog
 
+## v0.1.7 — 2026-07-15
+
+- **UI scale:** a new Settings slider (80–150%) resizes the whole
+  interface — text, icons, spacing — for users who find the default too
+  small, separate from the existing log-only font size preset.
+- **Live dashboard:** auto-discovers `key=value`/`key: value`/JSON
+  telemetry fields in a tab's stream and shows the latest value of each
+  as a live widget grid.
+- **Data inspector:** right-click a byte selection in the monitor to
+  decode it as int/uint (8/16/32/64-bit), float, ASCII, and binary, in
+  either endianness.
+- **Frame builder:** compose a binary frame (hex/text/integer fields plus
+  an auto-computed length and CRC) from a new monitor toolbar flyout and
+  send it.
+- **ANSI colors:** color codes in a device's own log output (ESP-IDF/
+  Zephyr-style) are rendered instead of stripped.
+- **Format JSON/CSV:** right-click a monitor selection to pretty-print
+  JSON or column-align CSV/TSV in a popup.
+- **Compare logs:** a side-by-side diff of two logs (pasted, or loaded
+  from an open tab) with added/removed lines highlighted.
+- **Broadcast send:** send one command to several open connections at
+  once, from the command palette.
+- **Periodic/heartbeat send:** repeat a command on an interval from the
+  Send panel, no script needed.
+- **Export diagnostics bundle:** a redacted JSON snapshot (version,
+  settings, recent per-tab logs — passwords/tokens/PINs stripped) for bug
+  reports.
+- **ESP32 core dump decoder:** paste a UART core dump to resolve
+  candidate addresses against the build's `.elf`, alongside the existing
+  crash decoder.
+- **STM32:** a new "Write memory" tool pokes text/hex/decimal/JSON
+  content to any address; selecting a `.hex` file auto-fills the flash
+  address from its own records; `STM32_Programmer_CLI` no longer flashes
+  a console window; every flash file-path field (ESP32/STM32/OTA/Debug/
+  FTP/trigger) now accepts a typed/pasted path, not just Browse; the
+  Flash panel remembers its last tab/mode across close and reopen.
+- **Personalization:** a custom accent color (Settings), per-tab
+  color/emoji labels (tab right-click menu), and a first-run onboarding
+  screen.
+- **`?` shortcut cheat-sheet**, backed by the same list Settings shows —
+  which also fixes that list having been missing `Ctrl+Shift+G` since it
+  was added in v0.1.6.
+- Fixed the Triggers panel's Send/Write-to-file row clipping in narrow
+  panes.
+
 ## v0.1.6 — 2026-07-14
 
 - **SSH:** the terminal no longer loses its scrollback when you switch to
