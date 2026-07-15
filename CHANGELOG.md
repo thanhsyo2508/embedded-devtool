@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.8 — 2026-07-15
+
+- **Fix: tool freezing with multiple serial devices connected.** Opening a
+  port, and the background auto-reconnect check, each ran their slowest
+  work (OS port enumeration, the actual driver open call) while holding
+  the same lock the live-data feed for every other open tab depends on.
+  With several devices open at once — or one flaky device on a shared USB
+  hub — this could stall or fully freeze the whole app. Both paths now do
+  their slow work without holding that lock.
+
 ## v0.1.7 — 2026-07-15
 
 - **UI scale:** a new Settings slider (80–150%) resizes the whole
