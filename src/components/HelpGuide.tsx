@@ -93,6 +93,12 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <Trans i18nKey="help.commandPalette.p1" components={G} />
             </p>
             <p>{t('help.commandPalette.p2')}</p>
+            <p>
+              <Trans i18nKey="help.commandPalette.p3" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.commandPalette.p4" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">
@@ -108,6 +114,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             </p>
             <p>
               <Trans i18nKey="help.layout.p4" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.layout.p5" components={G} />
             </p>
           </section>
 
@@ -140,6 +149,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               </li>
               <li>
                 <Trans i18nKey="help.monitor.li8" components={G} />
+              </li>
+              <li>
+                <Trans i18nKey="help.monitor.li9" components={G} />
               </li>
             </ul>
             <p>
@@ -191,6 +203,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             <p>
               <Trans i18nKey="help.ssh.p4" components={G} />
             </p>
+            <p>
+              <Trans i18nKey="help.ssh.p5" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">
@@ -239,6 +254,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             </p>
             <p>
               <Trans i18nKey="help.search.p2" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.search.p3" components={G} />
             </p>
           </section>
 
@@ -378,6 +396,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
               <Trans i18nKey="help.plugins.manifest" components={G} />
             </p>
             <p>
+              <Trans i18nKey="help.plugins.installUrl" components={G} />
+            </p>
+            <p>
               <b>
                 <Trans i18nKey="help.plugins.decoderLabel" components={G} />
               </b>
@@ -479,6 +500,9 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             <p>
               <Trans i18nKey="help.debug.p3" components={G} />
             </p>
+            <p>
+              <Trans i18nKey="help.debug.p4" components={G} />
+            </p>
           </section>
 
           <section className="guide-section">
@@ -509,6 +533,12 @@ export function HelpGuide({ onClose }: { onClose: () => void }) {
             </p>
             <p>
               <Trans i18nKey="help.flashStm32.massProduction" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.flashStm32.pathAndAddress" components={G} />
+            </p>
+            <p>
+              <Trans i18nKey="help.flashStm32.writeMemory" components={G} />
             </p>
           </section>
 

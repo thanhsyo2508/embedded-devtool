@@ -3,11 +3,13 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
 import { applyFilters, compileFilter } from '../lib/filterLines'
-import { highlightMatches } from '../lib/highlight'
+import { renderLine } from '../lib/ansiRender'
 import { parseHex, formatHex } from '../lib/hex'
 import { DataInspector } from './DataInspector'
+import { StructuredViewModal } from './StructuredViewModal'
 import {
   BookmarkIcon,
+  ChartIcon,
   ChipIcon,
   CodeIcon,
   DiskIcon,
@@ -27,6 +29,7 @@ import { TriggerBar } from './TriggerBar'
 import { ScriptPanel } from './ScriptPanel'
 import { MacroPanel } from './MacroPanel'
 import { FrameBuilderPanel } from './FrameBuilderPanel'
+import { DashboardPanel } from './DashboardPanel'
 import { ModbusMasterPanel } from './ModbusMasterPanel'
 import { ModbusSlavePanel } from './ModbusSlavePanel'
 import { PluginBar } from './PluginBar'
@@ -84,6 +87,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
     | 'plugins'
     | 'macro'
     | 'frame'
+    | 'dashboard'
     | 'modbus-master'
     | 'modbus-slave'
     | null
@@ -92,6 +96,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchIndex, setSearchIndex] = useState(0)
   const [inspectorHex, setInspectorHex] = useState<string | null>(null)
+  const [structuredText, setStructuredText] = useState<string | null>(null)
   const [pendingJumpSeq, setPendingJumpSeq] = useState<number | null>(null)
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
   const [contextMenu, setContextMenu] = useState<{
@@ -174,6 +179,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
       | 'plugins'
       | 'macro'
       | 'frame'
+      | 'dashboard'
       | 'modbus-master'
       | 'modbus-slave',
   ) => setOpenPanel((current) => (current === panel ? null : panel))
@@ -217,6 +223,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
         {
           label: t('monitor.contextMenu.inspectBytes'),
           onClick: () => setInspectorHex(selectionToHex(contextMenu.text)),
+        },
+        {
+          label: t('monitor.contextMenu.formatStructured'),
+          onClick: () => setStructuredText(contextMenu.text),
         },
         {
           label: t('monitor.contextMenu.decodeBacktrace'),
@@ -434,9 +444,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                     )}
                     {tab.viewMode !== 'hex' && (
                       <span className="msg">
-                        {searchRegex
-                          ? highlightMatches(line.text, [searchRegex])
-                          : highlightMatches(line.text, includeHighlights)}
+                        {renderLine(line.text, searchRegex ? [searchRegex] : includeHighlights)}
                       </span>
                     )}
                   </div>
@@ -514,6 +522,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
           {openPanel === 'frame' && (
             <div className="feature-flyout feature-flyout-wide">
               <FrameBuilderPanel tab={tab} />
+            </div>
+          )}
+          {openPanel === 'dashboard' && (
+            <div className="feature-flyout feature-flyout-wide">
+              <DashboardPanel tab={tab} />
             </div>
           )}
           {openPanel === 'modbus-master' && (
@@ -605,6 +618,15 @@ export function MonitorView({ tab }: { tab: TabState }) {
           >
             <UploadIcon />
           </button>
+          <button
+            type="button"
+            className={openPanel === 'dashboard' ? 'on' : ''}
+            title={t('monitor.dashboard')}
+            aria-label={t('monitor.dashboard')}
+            onClick={() => togglePanel('dashboard')}
+          >
+            <ChartIcon />
+          </button>
           {/* Master speaks Modbus RTU over serial and Modbus TCP over a TCP
               Client tab; the Slave emulator stays serial/RTU-only. */}
           {(tab.connectionKind === 'serial' || tab.connectionKind === 'tcp-client') && (
@@ -669,6 +691,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
       {inspectorHex !== null && (
         <DataInspector initialHex={inspectorHex} onClose={() => setInspectorHex(null)} />
+      )}
+
+      {structuredText !== null && (
+        <StructuredViewModal text={structuredText} onClose={() => setStructuredText(null)} />
       )}
     </div>
   )

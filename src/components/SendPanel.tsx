@@ -1,8 +1,10 @@
 import { useState, type KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useTabsStore, type LineEnding, type TabState } from '../state/tabsStore'
+import { usePeriodicSendStore } from '../state/periodicSendStore'
 import { parseHex } from '../lib/hex'
 import { CHECKSUM_MODES, type ChecksumMode } from '../lib/crc'
+import { ClockIcon, StopIcon } from './icons'
 
 type SendMode = 'text' | 'hex'
 
@@ -12,12 +14,24 @@ export function SendPanel({ tab }: { tab: TabState }) {
   const sendBytes = useTabsStore((s) => s.sendBytes)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
   const setChecksumMode = useTabsStore((s) => s.setChecksumMode)
+  const periodicActive = usePeriodicSendStore((s) => Boolean(s.activeByTab[tab.id]))
+  const startPeriodic = usePeriodicSendStore((s) => s.start)
+  const stopPeriodic = usePeriodicSendStore((s) => s.stop)
   const [mode, setMode] = useState<SendMode>('text')
   const [text, setText] = useState('')
+  const [intervalMs, setIntervalMs] = useState(1000)
   const [historyIndex, setHistoryIndex] = useState(-1)
 
   const hexBytes = mode === 'hex' ? parseHex(text) : null
   const hexInvalid = mode === 'hex' && hexBytes === null
+
+  const togglePeriodic = () => {
+    if (periodicActive) {
+      stopPeriodic(tab.id)
+    } else if (text.length > 0 && !hexInvalid) {
+      startPeriodic(tab.id, text, mode === 'hex', intervalMs)
+    }
+  }
 
   const doSend = () => {
     if (text.length === 0) return
@@ -94,6 +108,26 @@ export function SendPanel({ tab }: { tab: TabState }) {
         disabled={tab.status !== 'open' || text.length === 0 || hexInvalid}
       >
         {t('send.button')}
+      </button>
+      <input
+        type="number"
+        className="send-interval"
+        min={50}
+        step={100}
+        value={intervalMs}
+        title={t('send.intervalTitle')}
+        disabled={periodicActive}
+        onChange={(e) => setIntervalMs(Number(e.target.value))}
+      />
+      <button
+        type="button"
+        className={`send-repeat ${periodicActive ? 'on' : ''}`}
+        title={periodicActive ? t('send.stopRepeat') : t('send.startRepeat')}
+        aria-label={periodicActive ? t('send.stopRepeat') : t('send.startRepeat')}
+        disabled={tab.status !== 'open' || (!periodicActive && (text.length === 0 || hexInvalid))}
+        onClick={togglePeriodic}
+      >
+        {periodicActive ? <StopIcon /> : <ClockIcon />}
       </button>
     </div>
   )

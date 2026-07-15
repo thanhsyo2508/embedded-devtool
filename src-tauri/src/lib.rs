@@ -767,6 +767,33 @@ fn decode_esp32_backtrace(
     elf_analysis::decode_addresses(&elf_path, &addresses)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CoreDumpResult {
+    format: String,
+    size_bytes: usize,
+    frames: Vec<elf_analysis::DecodedFrame>,
+}
+
+/// Decodes a pasted ESP32 UART core dump (Debug tab) — base64-decodes the
+/// blob, scans it for candidate code addresses, and resolves each against
+/// the project's `.elf`. See `flash::coredump`'s module doc for the
+/// heuristic nature of the address scan.
+#[tauri::command]
+fn decode_esp32_core_dump(elf_path: String, text: String) -> Result<CoreDumpResult, String> {
+    let scan = flash::coredump::analyze_core_dump(&text)?;
+    let frames = if scan.candidate_addresses.is_empty() {
+        Vec::new()
+    } else {
+        elf_analysis::decode_addresses(&elf_path, &scan.candidate_addresses)?
+    };
+    Ok(CoreDumpResult {
+        format: scan.format,
+        size_bytes: scan.size_bytes,
+        frames,
+    })
+}
+
 /// Reads the curated set of security-relevant eFuses (flash encryption /
 /// secure boot / JTAG / UART-download) for the chip on `port` — read-only,
 /// safe to call any time.
@@ -1996,6 +2023,7 @@ pub fn run() {
             parse_esp32_partition_table,
             parse_elf_memory_map,
             decode_esp32_backtrace,
+            decode_esp32_core_dump,
             esp32_efuse_summary,
             esp32_burn_efuse,
             bundled_boot_app0_path,

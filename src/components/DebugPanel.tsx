@@ -3,8 +3,10 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useTranslation } from 'react-i18next'
 import {
   decodeEsp32Backtrace,
+  decodeEsp32CoreDump,
   openInEditor,
   parseElfMemoryMap,
+  type CoreDumpResult,
   type DecodedFrame,
   type MemoryMap,
 } from '../api/flash'
@@ -40,6 +42,10 @@ export function DebugPanel() {
   const [frames, setFrames] = useState<DecodedFrame[] | null>(null)
   const [decodeBusy, setDecodeBusy] = useState(false)
   const [decodeError, setDecodeError] = useState<string | null>(null)
+  const [coreDumpText, setCoreDumpText] = useState('')
+  const [coreDump, setCoreDump] = useState<CoreDumpResult | null>(null)
+  const [coreDumpBusy, setCoreDumpBusy] = useState(false)
+  const [coreDumpError, setCoreDumpError] = useState<string | null>(null)
   const clearPendingBacktraceText = useDebugHandoffStore((s) => s.clearPendingBacktraceText)
 
   // One-shot consumption of the monitor's right-click handoff (see
@@ -92,6 +98,54 @@ export function DebugPanel() {
       setDecodeBusy(false)
     }
   }
+
+  const handleDecodeCoreDump = async () => {
+    setCoreDumpBusy(true)
+    setCoreDumpError(null)
+    try {
+      setCoreDump(await decodeEsp32CoreDump(elfPath, coreDumpText))
+    } catch (err) {
+      setCoreDumpError(String(err))
+    } finally {
+      setCoreDumpBusy(false)
+    }
+  }
+
+  const frameTable = (rows: DecodedFrame[]) => (
+    <div className="debug-table-wrap">
+      <table className="debug-table">
+        <thead>
+          <tr>
+            <th>{t('debug.crashDecoder.address')}</th>
+            <th>{t('debug.crashDecoder.function')}</th>
+            <th>{t('debug.crashDecoder.location')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((f, i) => (
+            <tr key={i}>
+              <td className="mono">{formatAddress(f.address)}</td>
+              <td className="mono">{f.function ?? t('debug.crashDecoder.unknown')}</td>
+              <td className="mono">
+                {f.file ? (
+                  <button
+                    type="button"
+                    className="debug-frame-location"
+                    title={t('debug.crashDecoder.openInEditor')}
+                    onClick={() => handleOpenInEditor(f)}
+                  >
+                    {f.file}:{f.line ?? '?'}
+                  </button>
+                ) : (
+                  '—'
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 
   const maxSectionSize = memoryMap ? Math.max(...memoryMap.sections.map((s) => s.size), 1) : 1
 
@@ -194,40 +248,40 @@ export function DebugPanel() {
           </button>
         </div>
         {decodeError && <p className="connect-error">{decodeError}</p>}
-        {frames && (
-          <div className="debug-table-wrap">
-            <table className="debug-table">
-              <thead>
-                <tr>
-                  <th>{t('debug.crashDecoder.address')}</th>
-                  <th>{t('debug.crashDecoder.function')}</th>
-                  <th>{t('debug.crashDecoder.location')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {frames.map((f, i) => (
-                  <tr key={i}>
-                    <td className="mono">{formatAddress(f.address)}</td>
-                    <td className="mono">{f.function ?? t('debug.crashDecoder.unknown')}</td>
-                    <td className="mono">
-                      {f.file ? (
-                        <button
-                          type="button"
-                          className="debug-frame-location"
-                          title={t('debug.crashDecoder.openInEditor')}
-                          onClick={() => handleOpenInEditor(f)}
-                        >
-                          {f.file}:{f.line ?? '?'}
-                        </button>
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {frames && frameTable(frames)}
+      </div>
+
+      <div className="debug-section">
+        <h4>{t('debug.coreDump.heading')}</h4>
+        <p className="ota-hint">{t('debug.coreDump.hint')}</p>
+        <textarea
+          className="debug-backtrace-input"
+          value={coreDumpText}
+          placeholder={t('debug.coreDump.placeholder')}
+          onChange={(e) => setCoreDumpText(e.target.value)}
+        />
+        <div className="flash-actions">
+          <button
+            type="button"
+            className="connect-button"
+            disabled={!elfPath || !coreDumpText.trim() || coreDumpBusy}
+            onClick={() => void handleDecodeCoreDump()}
+          >
+            {coreDumpBusy ? <Spinner /> : <SearchIcon />} {t('debug.coreDump.decode')}
+          </button>
+        </div>
+        {coreDumpError && <p className="connect-error">{coreDumpError}</p>}
+        {coreDump && (
+          <>
+            <p className="debug-coredump-summary">
+              {t('debug.coreDump.summary', {
+                format: coreDump.format,
+                size: coreDump.sizeBytes,
+                count: coreDump.frames.length,
+              })}
+            </p>
+            {coreDump.frames.length > 0 && frameTable(coreDump.frames)}
+          </>
         )}
       </div>
     </div>

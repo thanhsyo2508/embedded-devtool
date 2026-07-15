@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { getVersion } from '@tauri-apps/api/app'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { useTranslation } from 'react-i18next'
 import './App.css'
@@ -35,10 +36,12 @@ import { ToastStack } from './components/ToastStack'
 import { NotificationBell } from './components/NotificationBell'
 import { RecentConnectionsMenu } from './components/RecentConnectionsMenu'
 import { CommandPalette, type PaletteCommand } from './components/CommandPalette'
+import { buildDiagnosticBundle } from './lib/diagnosticBundle'
 import { GlobalSearchPanel } from './components/GlobalSearchPanel'
 import { ShortcutOverlay } from './components/ShortcutOverlay'
 import { OnboardingScreen } from './components/OnboardingScreen'
 import { LogComparePanel } from './components/LogComparePanel'
+import { BroadcastSendPanel } from './components/BroadcastSendPanel'
 import { useSearchHandoffStore } from './state/searchHandoffStore'
 import { useMqttStore } from './state/mqttStore'
 import { useUdpStore } from './state/udpStore'
@@ -88,6 +91,7 @@ function App() {
   const [showGlobalSearch, setShowGlobalSearch] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showLogCompare, setShowLogCompare] = useState(false)
+  const [showBroadcast, setShowBroadcast] = useState(false)
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
@@ -194,6 +198,26 @@ function App() {
   const focusedTab = focusedPane
     ? (tabs.find((tab) => tab.id === focusedPane.activeTabId) ?? null)
     : null
+
+  const handleExportDiagnostics = async () => {
+    const path = await save({
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      defaultPath: `edt-diagnostics-${new Date().toISOString().slice(0, 10)}.json`,
+    })
+    if (!path) return
+    try {
+      const version = await getVersion().catch(() => 'unknown')
+      const bundle = buildDiagnosticBundle({
+        version,
+        platform: navigator.userAgent,
+        tabs: useTabsStore.getState().tabs,
+        settings: useSettingsStore.getState() as unknown as Record<string, unknown>,
+      })
+      await invoke('write_text_file', { path, contents: bundle })
+    } catch (err) {
+      window.alert(String(err))
+    }
+  }
 
   const handleSaveProject = async () => {
     const hasPlotterConfig =
@@ -387,6 +411,18 @@ function App() {
         run: () => setShowLogCompare(true),
       },
       {
+        id: 'broadcast-send',
+        category: navigate,
+        label: t('broadcast.title'),
+        run: () => setShowBroadcast(true),
+      },
+      {
+        id: 'export-diagnostics',
+        category: project,
+        label: t('diagnostics.export'),
+        run: () => void handleExportDiagnostics(),
+      },
+      {
         id: 'netscan',
         category: navigate,
         label: t('app.topbar.networkScanner'),
@@ -507,6 +543,7 @@ function App() {
       if (e.key === 'Escape') {
         if (showShortcuts) setShowShortcuts(false)
         else if (showLogCompare) setShowLogCompare(false)
+        else if (showBroadcast) setShowBroadcast(false)
         else if (showPalette) setShowPalette(false)
         else if (showGlobalSearch) setShowGlobalSearch(false)
         else if (showSettings) setShowSettings(false)
@@ -608,6 +645,7 @@ function App() {
     showGlobalSearch,
     showShortcuts,
     showLogCompare,
+    showBroadcast,
     hasAnyTabs,
     plotVisible,
     closeTab,
@@ -757,6 +795,7 @@ function App() {
       )}
       {showShortcuts && <ShortcutOverlay onClose={() => setShowShortcuts(false)} />}
       {showLogCompare && <LogComparePanel onClose={() => setShowLogCompare(false)} />}
+      {showBroadcast && <BroadcastSendPanel onClose={() => setShowBroadcast(false)} />}
       {!onboardingDone && <OnboardingScreen onDismiss={() => setOnboardingDone(true)} />}
       <ToastStack />
     </div>

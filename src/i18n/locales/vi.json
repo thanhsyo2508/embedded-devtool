@@ -5,14 +5,17 @@
     "commandPalette": {
       "heading": "Command Palette",
       "p1": "Bấm <kbd>Ctrl+K</kbd> (hoặc icon terminal-prompt trên thanh top bar) để mở — gõ để lọc mọi hành động cấp cao (kết nối mới, mở/lưu dự án, bật/tắt biểu đồ, Flash/FTP/Plugin/Cài đặt, đóng/xóa tab đang focus...) rồi bấm <kbd>Enter</kbd> để chạy lệnh đang bôi đậm, hoặc bấm chuột vào 1 kết quả bất kỳ. Phím mũi tên để di chuyển lựa chọn, <kbd>Esc</kbd> để đóng.",
-      "p2": "Lệnh nào có phím tắt sẽ hiện phím tắt đó bên phải — danh sách này lấy trực tiếp từ chính các hành động mà phím tắt kích hoạt, nên luôn chính xác kể cả khi có panel mới được thêm vào."
+      "p2": "Lệnh nào có phím tắt sẽ hiện phím tắt đó bên phải — danh sách này lấy trực tiếp từ chính các hành động mà phím tắt kích hoạt, nên luôn chính xác kể cả khi có panel mới được thêm vào.",
+      "p3": "Nhấn <kbd>?</kbd> ở bất kỳ đâu ngoài 1 ô nhập liệu để mở ngay danh sách phím tắt tương tự, không cần qua palette hay Cài đặt.",
+      "p4": "1 vài hành động chỉ có trong palette chứ không có nút riêng trên thanh công cụ: <b>Tìm trong mọi tab</b> (<kbd>Ctrl+Shift+G</kbd>, tìm trong buffer của mọi tab đang mở cùng lúc thay vì chỉ tab đang focus), <b>Gửi broadcast</b> (gửi 1 lệnh tới nhiều kết nối đang mở cùng lúc — hữu ích cho dây chuyền sản xuất), <b>So sánh log</b> (diff song song 2 log, dán vào hoặc nạp từ 1 tab đang mở, highlight dòng thêm/bớt), và <b>Xuất gói chẩn đoán</b> (1 bản chụp JSON gồm phiên bản app, cài đặt, và log gần đây của từng tab để báo lỗi — mật khẩu/token/PIN được ẩn đi trước)."
     },
     "layout": {
       "heading": "Bố cục nhiều pane (Snap Layouts)",
       "p1": "Kéo 1 tab bằng nhãn của nó và thả vào cạnh trái/phải/trên/dưới của vùng nội dung 1 pane bất kỳ để chia đôi không gian làm việc và xem 2 tab cạnh nhau — thả vào cạnh 1 pane đã có tiếp tục chia nhỏ hơn nữa, lồng bao nhiêu hàng/cột tùy ý. Một đường chia mảnh xuất hiện giữa các pane; kéo nó để đổi kích thước.",
       "p2": "Để gộp pane lại, kéo 1 tab thả vào thanh tab của pane khác (hoặc thả vào giữa vùng nội dung của pane đó thay vì cạnh) — tab sẽ chuyển tới đó, và nếu đó là tab cuối cùng của pane cũ, pane trống và phần chia đó tự động biến mất. Bấm vào bất kỳ đâu trong 1 pane sẽ focus nó, đây chính là thứ mà <kbd>Ctrl+1</kbd>-<kbd>9</kbd>, <kbd>Ctrl+W</kbd>, <kbd>Ctrl+L</kbd>, và <kbd>Space</kbd> tác động vào.",
       "p3": "Biểu đồ (Plotter) dùng chung cho cả cửa sổ thay vì nằm trong 1 pane riêng — bật/tắt nó từ thanh trên cùng và chọn tab nguồn từ dropdown riêng của nó, bất kể tab đó đang hiển thị ở pane nào.",
-      "p4": "Mỗi tab hiện 1 icon nhỏ cho họ kết nối (serial / mạng / terminal / SWD), tô màu theo trạng thái — xanh lá đang kết nối, xám đã ngắt, đỏ lỗi. <b>Chuột phải</b> vào 1 tab để <b>Đổi tên</b> (đặt tên dễ hiểu như \"Board cảm biến\" thay vì \"COM3 · 115200\"; được lưu trong project profile), <b>Ngắt kết nối</b>/<b>Kết nối lại</b>, <b>Nhân bản</b> (mở tab thứ 2 cùng thiết lập), và <b>Đóng</b> / <b>Đóng các tab khác</b>. Kéo 1 tab qua trái/phải vượt các tab lân cận trong cùng thanh để đổi thứ tự."
+      "p4": "Mỗi tab hiện 1 icon nhỏ cho họ kết nối (serial / mạng / terminal / SWD), tô màu theo trạng thái — xanh lá đang kết nối, xám đã ngắt, đỏ lỗi. <b>Chuột phải</b> vào 1 tab để <b>Đổi tên</b> (đặt tên dễ hiểu như \"Board cảm biến\" thay vì \"COM3 · 115200\"; được lưu trong project profile), <b>Ngắt kết nối</b>/<b>Kết nối lại</b>, <b>Nhân bản</b> (mở tab thứ 2 cùng thiết lập), và <b>Đóng</b> / <b>Đóng các tab khác</b>. Kéo 1 tab qua trái/phải vượt các tab lân cận trong cùng thanh để đổi thứ tự.",
+      "p5": "Cùng menu chuột phải đó còn có bộ chọn <b>màu</b> và <b>emoji</b> — chọn 1 trong 2 (hoặc cả 2) để phân biệt nhanh các tab trông giống nhau; cả 2 đều được lưu trong project profile giống như đổi tên. Icon đồng hồ ở đầu thanh trên cùng (thay vì 1 danh sách luôn hiện trong panel Kết nối mới) giữ <b>Kết nối gần đây</b> — bấm vào, chọn 1 mục, và nó kết nối lại ngay với cấu hình của kết nối đó."
     },
     "monitor": {
       "heading": "Serial Monitor",
@@ -21,10 +24,11 @@
       "li2": "<b>delta / abs / off</b> — timestamp tương đối so với dòng đầu tiên, giờ thực, hoặc ẩn đi.",
       "li3": "<b>Pause</b> (hoặc <kbd>Space</kbd>) đóng băng khung nhìn mà không mất dữ liệu đến — Resume cho biết có bao nhiêu dòng đã đến trong lúc tạm dừng.",
       "li4": "Icon đĩa bắt đầu ghi log dữ liệu thô + timestamp ra file, xoay vòng ở mốc 50 MB (chỉ áp dụng cho kết nối serial).",
-      "li5": "Các dòng khớp định dạng log phổ biến (ESP-IDF <code>E (328) wifi: ...</code>, <code>[ERROR]</code>, hoặc tiền tố <code>WARN:</code>) sẽ tự tô màu theo mức độ — không cần cấu hình gì, chạy song song với filter/search.",
+      "li5": "Các dòng khớp định dạng log phổ biến (ESP-IDF <code>E (328) wifi: ...</code>, <code>[ERROR]</code>, hoặc tiền tố <code>WARN:</code>) sẽ tự tô màu theo mức độ — không cần cấu hình gì, chạy song song với filter/search. Mã màu ANSI trong chính output của thiết bị (vd macro log tô màu của ESP-IDF/Zephyr) cũng được hiển thị đúng màu, thay vì hiện thành ký tự điều khiển rác.",
       "li6": "Thanh dưới cùng của monitor hiển thị bytes/s, lines/s, số lỗi, và thời gian hoạt động (uptime) theo thời gian thực cho tab đó.",
       "li7": "Mọi thứ bạn gửi (Send panel, quick command, macro, script) đều được ghi lại vào log như 1 dòng riêng — đánh dấu bằng <b>»</b> và hiển thị màu accent, còn <b>«</b> là dòng nhận từ thiết bị — nên yêu cầu và phản hồi luôn nằm cùng bộ đệm, đúng thứ tự.",
-      "li8": "<b>Bấm chuột phải</b> vào phần đang bôi đen (hoặc vào 1 dòng nếu chưa bôi đen gì) để dùng các hành động nhanh: Sao chép, tìm trong buffer, thêm làm bộ lọc, hoặc — nếu trông giống crash backtrace — <b>Giải mã crash backtrace</b>, tự động nhảy thẳng tới tab Debug với nội dung đã dán sẵn.",
+      "li8": "<b>Bấm chuột phải</b> vào phần đang bôi đen (hoặc vào 1 dòng nếu chưa bôi đen gì) để dùng các hành động nhanh: Sao chép, tìm trong buffer, thêm làm bộ lọc, <b>Xem byte</b> (giải mã thành int8/16/32/64, float32/64, ASCII, và nhị phân, theo cả 2 chiều byte), <b>Định dạng JSON/CSV</b> (pretty-print hoặc căn cột trong 1 popup), hoặc — nếu trông giống crash backtrace — <b>Giải mã crash backtrace</b>, tự động nhảy thẳng tới tab Debug với nội dung đã dán sẵn.",
+      "li9": "Các icon feature-rail bên phải còn có <b>Trình dựng khung</b> (dựng 1 khung nhị phân từ các trường hex/text/số nguyên cộng 1 trường độ dài và CRC tự tính, rồi gửi đi) và <b>Bảng điều khiển</b> (tự phát hiện các trường <code>key=value</code>/<code>key: value</code>/JSON phẳng trong stream và hiện giá trị mới nhất của từng cái dạng lưới widget trực tiếp). Cạnh nút Gửi, icon đồng hồ lặp lại nội dung đang gõ theo 1 khoảng thời gian — 1 kiểu heartbeat/poll đơn giản, không cần script — cho tới khi bấm lại để dừng.",
       "autoReconnect": "Bật <b>Auto-reconnect</b> khi kết nối qua serial để tab tự mở lại khi thiết bị bị rút ra rồi cắm lại (khớp theo vendor/product id USB + số serial, không phải theo tên cổng của hệ điều hành, thứ có thể thay đổi). Nếu kết nối bị rớt, dùng <b>Disconnect</b>/<b>Reconnect</b> ngay trong tab — cổng COM, baud rate và các thiết lập khác vẫn được giữ nguyên."
     },
     "network": {
@@ -43,7 +47,8 @@
       "p1": "Chọn <b>SSH</b> trong panel Kết nối mới và nhập host, port, username, password. Khác với các loại kết nối khác, 1 tab SSH mở ra 1 terminal tương tác thật (1 PTY, hiển thị bằng terminal emulator thật) thay vì monitor theo dòng — không có nút chuyển raw-log, không có Send panel, và không có filter/trigger/script engine, vì tất cả những thứ đó đều giả định 1 luồng các dòng rời rạc chứ không phải 1 shell sống. Terminal tự đổi kích thước (và báo cho shell từ xa) mỗi khi pane của nó đổi kích thước, kể cả khi bạn chia/gộp pane.",
       "p2": "Khi 1 tab SSH đang được focus, <kbd>Ctrl+W</kbd> và <kbd>Ctrl+L</kbd> sẽ đi tới shell (xóa từ / xóa màn hình) thay vì bị app bắt làm phím tắt đóng-tab / xóa-log. Dán bằng <kbd>Ctrl+V</kbd> hoặc chuột phải — cả 2 đều đọc trực tiếp từ clipboard hệ thống thay vì dựa vào paste gốc của trình duyệt, thứ không đáng tin cậy trong webview của app. Chọn văn bản sẽ tự động copy (không cần phím tắt, vì <kbd>Ctrl+C</kbd> gửi SIGINT tới shell từ xa) — double-click chọn 1 từ, triple-click chọn cả dòng.",
       "p3": "1 terminal không có khái niệm \"click để di chuyển con trỏ giữa dòng lệnh\" như 1 trình soạn thảo văn bản — shell từ xa (không phải app này) sở hữu dòng lệnh bạn đang gõ, nên chỉnh sửa nó hoạt động giống mọi terminal khác: <kbd>Home</kbd>/<kbd>End</kbd>, <kbd>Ctrl+←</kbd>/<kbd>Ctrl+→</kbd> để nhảy theo từ, và <kbd>Ctrl+A</kbd>/<kbd>Ctrl+E</kbd> để nhảy tới đầu/cuối dòng.",
-      "p4": "2 hạn chế hiện tại cần biết: xác thực chỉ hỗ trợ mật khẩu (chưa có xác thực bằng key), và host key chưa được xác minh theo danh sách known-hosts — key của bất kỳ server nào cũng được chấp nhận, nên hiện chưa an toàn trước 1 kẻ tấn công man-in-the-middle giả mạo host."
+      "p4": "2 hạn chế hiện tại cần biết: xác thực chỉ hỗ trợ mật khẩu (chưa có xác thực bằng key), và host key chưa được xác minh theo danh sách known-hosts — key của bất kỳ server nào cũng được chấp nhận, nên hiện chưa an toàn trước 1 kẻ tấn công man-in-the-middle giả mạo host.",
+      "p5": "Nếu kết nối bị rớt, tab hiện ngay 1 ô mật khẩu và nút <b>Kết nối lại</b> tại chỗ — không cần đóng tab rồi kết nối lại từ đầu qua Kết nối mới. Tích <b>Ghi nhớ</b> cạnh đó để lưu mật khẩu vào kho lưu trữ thông tin đăng nhập của hệ điều hành (Windows Credential Manager / macOS Keychain / Linux Secret Service) để nó tự động được điền lại sau khi khởi động lại app; tính năng này tùy chọn và tắt theo mặc định."
     },
     "modbus": {
       "heading": "RS485 &amp; Modbus RTU",
@@ -66,7 +71,8 @@
     "search": {
       "heading": "Tìm kiếm &amp; Đánh dấu",
       "p1": "Nhấn <kbd>Ctrl+F</kbd> để mở thanh tìm kiếm regex trong bộ đệm. <kbd>Enter</kbd> / <kbd>Shift+Enter</kbd> nhảy tới kết quả tiếp theo/trước đó; <kbd>Escape</kbd> đóng lại. Tìm kiếm chạy trên những gì filter hiện đang áp dụng, nên bạn có thể thu hẹp bằng filter trước rồi tìm trong tập con đó.",
-      "p2": "Bấm icon đánh dấu trên bất kỳ dòng nào (hoặc dùng action trigger <b>Bookmark line</b>, xem Triggers bên dưới) để đánh dấu nó. Mũi tên đánh dấu trên thanh công cụ nhảy giữa các dòng đã đánh dấu theo thứ tự — tiện để đánh dấu vài khoảnh khắc đáng chú ý trong 1 lần ghi dài và quay lại xem mà không phải đọc lại hết."
+      "p2": "Bấm icon đánh dấu trên bất kỳ dòng nào (hoặc dùng action trigger <b>Bookmark line</b>, xem Triggers bên dưới) để đánh dấu nó. Mũi tên đánh dấu trên thanh công cụ nhảy giữa các dòng đã đánh dấu theo thứ tự — tiện để đánh dấu vài khoảnh khắc đáng chú ý trong 1 lần ghi dài và quay lại xem mà không phải đọc lại hết.",
+      "p3": "Để tìm xuyên suốt mọi tab đang mở thay vì chỉ tab này, dùng <kbd>Ctrl+Shift+G</kbd> (xem Command Palette ở trên)."
     },
     "sendMacro": {
       "heading": "Send Panel &amp; Macro Recorder",
@@ -120,6 +126,7 @@
       "heading": "Plugin",
       "intro": "1 <b>plugin</b> là 1 file Lua có tên, tái sử dụng được — khác với script (1 ô code tự do cho mỗi tab), cài plugin 1 lần từ nút <b>Plugin</b> trên thanh công cụ, sau đó bật cho bất kỳ tab nào từ nút Plugin của chính tab đó; nhiều plugin có thể chạy cùng lúc trên 1 tab. 1 plugin định nghĩa đúng 1 hàm thuần và không có <code>send</code>/<code>wait_for</code>/<code>timer</code> — nó chỉ mô tả cách đọc dữ liệu, không bao giờ điều khiển thiết bị.",
       "manifest": "Manifest chỉ là các dòng comment <code>-- key: value</code> ở đầu file — <code>name</code> (bắt buộc), <code>kind</code> (bắt buộc, <code>decoder</code> hoặc <code>plotter-parser</code>), và <code>version</code>/<code>description</code> tùy chọn. Không có file manifest riêng, nên cài plugin chỉ là chọn 1 file <code>.lua</code>.",
+      "installUrl": "Cạnh nút chọn file, 1 ô URL cho phép cài plugin thẳng từ 1 link tới file <code>.lua</code> thô thay vì phải tự tải về trước.",
       "decoderLabel": "Plugin <b>decoder</b> định nghĩa <code>decode(line)</code>, trả về 1 bảng field hiển thị trực tiếp trong panel Plugin của tab đó:",
       "plotterLabel": "Plugin <b>plotter parser</b> định nghĩa <code>parse(line)</code>, trả về các cặp <code>{ channel = number, ... }</code> đưa thẳng vào biểu đồ, giống hệt <code>plot(...)</code> của script:",
       "attachNote": "Lỗi của riêng 1 plugin (pattern sai, sai kiểu trả về) hiển thị ngay cạnh checkbox của nó trong panel Plugin thay vì làm dừng cả tab — 1 dòng lỗi không làm sập cả plugin."
@@ -159,7 +166,8 @@
       "heading": "Debug (bản đồ bộ nhớ + giải mã crash)",
       "p1": "1 mục thứ 4 trong panel nạp, đọc trực tiếp file <code>.elf</code> của build — chính file mà build đã tạo ra sẵn, không cần file <code>.map</code> riêng, không cần cài toolchain nào (như <code>xtensa-esp32-elf-addr2line</code>). Hoạt động như nhau cho ESP32 Xtensa hay RISC-V, hoặc STM32/ARM, vì debug info DWARF và section header ELF không phụ thuộc kiến trúc.",
       "p2": "<b>Bản đồ bộ nhớ</b> — chọn <code>.elf</code> rồi bấm <b>Phân tích</b> để xem dung lượng flash/RAM theo từng section, sắp xếp lớn nhất trước. Flash bytes = text+rodata+data (những gì được ghi vào file binary); RAM bytes = data+bss (những gì chiếm bộ nhớ lúc chạy) — được phân loại từ type/flags thực của section header, nên vẫn chính xác kể cả với tên section không chuẩn của ESP-IDF như <code>.iram0.text</code>.",
-      "p3": "<b>Giải mã crash</b> — dán output crash của thiết bị (vd dòng <code>Backtrace: 0x400d1e2d:0x3ffb9f30 ...</code> từ Guru Meditation Error) rồi bấm <b>Giải mã</b> để dịch từng địa chỉ thành tên hàm và file:dòng, dùng chung debug info của <code>.elf</code> đó. Chỉ nửa PC của mỗi cặp địa chỉ được giải mã (nửa SP không phải địa chỉ code); địa chỉ không có debug info khớp vẫn hiện ra, chỉ là không có tên hàm/vị trí."
+      "p3": "<b>Giải mã crash</b> — dán output crash của thiết bị (vd dòng <code>Backtrace: 0x400d1e2d:0x3ffb9f30 ...</code> từ Guru Meditation Error) rồi bấm <b>Giải mã</b> để dịch từng địa chỉ thành tên hàm và file:dòng, dùng chung debug info của <code>.elf</code> đó. Chỉ nửa PC của mỗi cặp địa chỉ được giải mã (nửa SP không phải địa chỉ code); địa chỉ không có debug info khớp vẫn hiện ra, chỉ là không có tên hàm/vị trí. Bấm vào 1 file:dòng đã giải mã để mở thẳng trong VS Code (qua CLI <code>code</code>).",
+      "p4": "<b>Giải mã core dump</b> — dán khối base64 mà thiết bị in ra khi panic (<code>CONFIG_ESP_COREDUMP_ENABLE_TO_UART</code> của ESP-IDF), có hoặc không có marker <code>CORE DUMP START</code>/<code>END</code>, rồi bấm <b>Giải mã core dump</b>. Nó được decode và quét tìm các giá trị trông giống địa chỉ code, mỗi cái được resolve theo cùng file <code>.elf</code> như phần giải mã crash ở trên. Đây là 1 lượt quét theo heuristic chứ không phải unwinder đầy đủ, nên sẽ có nhiễu bên cạnh các frame thật — coi đây là điểm khởi đầu, không phải 1 stack trace chắc chắn đúng."
     },
     "ftp": {
       "heading": "FTP Client/Server",
@@ -174,7 +182,9 @@
       "uart": "<b>UART bootloader</b> — cho board không có ST-Link; đưa MCU vào chế độ bootloader qua BOOT0 trước.",
       "optionBytes": "Ghi option byte (vd mức RDP) cần 1 hộp thoại xác nhận rõ ràng — đọc kỹ trước khi xác nhận, vì 1 số thiết lập có thể ảnh hưởng vĩnh viễn tới quyền truy cập debug.",
       "security": "Phần <b>Bảo mật</b> giải thích rõ ràng 3 mức Readout Protection chuẩn thay vì tên option byte thô: Mức 0 (không bảo vệ), Mức 1 (có thể hoàn tác — hạ về Mức 0 bằng cách xóa toàn bộ chip), và Mức 2 (vĩnh viễn — không bao giờ hoàn tác được). Mức 2 yêu cầu gõ <code>LOCK</code> để xác nhận, ngoài hộp thoại thông thường. Bộ chỉnh option byte thô theo tên/giá trị bên dưới vẫn còn cho các field mà phần Bảo mật chưa chọn lọc (vd Write Protection theo từng dòng chip), vì tên field khác nhau quá nhiều giữa các họ STM32 để chọn lọc an toàn.",
-      "massProduction": "1 chế độ thứ 2 bên cạnh Đơn lẻ, <b>Sản xuất hàng loạt</b>, nạp cùng 1 firmware cho nhiều board liên tiếp — chọn offset/độ dài byte trong binary và định dạng giá trị (số thập phân ASCII zero-pad, hoặc byte hex thô), mỗi thiết bị được vá 1 bộ đếm tự tăng trước khi nạp (chỉ vá 1 bản sao, file gốc không bao giờ bị đụng tới). <b>Nạp & Cấu hình</b> làm từng thiết bị 1: cắm 1 board, bấm, chờ, rút ra, cắm board tiếp theo, lặp lại. Mọi lần thử đều được ghi log (giá trị, pass/fail) kèm xuất CSV, và cũng đưa vào tổng số của tab <b>Thống kê</b>."
+      "massProduction": "1 chế độ thứ 2 bên cạnh Đơn lẻ, <b>Sản xuất hàng loạt</b>, nạp cùng 1 firmware cho nhiều board liên tiếp — chọn offset/độ dài byte trong binary và định dạng giá trị (số thập phân ASCII zero-pad, hoặc byte hex thô), mỗi thiết bị được vá 1 bộ đếm tự tăng trước khi nạp (chỉ vá 1 bản sao, file gốc không bao giờ bị đụng tới). <b>Nạp & Cấu hình</b> làm từng thiết bị 1: cắm 1 board, bấm, chờ, rút ra, cắm board tiếp theo, lặp lại. Mọi lần thử đều được ghi log (giá trị, pass/fail) kèm xuất CSV, và cũng đưa vào tổng số của tab <b>Thống kê</b>.",
+      "pathAndAddress": "Ô đường dẫn file firmware giờ nhận cả gõ/dán đường dẫn ngoài Browse. Chọn 1 file <code>.hex</code> sẽ tự điền địa chỉ từ chính các bản ghi nhúng trong file (1 file <code>.bin</code> không mang thông tin này, nên vẫn cần tự gõ địa chỉ). STM32_Programmer_CLI cũng chạy mà không hiện cửa sổ console riêng nữa.",
+      "writeMemory": "Phần <b>Ghi bộ nhớ</b> (bên dưới Option bytes) ghi nội dung bất kỳ — văn bản, byte hex, số thập phân, hoặc JSON — vào 1 địa chỉ, độc lập với file firmware ở trên: chọn loại nội dung và 1 địa chỉ, rồi <b>Ghi</b>. Nội dung được lưu vào 1 file tạm nhỏ và nạp giống hệt như nạp 1 file firmware đầy đủ."
     },
     "flashLock": {
       "heading": "Khóa nạp (PIN)",
@@ -345,6 +355,7 @@
     "macro": "Macro",
     "macroRecording": "Macro (đang ghi)",
     "frameBuilder": "Trình dựng khung",
+    "dashboard": "Bảng điều khiển",
     "modbusMaster": "Modbus Master",
     "modbusSlave": "Modbus Slave",
     "modbusSlaveListening": "Modbus Slave (đang lắng nghe)",
@@ -355,10 +366,19 @@
       "searchForThis": "Tìm trong buffer",
       "addFilter": "Thêm làm bộ lọc",
       "inspectBytes": "Xem byte",
+      "formatStructured": "Định dạng JSON/CSV",
       "decodeBacktrace": "Giải mã crash backtrace",
       "addBookmark": "Đánh dấu",
       "removeBookmark": "Bỏ đánh dấu"
     }
+  },
+  "dashboard": {
+    "empty": "Chưa phát hiện telemetry. Phần này hiện giá trị mới nhất của các trường key=value, key: value, hoặc JSON phẳng mà thiết bị gửi."
+  },
+  "structured": {
+    "json": "JSON đã định dạng",
+    "csv": "CSV căn cột",
+    "raw": "Văn bản"
   },
   "dataInspector": {
     "title": "Bộ xem dữ liệu",
@@ -440,6 +460,15 @@
     "hint": "Gõ để tìm xuyên suốt mọi tab đang mở, không chỉ tab hiện tại.",
     "noMatches": "Không có dòng nào khớp trong bất kỳ tab nào."
   },
+  "diagnostics": {
+    "export": "Xuất gói chẩn đoán"
+  },
+  "broadcast": {
+    "title": "Gửi broadcast",
+    "hint": "Gửi một lệnh tới nhiều kết nối đang mở cùng lúc — hữu ích cho dây chuyền sản xuất hoặc test nhiều node.",
+    "noOpenTabs": "Không có kết nối nào đang mở để gửi.",
+    "send": "Gửi tới {{count}}"
+  },
   "logCompare": {
     "title": "So sánh log",
     "left": "Log A",
@@ -486,6 +515,13 @@
       "location": "Vị trí",
       "unknown": "(không có debug info)",
       "openInEditor": "Mở trong VS Code"
+    },
+    "coreDump": {
+      "heading": "Giải mã core dump",
+      "hint": "Dán khối core dump base64 mà thiết bị in ra khi panic (CONFIG_ESP_COREDUMP_ENABLE_TO_UART), có hoặc không có marker CORE DUMP START/END. Các địa chỉ tìm được trong dump sẽ được resolve theo file .elf ở trên — đây là quét theo heuristic nên sẽ có nhiễu bên cạnh các frame thật.",
+      "placeholder": "================= CORE DUMP START =================\n<base64>\n================= CORE DUMP END =================",
+      "decode": "Giải mã core dump",
+      "summary": "Định dạng: {{format}} · {{size}} byte · {{count}} frame ứng viên"
     }
   },
   "productionStats": {
@@ -903,7 +939,10 @@
     "checksumTitle": "Thêm checksum vào mỗi tin gửi (bỏ qua ký tự xuống dòng ở trên khi đang bật)",
     "hexPlaceholder": "vd. 01 02 FF",
     "textPlaceholder": "Nhập lệnh và nhấn Enter",
-    "button": "Gửi"
+    "button": "Gửi",
+    "intervalTitle": "Khoảng lặp (ms)",
+    "startRepeat": "Gửi lặp lại theo khoảng này",
+    "stopRepeat": "Dừng gửi lặp"
   },
   "common": {
     "none": "Không",
@@ -918,6 +957,7 @@
     "browse": "Duyệt",
     "refresh": "Làm mới",
     "dismiss": "Bỏ qua",
+    "copy": "Sao chép",
     "typeToConfirm": "Gõ {{keyword}} để xác nhận — thao tác này không thể hoàn tác."
   },
   "security": {

@@ -103,6 +103,18 @@ export function openInEditor(file: string, line?: number | null): Promise<void> 
   return invoke('open_in_editor', { file, line: line ?? undefined })
 }
 
+export interface CoreDumpResult {
+  format: string
+  sizeBytes: number
+  frames: DecodedFrame[]
+}
+
+/** Decodes a pasted ESP32 UART core dump against the `.elf` — see the Rust
+ * `flash::coredump` module for the heuristic address scan. */
+export function decodeEsp32CoreDump(elfPath: string, text: string): Promise<CoreDumpResult> {
+  return invoke('decode_esp32_core_dump', { elfPath, text })
+}
+
 /** Writes the bundled `boot_app0.bin` (see THIRD_PARTY_NOTICES.md) to a temp
  * file and returns its path — used by "Smart add" when an OTA-capable
  * partition table needs an `otadata` image the user's build output didn't

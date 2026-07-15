@@ -5,14 +5,17 @@
     "commandPalette": {
       "heading": "Command Palette",
       "p1": "Press <kbd>Ctrl+K</kbd> (or the terminal-prompt icon in the top bar) to open it — type to filter every top-level action (new connection, open/save project, toggle the plotter, Flash/FTP/Plugins/Settings, close/clear the focused tab...) and press <kbd>Enter</kbd> to run the highlighted one, or click any result. Arrow keys move the selection, <kbd>Esc</kbd> closes it.",
-      "p2": "Every entry that has a keyboard shortcut shows it on the right — this list is generated from the same actions the shortcuts trigger, so it's always accurate even as new panels get added."
+      "p2": "Every entry that has a keyboard shortcut shows it on the right — this list is generated from the same actions the shortcuts trigger, so it's always accurate even as new panels get added.",
+      "p3": "Press <kbd>?</kbd> anywhere outside a text field to pop the same shortcut list open directly, without going through the palette or Settings.",
+      "p4": "A few actions only live in the palette rather than a toolbar button: <b>Search all tabs</b> (<kbd>Ctrl+Shift+G</kbd>, searches every open tab's buffer at once instead of just the focused one), <b>Broadcast send</b> (send one command to several open connections at the same time — useful on a production bench), <b>Compare logs</b> (a side-by-side diff of two logs, pasted or loaded from an open tab, with added/removed lines highlighted), and <b>Export diagnostics bundle</b> (a JSON snapshot of the app version, settings, and each tab's recent log for a bug report — passwords/tokens/PINs are redacted first)."
     },
     "layout": {
       "heading": "Multi-pane Layout (Snap Layouts)",
       "p1": "Drag a tab by its label and drop it on the left/right/top/bottom edge of any pane's content area to split the workspace and view two tabs side by side — drop on the edge of an existing pane again to split it further, nesting as many rows/columns as you need. A thin divider appears between panes; drag it to resize.",
       "p2": "To merge panes back, drag a tab onto another pane's tab strip (or drop it in the middle of that pane's content area instead of an edge) — the tab moves there, and if that was the last tab in its old pane, the now-empty pane and its split collapse away automatically. Clicking anywhere in a pane focuses it, which is what <kbd>Ctrl+1</kbd>-<kbd>9</kbd>, <kbd>Ctrl+W</kbd>, <kbd>Ctrl+L</kbd>, and <kbd>Space</kbd> act on.",
       "p3": "The Plotter is shared across the whole window rather than living inside one pane — toggle it from the top bar and pick its source tab from its own dropdown regardless of which pane that tab is currently showing in.",
-      "p4": "Each tab shows a small icon for its connection family (serial / network / terminal / SWD), coloured by status — green connected, grey disconnected, red error. <b>Right-click</b> a tab for <b>Rename</b> (give it a meaningful name like \"Sensor board\" instead of \"COM3 · 115200\"; it's saved in a project profile), <b>Disconnect</b>/<b>Reconnect</b>, <b>Duplicate</b> (opens a second tab with the same settings), and <b>Close</b> / <b>Close others</b>. Drag a tab left/right past its neighbours in the same strip to reorder it."
+      "p4": "Each tab shows a small icon for its connection family (serial / network / terminal / SWD), coloured by status — green connected, grey disconnected, red error. <b>Right-click</b> a tab for <b>Rename</b> (give it a meaningful name like \"Sensor board\" instead of \"COM3 · 115200\"; it's saved in a project profile), <b>Disconnect</b>/<b>Reconnect</b>, <b>Duplicate</b> (opens a second tab with the same settings), and <b>Close</b> / <b>Close others</b>. Drag a tab left/right past its neighbours in the same strip to reorder it.",
+      "p5": "The same right-click menu has a <b>color</b> and <b>emoji</b> picker too — pick either (or both) to tell similar-looking tabs apart at a glance; both are saved in a project profile the same as a rename. The clock icon at the left of the top bar (rather than an always-visible list in the New Connection panel) holds <b>Recent Connections</b> — click it, pick an entry, and it reconnects immediately with that connection's settings."
     },
     "monitor": {
       "heading": "Serial Monitor",
@@ -21,10 +24,11 @@
       "li2": "<b>delta / abs / off</b> — timestamp relative to the first line, wall-clock time, or hidden.",
       "li3": "<b>Pause</b> (or <kbd>Space</kbd>) freezes the view without losing incoming data — Resume shows how many lines arrived while paused.",
       "li4": "The disk icon starts logging raw + timestamped output to a file, rotated at 50 MB (serial connections only).",
-      "li5": "Lines matching common log formats (ESP-IDF's <code>E (328) wifi: ...</code>, <code>[ERROR]</code>, or a plain <code>WARN:</code> prefix) are auto-colored by level — no setup needed, this runs alongside filters/search.",
+      "li5": "Lines matching common log formats (ESP-IDF's <code>E (328) wifi: ...</code>, <code>[ERROR]</code>, or a plain <code>WARN:</code> prefix) are auto-colored by level — no setup needed, this runs alongside filters/search. ANSI color codes in the device's own output (e.g. ESP-IDF/Zephyr's colored log macros) are rendered too, instead of showing up as garbage control characters.",
       "li6": "The bar at the bottom of the monitor shows live bytes/s, lines/s, error count, and uptime for the tab.",
       "li7": "Everything you send (Send panel, quick commands, macros, scripts) is echoed into the log as its own line — marked with a <b>»</b> and shown in the accent color, vs <b>«</b> for lines received from the device — so a request and its reply both show up in the same buffer, in order.",
-      "li8": "<b>Right-click</b> a selection (or a line, if nothing's selected) for quick actions: Copy, search the buffer for it, add it as a filter, or — if it looks like a crash backtrace — <b>Decode as crash backtrace</b>, which jumps straight to the Debug tab's crash decoder with the text already pasted in.",
+      "li8": "<b>Right-click</b> a selection (or a line, if nothing's selected) for quick actions: Copy, search the buffer for it, add it as a filter, <b>Inspect bytes</b> (decode it as int8/16/32/64, float32/64, ASCII, and binary, in either endianness), <b>Format JSON/CSV</b> (pretty-print or column-align it in a popup), or — if it looks like a crash backtrace — <b>Decode as crash backtrace</b>, which jumps straight to the Debug tab's crash decoder with the text already pasted in.",
+      "li9": "The feature-rail icons on the right also open a <b>Frame builder</b> (compose a binary frame from hex/text/integer fields plus an auto-computed length and CRC, then send it) and a <b>Dashboard</b> (auto-discovers <code>key=value</code>/<code>key: value</code>/flat-JSON fields in the stream and shows the latest value of each as a live widget grid). Next to the Send button, the clock icon repeats whatever's typed there on an interval — a simple heartbeat/poll, no script needed — until clicked again to stop.",
       "autoReconnect": "Enable <b>Auto-reconnect</b> when connecting over serial to have the tab reopen automatically if the device is unplugged and replugged (matched by USB vendor/product id + serial number, not the OS port name, which can change). If the connection drops, use <b>Disconnect</b>/<b>Reconnect</b> in the tab — your COM port, baud rate, and other settings stay filled in."
     },
     "network": {
@@ -43,7 +47,8 @@
       "p1": "Pick <b>SSH</b> in the New connection panel and enter host, port, username, and password. Unlike the other connection kinds, an SSH tab opens a real interactive terminal (a PTY, rendered with an actual terminal emulator) instead of a line-oriented monitor — there's no raw-log toggle, no Send panel, and no filters/triggers/script engine, since those all assume a stream of discrete lines rather than a live shell. The terminal resizes itself (and tells the remote shell) whenever its pane changes size, including when you split or merge panes.",
       "p2": "While an SSH tab is focused, <kbd>Ctrl+W</kbd> and <kbd>Ctrl+L</kbd> go to the shell (delete word / clear screen) instead of being caught as the app's close-tab / clear-log shortcuts. Paste with <kbd>Ctrl+V</kbd> or right-click — both read from the system clipboard directly rather than relying on the browser's native paste, which isn't reliable inside the app's webview. Selecting text copies it automatically (no keyboard shortcut needed, since <kbd>Ctrl+C</kbd> sends SIGINT to the remote shell instead) — double-click selects a word, triple-click a whole line.",
       "p3": "A terminal has no concept of \"click to move the cursor mid-command\" the way a text editor does — the remote shell (not this app) owns the command line you're typing, so editing it works the same as any other terminal: <kbd>Home</kbd>/<kbd>End</kbd>, <kbd>Ctrl+←</kbd>/<kbd>Ctrl+→</kbd> to jump by word, and <kbd>Ctrl+A</kbd>/<kbd>Ctrl+E</kbd> to jump to the start/end of the line.",
-      "p4": "Two current limitations worth knowing: authentication is password-only (no key-based auth yet), and the host key isn't verified against a known-hosts list — any server's key is accepted, so this isn't yet safe against an on-path attacker impersonating the host."
+      "p4": "Two current limitations worth knowing: authentication is password-only (no key-based auth yet), and the host key isn't verified against a known-hosts list — any server's key is accepted, so this isn't yet safe against an on-path attacker impersonating the host.",
+      "p5": "If a connection drops, the tab shows an inline password field and <b>Reconnect</b> button right there — no need to close the tab and reconnect from scratch via New Connection. Tick <b>Remember</b> next to it to save that password in the OS's own credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service) so it's offered again automatically after an app restart; it's opt-in and off by default."
     },
     "modbus": {
       "heading": "RS485 &amp; Modbus RTU",
@@ -66,7 +71,8 @@
     "search": {
       "heading": "Search &amp; Bookmarks",
       "p1": "Press <kbd>Ctrl+F</kbd> to open an in-buffer regex search bar. <kbd>Enter</kbd> / <kbd>Shift+Enter</kbd> jump to the next/previous match; <kbd>Escape</kbd> closes it. Search runs over whatever filters currently have applied, so you can narrow down with a filter first and search within that subset.",
-      "p2": "Click the bookmark icon on any line (or use a <b>Bookmark line</b> trigger action, see Triggers below) to mark it. The bookmark arrows in the toolbar jump between marked lines in order — handy for flagging a handful of interesting moments in a long capture and revisiting them without re-reading everything in between."
+      "p2": "Click the bookmark icon on any line (or use a <b>Bookmark line</b> trigger action, see Triggers below) to mark it. The bookmark arrows in the toolbar jump between marked lines in order — handy for flagging a handful of interesting moments in a long capture and revisiting them without re-reading everything in between.",
+      "p3": "To search across every open tab at once instead of just this one, use <kbd>Ctrl+Shift+G</kbd> (see Command Palette above)."
     },
     "sendMacro": {
       "heading": "Send Panel &amp; Macro Recorder",
@@ -120,6 +126,7 @@
       "heading": "Plugins",
       "intro": "A <b>plugin</b> is a named, reusable Lua file — unlike a script (one free-form slot per tab), install a plugin once from the <b>Plugins</b> button in the top bar, then enable it on any tab from that tab's own Plugins button; several plugins can run on the same tab at once. A plugin defines exactly one pure function and has no <code>send</code>/<code>wait_for</code>/<code>timer</code> — it only describes how to read data, never drives the device.",
       "manifest": "The manifest is just leading <code>-- key: value</code> comment lines at the top of the file — <code>name</code> (required), <code>kind</code> (required, <code>decoder</code> or <code>plotter-parser</code>), and optional <code>version</code>/<code>description</code>. No separate manifest file, so installing a plugin is picking one <code>.lua</code> file.",
+      "installUrl": "Next to the file picker, a URL field installs a plugin straight from a link to a raw <code>.lua</code> file instead of downloading it yourself first.",
       "decoderLabel": "A <b>decoder</b> plugin defines <code>decode(line)</code>, returning a table of fields shown live in that tab's Plugins panel:",
       "plotterLabel": "A <b>plotter parser</b> plugin defines <code>parse(line)</code>, returning <code>{ channel = number, ... }</code> pairs fed straight into the plotter, the same as a script's <code>plot(...)</code>:",
       "attachNote": "A plugin's own errors (bad pattern, wrong return type) show inline next to its checkbox in the Plugins panel rather than stopping the whole tab — one bad line doesn't take the plugin down."
@@ -159,7 +166,8 @@
       "heading": "Debug (memory map + crash decoder)",
       "p1": "A fourth flash-panel target that reads a build's <code>.elf</code> file directly — the same one a build already produces, no separate <code>.map</code> file and no bundled toolchain binary (like <code>xtensa-esp32-elf-addr2line</code>) needed. Works the same for Xtensa or RISC-V ESP32 variants, or STM32/ARM, since DWARF debug info and ELF section headers aren't architecture-specific.",
       "p2": "<b>Memory map</b> — pick the <code>.elf</code> and click <b>Analyze</b> to see flash/RAM usage broken down by section, sorted largest first. Flash bytes are text+rodata+data (anything written into the binary); RAM bytes are data+bss (anything resident at runtime) — classified from the section header's actual type/flags, so it stays accurate even for ESP-IDF's non-standard section names like <code>.iram0.text</code>.",
-      "p3": "<b>Crash decoder</b> — paste a device's crash output (e.g. a <code>Backtrace: 0x400d1e2d:0x3ffb9f30 ...</code> line from a Guru Meditation Error) and click <b>Decode</b> to resolve each address to a function name and file:line, using the same <code>.elf</code>'s debug info. Only the PC half of each address pair is resolved (the SP half isn't a code address); addresses with no matching debug info still show up, just without a function/location."
+      "p3": "<b>Crash decoder</b> — paste a device's crash output (e.g. a <code>Backtrace: 0x400d1e2d:0x3ffb9f30 ...</code> line from a Guru Meditation Error) and click <b>Decode</b> to resolve each address to a function name and file:line, using the same <code>.elf</code>'s debug info. Only the PC half of each address pair is resolved (the SP half isn't a code address); addresses with no matching debug info still show up, just without a function/location. Click a resolved file:line to open it directly in VS Code (via the <code>code</code> CLI).",
+      "p4": "<b>Core dump decoder</b> — paste the base64 blob a device prints on panic (ESP-IDF's <code>CONFIG_ESP_COREDUMP_ENABLE_TO_UART</code>), with or without the <code>CORE DUMP START</code>/<code>END</code> markers, and click <b>Decode core dump</b>. It's decoded and scanned for values that look like code addresses, each resolved against the same <code>.elf</code> as the crash decoder above. This is a heuristic scan rather than a full unwinder, so expect some noise alongside the real frames — treat it as a starting point, not a definitive stack trace."
     },
     "ftp": {
       "heading": "FTP Client/Server",
@@ -174,7 +182,9 @@
       "uart": "<b>UART bootloader</b> — for boards without one; put the MCU in bootloader mode via BOOT0 first.",
       "optionBytes": "Option-byte writes (e.g. RDP level) require an explicit confirmation dialog — read it before confirming, as some settings can permanently affect debug access.",
       "security": "The <b>Security</b> section gives the three standard Readout Protection levels clear explanations instead of raw option-byte names: Level 0 (no protection), Level 1 (reversible — revert by mass-erasing back to Level 0), and Level 2 (permanent — cannot be undone, ever). Level 2 requires typing <code>LOCK</code> to confirm, on top of the usual dialog. The raw name/value option-byte editor below it still exists for fields Security doesn't curate (e.g. per-family Write Protection), since field names vary too much between STM32 families to curate safely.",
-      "massProduction": "A second mode next to Single, <b>Mass Production</b>, flashes the same firmware to many boards in a row — pick a byte offset/length in the binary and a value format (zero-padded ASCII decimal, or raw hex bytes), and each device gets an auto-incrementing counter patched in before it's flashed (a copy is patched, the original file is never touched). <b>Flash & Provision</b> does one device at a time: plug a board, click it, wait, unplug, plug the next, repeat. Every attempt is logged (value, pass/fail) with a CSV export, and also feeds the <b>Stats</b> tab's totals."
+      "massProduction": "A second mode next to Single, <b>Mass Production</b>, flashes the same firmware to many boards in a row — pick a byte offset/length in the binary and a value format (zero-padded ASCII decimal, or raw hex bytes), and each device gets an auto-incrementing counter patched in before it's flashed (a copy is patched, the original file is never touched). <b>Flash & Provision</b> does one device at a time: plug a board, click it, wait, unplug, plug the next, repeat. Every attempt is logged (value, pass/fail) with a CSV export, and also feeds the <b>Stats</b> tab's totals.",
+      "pathAndAddress": "The firmware-file field accepts a typed/pasted path in addition to Browse. Selecting a <code>.hex</code> file auto-fills the address from the file's own embedded records (a <code>.bin</code> carries no such information, so that one still needs the address typed in). STM32_Programmer_CLI also runs without popping up its own console window now.",
+      "writeMemory": "The <b>Write memory</b> section (below Option bytes) writes arbitrary content — text, hex bytes, a decimal integer, or JSON — to a single address, independent of the firmware file above: pick a content type and an address, then <b>Write</b>. The content is staged into a small temp file and flashed the same way a full firmware image would be."
     },
     "flashLock": {
       "heading": "Flash Lock (PIN)",
@@ -348,6 +358,7 @@
     "macro": "Macro",
     "macroRecording": "Macro (recording)",
     "frameBuilder": "Frame builder",
+    "dashboard": "Dashboard",
     "modbusMaster": "Modbus Master",
     "modbusSlave": "Modbus Slave",
     "modbusSlaveListening": "Modbus Slave (listening)",
@@ -358,10 +369,19 @@
       "searchForThis": "Search buffer for this",
       "addFilter": "Add as filter",
       "inspectBytes": "Inspect bytes",
+      "formatStructured": "Format JSON/CSV",
       "decodeBacktrace": "Decode as crash backtrace",
       "addBookmark": "Add bookmark",
       "removeBookmark": "Remove bookmark"
     }
+  },
+  "dashboard": {
+    "empty": "No telemetry detected yet. This shows the latest value of any key=value, key: value, or flat-JSON fields the device sends."
+  },
+  "structured": {
+    "json": "Formatted JSON",
+    "csv": "Aligned CSV",
+    "raw": "Text"
   },
   "dataInspector": {
     "title": "Data inspector",
@@ -443,6 +463,15 @@
     "hint": "Type to search across every open tab, not just the current one.",
     "noMatches": "No matching lines in any open tab."
   },
+  "diagnostics": {
+    "export": "Export diagnostics bundle"
+  },
+  "broadcast": {
+    "title": "Broadcast send",
+    "hint": "Send one command to several open connections at once — useful on a production bench or a multi-node test.",
+    "noOpenTabs": "No open connections to send to.",
+    "send": "Send to {{count}}"
+  },
   "logCompare": {
     "title": "Compare logs",
     "left": "Log A",
@@ -489,6 +518,13 @@
       "location": "Location",
       "unknown": "(no debug info)",
       "openInEditor": "Open in VS Code"
+    },
+    "coreDump": {
+      "heading": "Core dump decoder",
+      "hint": "Paste the base64 core dump the device prints on panic (CONFIG_ESP_COREDUMP_ENABLE_TO_UART), with or without the CORE DUMP START/END markers. Candidate addresses found in the dump are resolved against the .elf above — this is a heuristic scan, so expect some noise alongside the real frames.",
+      "placeholder": "================= CORE DUMP START =================\n<base64>\n================= CORE DUMP END =================",
+      "decode": "Decode core dump",
+      "summary": "Format: {{format}} · {{size}} bytes · {{count}} candidate frame(s)"
     }
   },
   "productionStats": {
@@ -910,7 +946,10 @@
     "checksumTitle": "Appends a checksum to every sent message (suppresses the line ending above when active)",
     "hexPlaceholder": "e.g. 01 02 FF",
     "textPlaceholder": "Type a command and press Enter",
-    "button": "Send"
+    "button": "Send",
+    "intervalTitle": "Repeat interval (ms)",
+    "startRepeat": "Send repeatedly at this interval",
+    "stopRepeat": "Stop repeating"
   },
   "common": {
     "none": "None",
@@ -925,6 +964,7 @@
     "browse": "Browse",
     "refresh": "Refresh",
     "dismiss": "Dismiss",
+    "copy": "Copy",
     "typeToConfirm": "Type {{keyword}} to confirm — this cannot be undone."
   },
   "security": {
