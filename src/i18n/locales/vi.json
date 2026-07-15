@@ -1009,6 +1009,8 @@
     "bufferSizePlotter": "Kích thước bộ đệm biểu đồ (điểm/kênh)",
     "newline": "Ký tự xuống dòng",
     "fontSize": "Cỡ chữ hiển thị",
+    "uiScale": "Tỷ lệ giao diện",
+    "uiScaleHint": "Phóng to/thu nhỏ toàn bộ giao diện — chữ, icon, khoảng cách — không chỉ riêng chữ log của monitor.",
     "keepAwake": "Giữ màn hình luôn sáng",
     "restApi": {
       "title": "REST API cục bộ",

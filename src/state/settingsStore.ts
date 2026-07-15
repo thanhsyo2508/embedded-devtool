@@ -17,6 +17,12 @@ export const FONT_SIZE_PX: Record<FontSize, string> = {
 export const MAX_LINES_OPTIONS = [1_000, 10_000, 50_000, 100_000, 500_000] as const
 export const PLOT_MAX_POINTS_OPTIONS = [5_000, 10_000, 50_000, 100_000, 500_000] as const
 
+// A percentage, applied to the whole UI (text, icons, spacing — everything)
+// via CSS zoom, not just the monitor's log text like fontSize above.
+export const UI_SCALE_MIN = 80
+export const UI_SCALE_MAX = 150
+export const UI_SCALE_STEP = 5
+
 // Web Crypto is already available in the Tauri webview — no need for a
 // backend round trip just to generate a random bearer token.
 function generateToken(): string {
@@ -34,6 +40,10 @@ interface SettingsState {
   plotMaxPoints: number
   newline: NewlineMode
   fontSize: FontSize
+  /** Percentage (80-150) applied to the whole UI via CSS zoom — see
+   * UI_SCALE_MIN/MAX/STEP above. Separate from fontSize, which only
+   * affects the monitor's log text. */
+  uiScale: number
   theme: Theme
   /** Custom accent color (any CSS color) overriding the theme's default
    * accent in both light and dark; empty string means follow the theme's
@@ -64,6 +74,7 @@ interface SettingsState {
   setPlotMaxPoints: (v: number) => void
   setNewline: (v: NewlineMode) => void
   setFontSize: (v: FontSize) => void
+  setUiScale: (v: number) => void
   setTheme: (v: Theme) => void
   setAccentColor: (v: string) => void
   setKeepAwake: (v: boolean) => void
@@ -84,6 +95,7 @@ export const useSettingsStore = create<SettingsState>()(
       plotMaxPoints: 50_000,
       newline: 'lf',
       fontSize: 'medium',
+      uiScale: 100,
       theme: 'system',
       accentColor: '',
       keepAwake: false,
@@ -99,6 +111,8 @@ export const useSettingsStore = create<SettingsState>()(
       setPlotMaxPoints: (plotMaxPoints) => set({ plotMaxPoints }),
       setNewline: (newline) => set({ newline }),
       setFontSize: (fontSize) => set({ fontSize }),
+      setUiScale: (uiScale) =>
+        set({ uiScale: Math.min(UI_SCALE_MAX, Math.max(UI_SCALE_MIN, uiScale)) }),
       setTheme: (theme) => set({ theme }),
       setAccentColor: (accentColor) => set({ accentColor }),
       setKeepAwake: (keepAwake) => set({ keepAwake }),

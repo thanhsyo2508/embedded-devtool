@@ -95,6 +95,7 @@ function App() {
 
   const theme = useSettingsStore((s) => s.theme)
   const fontSize = useSettingsStore((s) => s.fontSize)
+  const uiScale = useSettingsStore((s) => s.uiScale)
   const accentColor = useSettingsStore((s) => s.accentColor)
   const onboardingDone = useSettingsStore((s) => s.onboardingDone)
   const setOnboardingDone = useSettingsStore((s) => s.setOnboardingDone)
@@ -151,6 +152,14 @@ function App() {
   useEffect(() => {
     document.documentElement.style.setProperty('--log-font-size', FONT_SIZE_PX[fontSize])
   }, [fontSize])
+
+  // Scales the whole UI (text, icons, spacing) via CSS zoom on the app
+  // root, not just the monitor's log text — for users who find the default
+  // size too small overall, with a wider range than the 3-step Font Size
+  // preset above.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--ui-scale', `${uiScale}%`)
+  }, [uiScale])
 
   // A custom accent wins over the stylesheet's per-theme --accent (inline
   // styles beat stylesheet rules), so it applies in both light and dark;

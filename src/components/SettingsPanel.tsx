@@ -7,6 +7,9 @@ import { useTranslation } from 'react-i18next'
 import {
   MAX_LINES_OPTIONS,
   PLOT_MAX_POINTS_OPTIONS,
+  UI_SCALE_MAX,
+  UI_SCALE_MIN,
+  UI_SCALE_STEP,
   useSettingsStore,
   type Encoding,
   type FontSize,
@@ -196,6 +199,21 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
                 A
               </span>
             ))}
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <span title={t('settings.uiScaleHint')}>{t('settings.uiScale')}</span>
+          <div className="ui-scale-control">
+            <input
+              type="range"
+              min={UI_SCALE_MIN}
+              max={UI_SCALE_MAX}
+              step={UI_SCALE_STEP}
+              value={settings.uiScale}
+              onChange={(e) => settings.setUiScale(Number(e.target.value))}
+            />
+            <span className="mono ui-scale-value">{settings.uiScale}%</span>
           </div>
         </div>
 

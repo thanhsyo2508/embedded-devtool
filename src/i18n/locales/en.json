@@ -1016,6 +1016,8 @@
     "bufferSizePlotter": "Plotter buffer size (points/channel)",
     "newline": "Newline Character",
     "fontSize": "Display font size",
+    "uiScale": "UI scale",
+    "uiScaleHint": "Scales the whole interface — text, icons, spacing — not just the monitor's log text.",
     "keepAwake": "Keep screen always bright",
     "restApi": {
       "title": "Local REST API",
