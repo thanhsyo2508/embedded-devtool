@@ -244,11 +244,19 @@ impl PortManager {
     }
 
     pub fn open(&self, req: OpenPortRequest) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        if ports.contains_key(&req.id) {
-            return Err(format!("port id '{}' is already open", req.id));
+        {
+            let ports = self.ports.lock().unwrap();
+            if ports.contains_key(&req.id) {
+                return Err(format!("port id '{}' is already open", req.id));
+            }
         }
 
+        // list_ports() (a full OS port enumeration) and stream.open() (the
+        // actual driver open call) can both be slow. Neither touches the
+        // ports map, so they must run with no lock held — this same lock is
+        // needed every 16ms by drain_open_ports() for every other open port,
+        // and holding it here would stall that port's live data (and any
+        // other port's write/close) for as long as this open takes.
         let usb_id = serial_stream::list_ports()
             .ok()
             .and_then(|list| list.into_iter().find(|p| p.port_name == req.port_name))
@@ -264,6 +272,15 @@ impl PortManager {
         let mut stream = SerialStream::new(config.clone());
         match stream.open() {
             Ok(()) => {
+                let mut ports = self.ports.lock().unwrap();
+                if ports.contains_key(&req.id) {
+                    // Raced with another open() of the same id while we were
+                    // opening the device with no lock held; close what we
+                    // just opened and preserve the original "already open"
+                    // error instead of clobbering the winner's entry.
+                    let _ = stream.close();
+                    return Err(format!("port id '{}' is already open", req.id));
+                }
                 ports.insert(
                     req.id.clone(),
                     ManagedPort {
@@ -442,44 +459,61 @@ pub fn spawn_reconnect_watcher(manager: Arc<PortManager>) -> thread::JoinHandle<
         };
         let available_usb_ids: Vec<UsbId> = available.iter().filter_map(usb_id_of).collect();
 
-        let mut ports = manager.ports.lock().unwrap();
-        for (id, mp) in ports.iter_mut() {
-            if !mp.auto_reconnect {
-                continue;
+        // Phase 1: cheap bookkeeping only, under the lock. Detecting a lost
+        // device and closing its (now-dead) stream is fast, bounded by the
+        // reader thread's read timeout — safe to do here. Reopening a device
+        // is not: SerialStream::open() can block for a while, and must not
+        // happen while this lock — needed every 16ms by drain_open_ports()
+        // for every other port — is held, or one flaky device stalls every
+        // other port's live data for as long as the reopen takes.
+        let mut to_reopen: Vec<(String, SerialConfig)> = Vec::new();
+        {
+            let mut ports = manager.ports.lock().unwrap();
+            for (id, mp) in ports.iter_mut() {
+                if !mp.auto_reconnect {
+                    continue;
+                }
+                match &mp.state {
+                    PortState::Open => {
+                        if let Some(usb_id) = &mp.usb_id {
+                            if !available_usb_ids.contains(usb_id) {
+                                let _ = mp.stream.close();
+                                let message = "device disconnected".to_string();
+                                mp.state = PortState::Error {
+                                    message: message.clone(),
+                                };
+                                manager.event_bus.publish(Event::Error {
+                                    stream_id: id.clone(),
+                                    message,
+                                });
+                            }
+                        }
+                    }
+                    PortState::Error { .. } => {
+                        let Some(usb_id) = &mp.usb_id else { continue };
+                        if let Some(found) = available
+                            .iter()
+                            .find(|p| usb_id_of(p).as_ref() == Some(usb_id))
+                        {
+                            mp.config.port_name = found.port_name.clone();
+                            to_reopen.push((id.clone(), mp.config.clone()));
+                        }
+                    }
+                }
             }
-            match &mp.state {
-                PortState::Open => {
-                    if let Some(usb_id) = &mp.usb_id {
-                        if !available_usb_ids.contains(usb_id) {
-                            let _ = mp.stream.close();
-                            let message = "device disconnected".to_string();
-                            mp.state = PortState::Error {
-                                message: message.clone(),
-                            };
-                            manager.event_bus.publish(Event::Error {
-                                stream_id: id.clone(),
-                                message,
-                            });
-                        }
-                    }
+        }
+
+        // Phase 2: the actual reopen attempts, with no lock held, so a slow
+        // or flaky device doesn't stall drain_open_ports() or any other port.
+        for (id, config) in to_reopen {
+            let mut new_stream = SerialStream::new(config);
+            if new_stream.open().is_ok() {
+                let mut ports = manager.ports.lock().unwrap();
+                if let Some(mp) = ports.get_mut(&id) {
+                    mp.stream = new_stream;
+                    mp.state = PortState::Open;
                 }
-                PortState::Error { .. } => {
-                    let Some(usb_id) = &mp.usb_id else { continue };
-                    if let Some(found) = available
-                        .iter()
-                        .find(|p| usb_id_of(p).as_ref() == Some(usb_id))
-                    {
-                        mp.config.port_name = found.port_name.clone();
-                        let mut new_stream = SerialStream::new(mp.config.clone());
-                        if new_stream.open().is_ok() {
-                            mp.stream = new_stream;
-                            mp.state = PortState::Open;
-                            manager.event_bus.publish(Event::PortOpened {
-                                stream_id: id.clone(),
-                            });
-                        }
-                    }
-                }
+                manager.event_bus.publish(Event::PortOpened { stream_id: id });
             }
         }
     })
