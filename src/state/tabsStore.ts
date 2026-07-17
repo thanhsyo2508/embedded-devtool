@@ -1162,9 +1162,16 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
           firstLineAtMs: t.firstLineAtMs ?? atMs,
         }
         if (historyEntry.length === 0) return withTx
+        // Re-sending something already in history moves it to the front
+        // instead of adding a duplicate, so repeating a command doesn't
+        // bury older distinct ones behind a run of identical entries that
+        // Up-arrow would otherwise have to step through one at a time.
         const withHistory = {
           ...withTx,
-          sendHistory: [historyEntry, ...withTx.sendHistory].slice(0, 100),
+          sendHistory: [
+            historyEntry,
+            ...withTx.sendHistory.filter((entry) => entry !== historyEntry),
+          ].slice(0, 100),
         }
         if (!t.macroRecording) return withHistory
         const delayMs = t.macroLastStepAtMs === null ? 0 : now - t.macroLastStepAtMs
