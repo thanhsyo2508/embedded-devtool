@@ -223,8 +223,19 @@ struct ManagedPort {
     logger: Option<LogWriter>,
 }
 
+// Each port gets its own lock instead of every port sharing one map-wide
+// Mutex. The outer `ports` lock now only ever guards the map's *shape*
+// (which ids exist) and is held just long enough to look up or clone an
+// Arc handle — never across a slow per-port operation (an OS open/close
+// call, a disk write for logging). That's a structural guarantee rather
+// than a convention every method has to individually remember: a slow or
+// flaky device can only ever contend its own lock, so it can no longer
+// stall drain_open_ports() (needed every 16ms by every other open port's
+// live data) or any other port's write/close/logging.
+type SharedPort = Arc<Mutex<ManagedPort>>;
+
 pub struct PortManager {
-    ports: Mutex<HashMap<String, ManagedPort>>,
+    ports: Mutex<HashMap<String, SharedPort>>,
     event_bus: EventBus,
 }
 
@@ -243,6 +254,22 @@ impl PortManager {
             .collect())
     }
 
+    /// Snapshot of `(id, port handle)` pairs, taken under the outer lock
+    /// just long enough to clone the Arcs — never held while touching an
+    /// individual port afterward.
+    fn snapshot(&self) -> Vec<(String, SharedPort)> {
+        self.ports
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(id, port)| (id.clone(), port.clone()))
+            .collect()
+    }
+
+    fn get(&self, id: &str) -> Option<SharedPort> {
+        self.ports.lock().unwrap().get(id).cloned()
+    }
+
     pub fn open(&self, req: OpenPortRequest) -> Result<(), String> {
         {
             let ports = self.ports.lock().unwrap();
@@ -253,10 +280,7 @@ impl PortManager {
 
         // list_ports() (a full OS port enumeration) and stream.open() (the
         // actual driver open call) can both be slow. Neither touches the
-        // ports map, so they must run with no lock held — this same lock is
-        // needed every 16ms by drain_open_ports() for every other open port,
-        // and holding it here would stall that port's live data (and any
-        // other port's write/close) for as long as this open takes.
+        // ports map, so they must run with no lock held.
         let usb_id = serial_stream::list_ports()
             .ok()
             .and_then(|list| list.into_iter().find(|p| p.port_name == req.port_name))
@@ -283,14 +307,14 @@ impl PortManager {
                 }
                 ports.insert(
                     req.id.clone(),
-                    ManagedPort {
+                    Arc::new(Mutex::new(ManagedPort {
                         config,
                         stream,
                         state: PortState::Open,
                         usb_id,
                         auto_reconnect: req.auto_reconnect,
                         logger: None,
-                    },
+                    })),
                 );
                 self.event_bus
                     .publish(Event::PortOpened { stream_id: req.id });
@@ -311,10 +335,10 @@ impl PortManager {
     }
 
     pub fn close(&self, id: &str) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        match ports.remove(id) {
-            Some(mut mp) => {
-                let _ = mp.stream.close();
+        let port = self.ports.lock().unwrap().remove(id);
+        match port {
+            Some(port) => {
+                port.lock().unwrap().stream.close().ok();
                 self.event_bus.publish(Event::PortClosed {
                     stream_id: id.to_string(),
                 });
@@ -328,57 +352,58 @@ impl PortManager {
     /// serial handles are released deterministically instead of leaving it
     /// to the OS to clean up whenever the process actually terminates.
     pub fn close_all(&self) {
-        let mut ports = self.ports.lock().unwrap();
-        for (id, mut mp) in ports.drain() {
-            let _ = mp.stream.close();
+        let ports: Vec<(String, SharedPort)> = self.ports.lock().unwrap().drain().collect();
+        for (id, port) in ports {
+            port.lock().unwrap().stream.close().ok();
             self.event_bus.publish(Event::PortClosed { stream_id: id });
         }
     }
 
     pub fn write(&self, id: &str, data: &[u8]) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        match ports.get_mut(id) {
-            Some(mp) if matches!(mp.state, PortState::Open) => {
-                mp.stream.write(data).map_err(|e| e.to_string())
-            }
-            Some(_) => Err(format!("port id '{id}' is not open")),
-            None => Err(format!("port id '{id}' not found")),
+        let port = self
+            .get(id)
+            .ok_or_else(|| format!("port id '{id}' not found"))?;
+        let mut mp = port.lock().unwrap();
+        if !matches!(mp.state, PortState::Open) {
+            return Err(format!("port id '{id}' is not open"));
         }
+        mp.stream.write(data).map_err(|e| e.to_string())
     }
 
     pub fn set_dtr(&self, id: &str, level: bool) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        match ports.get_mut(id) {
-            Some(mp) if matches!(mp.state, PortState::Open) => {
-                mp.stream.set_dtr(level).map_err(|e| e.to_string())
-            }
-            Some(_) => Err(format!("port id '{id}' is not open")),
-            None => Err(format!("port id '{id}' not found")),
+        let port = self
+            .get(id)
+            .ok_or_else(|| format!("port id '{id}' not found"))?;
+        let mut mp = port.lock().unwrap();
+        if !matches!(mp.state, PortState::Open) {
+            return Err(format!("port id '{id}' is not open"));
         }
+        mp.stream.set_dtr(level).map_err(|e| e.to_string())
     }
 
     pub fn set_rts(&self, id: &str, level: bool) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        match ports.get_mut(id) {
-            Some(mp) if matches!(mp.state, PortState::Open) => {
-                mp.stream.set_rts(level).map_err(|e| e.to_string())
-            }
-            Some(_) => Err(format!("port id '{id}' is not open")),
-            None => Err(format!("port id '{id}' not found")),
+        let port = self
+            .get(id)
+            .ok_or_else(|| format!("port id '{id}' not found"))?;
+        let mut mp = port.lock().unwrap();
+        if !matches!(mp.state, PortState::Open) {
+            return Err(format!("port id '{id}' is not open"));
         }
+        mp.stream.set_rts(level).map_err(|e| e.to_string())
     }
 
     pub fn read_signals(&self, id: &str) -> Result<SignalStateDto, String> {
-        let mut ports = self.ports.lock().unwrap();
-        match ports.get_mut(id) {
-            Some(mp) if matches!(mp.state, PortState::Open) => mp
-                .stream
-                .read_signals()
-                .map(SignalStateDto::from)
-                .map_err(|e| e.to_string()),
-            Some(_) => Err(format!("port id '{id}' is not open")),
-            None => Err(format!("port id '{id}' not found")),
+        let port = self
+            .get(id)
+            .ok_or_else(|| format!("port id '{id}' not found"))?;
+        let mut mp = port.lock().unwrap();
+        if !matches!(mp.state, PortState::Open) {
+            return Err(format!("port id '{id}' is not open"));
         }
+        mp.stream
+            .read_signals()
+            .map(SignalStateDto::from)
+            .map_err(|e| e.to_string())
     }
 
     pub fn start_logging(
@@ -387,51 +412,48 @@ impl PortManager {
         directory: PathBuf,
         max_bytes_per_file: u64,
     ) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        let mp = ports
-            .get_mut(id)
+        let port = self
+            .get(id)
             .ok_or_else(|| format!("port id '{id}' not found"))?;
         let config = LogWriterConfig::new(directory, id, max_bytes_per_file);
         let writer = LogWriter::create(config).map_err(|e| e.to_string())?;
-        mp.logger = Some(writer);
+        port.lock().unwrap().logger = Some(writer);
         Ok(())
     }
 
     pub fn stop_logging(&self, id: &str) -> Result<(), String> {
-        let mut ports = self.ports.lock().unwrap();
-        let mp = ports
-            .get_mut(id)
+        let port = self
+            .get(id)
             .ok_or_else(|| format!("port id '{id}' not found"))?;
-        mp.logger = None;
+        port.lock().unwrap().logger = None;
         Ok(())
     }
 
     pub fn is_logging(&self, id: &str) -> bool {
-        self.ports
-            .lock()
-            .unwrap()
-            .get(id)
-            .is_some_and(|mp| mp.logger.is_some())
+        self.get(id)
+            .is_some_and(|port| port.lock().unwrap().logger.is_some())
     }
 
     pub fn states(&self) -> Vec<(String, PortState)> {
-        self.ports
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(id, mp)| (id.clone(), mp.state.clone()))
+        self.snapshot()
+            .into_iter()
+            .map(|(id, port)| (id, port.lock().unwrap().state.clone()))
             .collect()
     }
 
     /// Drains buffered bytes for every currently open port. Called on a
-    /// ~16ms tick by the batch emitter (M1-T1.6) — never per-byte.
+    /// ~16ms tick by the batch emitter (M1-T1.6) — never per-byte. Each
+    /// port is locked individually (see `SharedPort`), so one port's
+    /// logging disk write (or any other per-port slowness) can't delay
+    /// draining any other port on the same tick.
     pub fn drain_open_ports(&self) -> Vec<(String, Vec<u8>)> {
-        self.ports
-            .lock()
-            .unwrap()
-            .iter_mut()
-            .filter(|(_, mp)| matches!(mp.state, PortState::Open))
-            .filter_map(|(id, mp)| {
+        self.snapshot()
+            .into_iter()
+            .filter_map(|(id, port)| {
+                let mut mp = port.lock().unwrap();
+                if !matches!(mp.state, PortState::Open) {
+                    return None;
+                }
                 let bytes = mp.stream.read().unwrap_or_default();
                 if bytes.is_empty() {
                     return None;
@@ -441,7 +463,7 @@ impl PortManager {
                         eprintln!("log write failed for port '{id}': {e}");
                     }
                 }
-                Some((id.clone(), bytes))
+                Some((id, bytes))
             })
             .collect()
     }
@@ -459,45 +481,42 @@ pub fn spawn_reconnect_watcher(manager: Arc<PortManager>) -> thread::JoinHandle<
         };
         let available_usb_ids: Vec<UsbId> = available.iter().filter_map(usb_id_of).collect();
 
-        // Phase 1: cheap bookkeeping only, under the lock. Detecting a lost
-        // device and closing its (now-dead) stream is fast, bounded by the
-        // reader thread's read timeout — safe to do here. Reopening a device
-        // is not: SerialStream::open() can block for a while, and must not
-        // happen while this lock — needed every 16ms by drain_open_ports()
-        // for every other port — is held, or one flaky device stalls every
-        // other port's live data for as long as the reopen takes.
+        // Phase 1: cheap bookkeeping, one port lock at a time — never the
+        // whole map at once, so one port's check can't delay another's.
+        // Detecting a lost device and closing its (now-dead) stream is fast,
+        // bounded by the reader thread's read timeout. Reopening a device is
+        // not: SerialStream::open() can block for a while, so it happens in
+        // phase 2, with no port lock held at all.
         let mut to_reopen: Vec<(String, SerialConfig)> = Vec::new();
-        {
-            let mut ports = manager.ports.lock().unwrap();
-            for (id, mp) in ports.iter_mut() {
-                if !mp.auto_reconnect {
-                    continue;
-                }
-                match &mp.state {
-                    PortState::Open => {
-                        if let Some(usb_id) = &mp.usb_id {
-                            if !available_usb_ids.contains(usb_id) {
-                                let _ = mp.stream.close();
-                                let message = "device disconnected".to_string();
-                                mp.state = PortState::Error {
-                                    message: message.clone(),
-                                };
-                                manager.event_bus.publish(Event::Error {
-                                    stream_id: id.clone(),
-                                    message,
-                                });
-                            }
+        for (id, port) in manager.snapshot() {
+            let mut mp = port.lock().unwrap();
+            if !mp.auto_reconnect {
+                continue;
+            }
+            match &mp.state {
+                PortState::Open => {
+                    if let Some(usb_id) = &mp.usb_id {
+                        if !available_usb_ids.contains(usb_id) {
+                            let _ = mp.stream.close();
+                            let message = "device disconnected".to_string();
+                            mp.state = PortState::Error {
+                                message: message.clone(),
+                            };
+                            manager.event_bus.publish(Event::Error {
+                                stream_id: id.clone(),
+                                message,
+                            });
                         }
                     }
-                    PortState::Error { .. } => {
-                        let Some(usb_id) = &mp.usb_id else { continue };
-                        if let Some(found) = available
-                            .iter()
-                            .find(|p| usb_id_of(p).as_ref() == Some(usb_id))
-                        {
-                            mp.config.port_name = found.port_name.clone();
-                            to_reopen.push((id.clone(), mp.config.clone()));
-                        }
+                }
+                PortState::Error { .. } => {
+                    let Some(usb_id) = &mp.usb_id else { continue };
+                    if let Some(found) = available
+                        .iter()
+                        .find(|p| usb_id_of(p).as_ref() == Some(usb_id))
+                    {
+                        mp.config.port_name = found.port_name.clone();
+                        to_reopen.push((id.clone(), mp.config.clone()));
                     }
                 }
             }
@@ -508,8 +527,8 @@ pub fn spawn_reconnect_watcher(manager: Arc<PortManager>) -> thread::JoinHandle<
         for (id, config) in to_reopen {
             let mut new_stream = SerialStream::new(config);
             if new_stream.open().is_ok() {
-                let mut ports = manager.ports.lock().unwrap();
-                if let Some(mp) = ports.get_mut(&id) {
+                if let Some(port) = manager.get(&id) {
+                    let mut mp = port.lock().unwrap();
                     mp.stream = new_stream;
                     mp.state = PortState::Open;
                 }
