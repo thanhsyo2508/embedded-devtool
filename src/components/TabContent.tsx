@@ -7,7 +7,7 @@ import { QuickCommandsBar } from './QuickCommandsBar'
 import { MqttPanel } from './MqttPanel'
 import { UdpPanel } from './UdpPanel'
 import { WsPanel } from './WsPanel'
-import { SshPanel } from './SshPanel'
+import { SshWorkspacePanel } from './SshWorkspacePanel'
 import { SwdWatchPanel } from './SwdWatchPanel'
 
 // The specialized/raw toggle is per-tab-view, not global — once multiple
@@ -29,7 +29,7 @@ export function TabContent({ tab }: { tab: TabState }) {
   if (tab.connectionKind === 'ssh') {
     // A PTY has no line-oriented "raw log" fallback that would make sense —
     // unlike MQTT/UDP/WS, there's no toggle here.
-    return <SshPanel tab={tab} />
+    return <SshWorkspacePanel tab={tab} />
   }
 
   if (tab.connectionKind === 'rtt') {

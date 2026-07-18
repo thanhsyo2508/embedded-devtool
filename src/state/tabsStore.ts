@@ -23,6 +23,9 @@ import {
   writeNetworkStream,
   type MqttParams,
 } from '../api/network'
+import { sftpDisconnect } from '../api/sftp'
+import { useSftpStore } from './sftpStore'
+import { useSshTerminalsStore } from './sshTerminalsStore'
 import { useSettingsStore, type Encoding, type NewlineMode } from './settingsStore'
 import { detectLogLevel, type LogLevel } from '../lib/logLevel'
 import { matchTriggers } from '../lib/triggers'
@@ -984,6 +987,11 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     )
     if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
     else await closeNetworkStream(id).catch(() => {})
+    if (tab?.connectionKind === 'ssh') {
+      await sftpDisconnect(id).catch(() => {})
+      useSftpStore.getState().disposeSession(id)
+      await useSshTerminalsStore.getState().disposeSession(id)
+    }
     set((state) => {
       const tabs = state.tabs.filter((tab) => tab.id !== id)
       const activeTabId = state.activeTabId === id ? (tabs[0]?.id ?? null) : state.activeTabId
@@ -1006,6 +1014,10 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     )
     if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
     else await closeNetworkStream(id).catch(() => {})
+    if (tab?.connectionKind === 'ssh') {
+      await useSftpStore.getState().disconnectSession(id)
+      await useSshTerminalsStore.getState().disposeSession(id)
+    }
     set((state) => ({
       tabs: state.tabs.map((tab) =>
         tab.id === id

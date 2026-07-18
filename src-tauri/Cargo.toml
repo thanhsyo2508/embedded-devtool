@@ -123,6 +123,7 @@ keyring = { version = "4", default-features = false, features = [
     "apple-native-keyring-store",
     "zbus-secret-service-keyring-store",
 ] }
+russh-sftp = "2.3.0"
 
 [features]
 cli = ["dep:clap", "dep:ctrlc", "dep:serde_yaml"]

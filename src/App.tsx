@@ -5,6 +5,7 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { useTranslation } from 'react-i18next'
 import './App.css'
 import { useTabsStore } from './state/tabsStore'
+import { useSftpStore } from './state/sftpStore'
 import { useLayoutStore } from './state/layoutStore'
 import { findPane, findPaneForTab, makePane, mapTabIds, removeTab } from './lib/layoutTree'
 import {
@@ -69,6 +70,7 @@ function App() {
   const wireUdpEventsOnce = useUdpStore((s) => s.wireEventsOnce)
   const wireWsEventsOnce = useWsStore((s) => s.wireEventsOnce)
   const tabs = useTabsStore((s) => s.tabs)
+  const sftpSessions = useSftpStore((s) => s.sessions)
   const closeTab = useTabsStore((s) => s.closeTab)
   const clearLines = useTabsStore((s) => s.clearLines)
   const togglePause = useTabsStore((s) => s.togglePause)
@@ -501,6 +503,34 @@ function App() {
       })
     }
 
+    // Quick-open for remote files already browsed into an SSH tab's SFTP
+    // sidebar — client-side filter over already-fetched entries only, not a
+    // new recursive backend search (deliberate v1 scope boundary).
+    const remoteFilesCategory = t('commandPalette.category.remoteFiles')
+    for (const tab of tabs) {
+      if (tab.connectionKind !== 'ssh') continue
+      const session = sftpSessions[tab.id]
+      if (!session) continue
+      for (const node of Object.values(session.nodes)) {
+        for (const entry of node.entries ?? []) {
+          if (entry.isDir) continue
+          commands.push({
+            id: `sftp-open-${tab.id}-${entry.path}`,
+            category: remoteFilesCategory,
+            label: t('commandPalette.openRemoteFile', {
+              path: entry.path,
+              label: tab.connectionLabel,
+            }),
+            run: () => {
+              const pane = findPaneForTab(layoutRoot, tab.id)
+              if (pane) setActiveTabInPane(pane.id, tab.id)
+              void useSftpStore.getState().openFile(tab.id, entry)
+            },
+          })
+        }
+      }
+    }
+
     // Capped at 5 — the palette is for quick recall, not a full duplicate
     // of ConnectPanel's Recent list (which shows all of them).
     for (const recent of recentConnections.slice(0, 5)) {
@@ -537,7 +567,7 @@ function App() {
 
     return commands
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, hasAnyTabs, focusedTab, plotVisible, tabs, layoutRoot, recentConnections])
+  }, [t, hasAnyTabs, focusedTab, plotVisible, tabs, layoutRoot, recentConnections, sftpSessions])
 
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
   // Shortcuts that target "the current tab" now act on the focused pane's

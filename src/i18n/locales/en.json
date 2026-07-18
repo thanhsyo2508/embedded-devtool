@@ -253,7 +253,33 @@
     "reconnecting": "Reconnecting…",
     "passwordPlaceholder": "Password",
     "rememberPassword": "Remember",
-    "rememberPasswordHint": "Saves this password in your OS credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service) so it survives an app restart."
+    "rememberPasswordHint": "Saves this password in your OS credential store (Windows Credential Manager / macOS Keychain / Linux Secret Service) so it survives an app restart.",
+    "terminal": "Terminal",
+    "terminalN": "Terminal {{n}}",
+    "terminalCollapse": "Collapse terminal",
+    "terminalExpand": "Expand terminal",
+    "addTerminal": "New terminal",
+    "sftp": {
+      "explorer": "Explorer",
+      "noFileOpen": "No file open. Browse the sidebar and click a file to edit it.",
+      "connecting": "Connecting…",
+      "connectError": "Connect failed — {{message}}",
+      "newFile": "New file…",
+      "newFilePrompt": "New file name?",
+      "newFolder": "New folder…",
+      "newFolderPrompt": "New folder name?",
+      "rename": "Rename…",
+      "renamePrompt": "New name?",
+      "delete": "Delete",
+      "deleteConfirm": "Delete \"{{name}}\"?",
+      "closeUnsavedConfirm": "\"{{name}}\" has unsaved changes. Close anyway?",
+      "upload": "Upload local file…",
+      "refresh": "Refresh",
+      "save": "Save",
+      "saveError": "Save failed — {{message}}",
+      "splitRight": "Split right",
+      "closeGroup": "Close group"
+    }
   },
   "library": {
     "namePrompt": "{{label}} name?",
@@ -430,6 +456,7 @@
     "otaDone": "OTA update complete",
     "otaError": "OTA update failed — {{message}}",
     "ftpTransferError": "FTP transfer failed — {{message}}",
+    "sftpTransferError": "SFTP transfer failed — {{message}}",
     "massProductionDone": "Device #{{counter}} provisioned ({{value}})",
     "massProductionError": "Device #{{counter}} failed — {{message}}"
   },
@@ -449,12 +476,14 @@
     "reconnectTo": "Reconnect: {{label}}",
     "setTheme": "Theme: {{theme}}",
     "setLanguage": "Language: {{language}}",
+    "openRemoteFile": "Open {{path}} ({{label}})",
     "category": {
       "navigate": "Go to",
       "project": "Project",
       "tab": "Tab",
       "recent": "Recent",
-      "preferences": "Preferences"
+      "preferences": "Preferences",
+      "remoteFiles": "Remote files"
     }
   },
   "globalSearch": {

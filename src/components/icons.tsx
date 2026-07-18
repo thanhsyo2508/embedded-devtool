@@ -326,3 +326,12 @@ export function MagicWandIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   )
 }
+
+export function SplitIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M12 4v16" />
+    </Icon>
+  )
+}

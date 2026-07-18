@@ -253,7 +253,33 @@
     "reconnecting": "Đang kết nối lại…",
     "passwordPlaceholder": "Mật khẩu",
     "rememberPassword": "Ghi nhớ",
-    "rememberPasswordHint": "Lưu mật khẩu này vào kho lưu trữ thông tin đăng nhập của hệ điều hành (Windows Credential Manager / macOS Keychain / Linux Secret Service) để không mất khi khởi động lại app."
+    "rememberPasswordHint": "Lưu mật khẩu này vào kho lưu trữ thông tin đăng nhập của hệ điều hành (Windows Credential Manager / macOS Keychain / Linux Secret Service) để không mất khi khởi động lại app.",
+    "terminal": "Terminal",
+    "terminalN": "Terminal {{n}}",
+    "terminalCollapse": "Thu gọn terminal",
+    "terminalExpand": "Mở rộng terminal",
+    "addTerminal": "Terminal mới",
+    "sftp": {
+      "explorer": "Explorer",
+      "noFileOpen": "Chưa mở file nào. Duyệt cây thư mục bên cạnh và bấm vào file để chỉnh sửa.",
+      "connecting": "Đang kết nối…",
+      "connectError": "Kết nối thất bại — {{message}}",
+      "newFile": "File mới…",
+      "newFilePrompt": "Tên file mới?",
+      "newFolder": "Thư mục mới…",
+      "newFolderPrompt": "Tên thư mục mới?",
+      "rename": "Đổi tên…",
+      "renamePrompt": "Tên mới?",
+      "delete": "Xoá",
+      "deleteConfirm": "Xoá \"{{name}}\"?",
+      "closeUnsavedConfirm": "\"{{name}}\" còn thay đổi chưa lưu. Vẫn đóng?",
+      "upload": "Tải lên file local…",
+      "refresh": "Làm mới",
+      "save": "Lưu",
+      "saveError": "Lưu thất bại — {{message}}",
+      "splitRight": "Chia bên phải",
+      "closeGroup": "Đóng nhóm"
+    }
   },
   "library": {
     "namePrompt": "Tên {{label}}?",
@@ -427,6 +453,7 @@
     "otaDone": "Cập nhật OTA hoàn tất",
     "otaError": "Cập nhật OTA lỗi — {{message}}",
     "ftpTransferError": "Truyền FTP lỗi — {{message}}",
+    "sftpTransferError": "Truyền SFTP lỗi — {{message}}",
     "massProductionDone": "Đã cấu hình thiết bị #{{counter}} ({{value}})",
     "massProductionError": "Thiết bị #{{counter}} thất bại — {{message}}"
   },
@@ -446,12 +473,14 @@
     "reconnectTo": "Kết nối lại: {{label}}",
     "setTheme": "Giao diện: {{theme}}",
     "setLanguage": "Ngôn ngữ: {{language}}",
+    "openRemoteFile": "Mở {{path}} ({{label}})",
     "category": {
       "navigate": "Đi tới",
       "project": "Dự án",
       "tab": "Tab",
       "recent": "Gần đây",
-      "preferences": "Tùy chọn"
+      "preferences": "Tùy chọn",
+      "remoteFiles": "File từ xa"
     }
   },
   "globalSearch": {

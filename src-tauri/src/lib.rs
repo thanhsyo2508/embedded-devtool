@@ -6,6 +6,7 @@ pub mod plugin;
 pub mod restapi;
 pub mod script;
 pub mod serial;
+pub mod sftp;
 pub mod swd;
 #[cfg(feature = "cli")]
 pub mod testrunner;
@@ -1951,6 +1952,178 @@ fn ftp_server_is_running(manager: tauri::State<Arc<ftp::FtpServerManager>>) -> b
     manager.is_running()
 }
 
+// ---- SFTP client ----
+//
+// A file browser paired with an SSH tab, not a DataStream tab itself — same
+// reasoning as FTP above. Its own independent russh connection (see
+// sftp::client's module doc) rather than reusing the paired SSH tab's PTY
+// session, keyed by that tab's own id.
+
+#[tauri::command]
+async fn sftp_connect(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    host: String,
+    port: u16,
+    username: String,
+    password: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager
+        .connect(&id, &host, port, &username, &password)
+        .await
+}
+
+#[tauri::command]
+async fn sftp_disconnect(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager.disconnect(&id).await;
+    Ok(())
+}
+
+#[tauri::command]
+async fn sftp_list(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    path: String,
+) -> Result<Vec<sftp::SftpEntry>, String> {
+    let manager = manager.inner().clone();
+    manager.list(&id, &path).await
+}
+
+#[tauri::command]
+async fn sftp_read_file(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    path: String,
+) -> Result<Vec<u8>, String> {
+    let manager = manager.inner().clone();
+    manager.read_file(&id, &path).await
+}
+
+#[tauri::command]
+async fn sftp_write_file(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    path: String,
+    content: Vec<u8>,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager.write_file(&id, &path, &content).await
+}
+
+#[tauri::command]
+async fn sftp_mkdir(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager.mkdir(&id, &path).await
+}
+
+#[tauri::command]
+async fn sftp_rmdir(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager.rmdir(&id, &path).await
+}
+
+#[tauri::command]
+async fn sftp_delete(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    path: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager.delete(&id, &path).await
+}
+
+#[tauri::command]
+async fn sftp_rename(
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    manager.rename(&id, &from, &to).await
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SftpTransferDoneEvent {
+    id: String,
+    operation: &'static str,
+    success: bool,
+    message: String,
+}
+
+/// Downloads/uploads run on Tauri's own async runtime (already inside an
+/// `async fn` command, so `tokio::spawn` rather than FTP's `thread::spawn`)
+/// and report completion over "sftp://transferDone" — same reasoning as
+/// FTP's/flash's done events, since a large file can take a while and the
+/// command shouldn't block the frontend's ability to do anything else.
+#[tauri::command]
+async fn sftp_download(
+    app: AppHandle,
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    remote_path: String,
+    local_path: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    tokio::spawn(async move {
+        let (success, message) = match manager.download(&id, &remote_path, &local_path).await {
+            Ok(()) => (true, "Download complete".to_string()),
+            Err(e) => (false, e),
+        };
+        let _ = app.emit(
+            "sftp://transferDone",
+            SftpTransferDoneEvent {
+                id,
+                operation: "download",
+                success,
+                message,
+            },
+        );
+    });
+    Ok(())
+}
+
+#[tauri::command]
+async fn sftp_upload(
+    app: AppHandle,
+    manager: tauri::State<'_, Arc<sftp::SftpManager>>,
+    id: String,
+    local_path: String,
+    remote_path: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    tokio::spawn(async move {
+        let (success, message) = match manager.upload(&id, &local_path, &remote_path).await {
+            Ok(()) => (true, "Upload complete".to_string()),
+            Err(e) => (false, e),
+        };
+        let _ = app.emit(
+            "sftp://transferDone",
+            SftpTransferDoneEvent {
+                id,
+                operation: "upload",
+                success,
+                message,
+            },
+        );
+    });
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let event_bus = EventBus::new();
@@ -1965,6 +2138,7 @@ pub fn run() {
     let rest_api = Arc::new(restapi::RestApiManager::new());
     let ftp_manager = Arc::new(ftp::FtpManager::new());
     let ftp_server_manager = Arc::new(ftp::FtpServerManager::new());
+    let sftp_manager = Arc::new(sftp::SftpManager::new());
 
     let manager_for_state = manager.clone();
     let network_for_state = network.clone();
@@ -1983,6 +2157,7 @@ pub fn run() {
         .manage(rest_api)
         .manage(ftp_manager)
         .manage(ftp_server_manager)
+        .manage(sftp_manager)
         .manage(KeepAwakeState(Mutex::new(None)))
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -2084,6 +2259,17 @@ pub fn run() {
             ftp_server_start,
             ftp_server_stop,
             ftp_server_is_running,
+            sftp_connect,
+            sftp_disconnect,
+            sftp_list,
+            sftp_read_file,
+            sftp_write_file,
+            sftp_mkdir,
+            sftp_rmdir,
+            sftp_delete,
+            sftp_rename,
+            sftp_download,
+            sftp_upload,
         ])
         .build(tauri::generate_context!())
         .expect("error while running tauri application")
