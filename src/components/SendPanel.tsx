@@ -57,7 +57,7 @@ export function SendPanel({ tab }: { tab: TabState }) {
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault()
-      const next = historyIndex - 1
+      const next = Math.max(historyIndex - 1, -1)
       setHistoryIndex(next)
       setText(next >= 0 ? tab.sendHistory[next] : '')
     }
