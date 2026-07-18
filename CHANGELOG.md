@@ -24,7 +24,27 @@
   clutters Up-arrow recall with duplicate entries (re-sending a command
   moves it to the top instead of adding a copy), and pressing Down-arrow
   past the bottom no longer left Up-arrow looking unresponsive.
-- Updated the app icon.
+- **Fix: one stalled network connection can no longer freeze every
+  network tab.** Opening a connection to an unresponsive host (an MQTT
+  broker that never answers, a slow SSH server, a TCP host that doesn't
+  respond) used to hold a shared lock that also feeds live data to every
+  open network tab, silencing all of them until the connect timed out.
+  Network streams now use the same per-stream locking serial ports got in
+  v0.1.8/v0.1.9. Writing to a WebSocket could also stall behind the
+  connection's own idle polling — sends now always get through, and
+  writing to a TCP peer that stopped reading errors out after 5 seconds
+  instead of hanging the tab forever.
+- **Fix: a busy serial port no longer delays other ports' live data**
+  (e.g. an RS485 write waiting out its direction-guard time on the same
+  tick).
+- **Fix: large SFTP/FTP transfers no longer block other file
+  operations.** Reading or writing a big remote file made every other
+  SFTP/FTP command (even on other sessions) wait for the whole transfer.
+- Updated the app icon, and fixed the Linux/macOS installer builds that
+  the first v0.1.9 release attempt failed on — the exported icon set was
+  slightly non-square and one file was misreferenced, which the
+  Linux/macOS bundlers reject (Windows only reads the .ico and kept
+  building).
 
 ## v0.1.8 — 2026-07-15
 
