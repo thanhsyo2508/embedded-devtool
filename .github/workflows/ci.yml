@@ -13,6 +13,8 @@ jobs:
   lint-and-test:
     name: Lint + test (fast gate)
     runs-on: ubuntu-latest
+    # A hung test otherwise stalls the job for GitHub's 6-hour default.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +78,7 @@ jobs:
           - platform: ubuntu-latest
           - platform: macos-latest
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 

@@ -33,6 +33,12 @@ use super::stream_pump::spawn_pump_thread;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
 const POLL_TIMEOUT: Duration = Duration::from_millis(200);
+/// How long a reader thread sleeps (off-lock) after a poll timeout before
+/// re-locking the socket. Without this the reader re-acquires the unfair
+/// `Mutex` within nanoseconds of releasing it, and a `write()`/`send_text()`
+/// parked on that mutex can starve indefinitely — this hung CI's
+/// `ws_client_and_server_round_trip` on low-core Linux runners.
+const LOCK_YIELD: Duration = Duration::from_millis(5);
 const RING_BUFFER_CAPACITY: usize = 1 << 20;
 
 fn is_transient_timeout(e: &io::Error) -> bool {
@@ -173,7 +179,10 @@ impl DataStream for WsClientStream {
                             break;
                         }
                     },
-                    Err(ref e) if is_transient(e) => continue,
+                    Err(ref e) if is_transient(e) => {
+                        thread::sleep(LOCK_YIELD);
+                        continue;
+                    }
                     Err(_) => {
                         connection_lost.store(true, Ordering::SeqCst);
                         break;
@@ -338,7 +347,10 @@ impl DataStream for WsServerStream {
                                             None => break, // peer closed
                                         }
                                     }
-                                    Err(ref e) if is_transient(e) => continue,
+                                    Err(ref e) if is_transient(e) => {
+                                        thread::sleep(LOCK_YIELD);
+                                        continue;
+                                    }
                                     Err(_) => break,
                                 }
                             }
