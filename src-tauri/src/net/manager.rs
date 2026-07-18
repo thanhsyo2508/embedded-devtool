@@ -6,7 +6,7 @@
 //! stream's id came from the network rather than a serial port.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use crate::core::data_stream::DataStream;
 use crate::core::event_bus::{Event, EventBus};
@@ -16,8 +16,17 @@ use crate::core::rtt_stream::{RttConfig, RttStream};
 use crate::core::ssh_stream::SshStream;
 use crate::core::ws_stream::{WsClientStream, WsServerStream};
 
+// Same per-stream locking shape as `PortManager` (see serial/manager.rs):
+// the outer `streams` lock only guards the map's *shape* and is held just
+// long enough to look up or clone an Arc handle — never across a slow
+// per-stream operation (a connect, a blocking write, a close that joins
+// threads). Before this, one MQTT tab connecting to an unreachable broker
+// held the single map-wide lock for its whole 8s CONNACK timeout, freezing
+// the 16ms drain tick — and with it every other network tab's data.
+type SharedStream = Arc<Mutex<Box<dyn DataStream>>>;
+
 pub struct NetworkManager {
-    streams: Mutex<HashMap<String, Box<dyn DataStream>>>,
+    streams: Mutex<HashMap<String, SharedStream>>,
     event_bus: EventBus,
 }
 
@@ -27,6 +36,22 @@ impl NetworkManager {
             streams: Mutex::new(HashMap::new()),
             event_bus,
         }
+    }
+
+    /// Snapshot of `(id, stream handle)` pairs, taken under the outer lock
+    /// just long enough to clone the Arcs — never held while touching an
+    /// individual stream afterward.
+    fn snapshot(&self) -> Vec<(String, SharedStream)> {
+        self.streams
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(id, stream)| (id.clone(), stream.clone()))
+            .collect()
+    }
+
+    fn get(&self, id: &str) -> Option<SharedStream> {
+        self.streams.lock().unwrap().get(id).cloned()
     }
 
     pub fn open_tcp_client(&self, id: String, host: String, port: u16) -> Result<(), String> {
@@ -129,9 +154,10 @@ impl NetworkManager {
         address: u64,
         size: u8,
     ) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
+        match self.get(id) {
             Some(stream) => stream
+                .lock()
+                .unwrap()
                 .watch_variable(name, address, size)
                 .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
@@ -139,9 +165,12 @@ impl NetworkManager {
     }
 
     pub fn unwatch_variable(&self, id: &str, name: &str) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
-            Some(stream) => stream.unwatch_variable(name).map_err(|e| e.to_string()),
+        match self.get(id) {
+            Some(stream) => stream
+                .lock()
+                .unwrap()
+                .unwatch_variable(name)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
@@ -158,13 +187,27 @@ impl NetworkManager {
     }
 
     fn open(&self, id: String, mut stream: Box<dyn DataStream>) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        if streams.contains_key(&id) {
-            return Err(format!("stream id '{id}' is already open"));
+        {
+            let streams = self.streams.lock().unwrap();
+            if streams.contains_key(&id) {
+                return Err(format!("stream id '{id}' is already open"));
+            }
         }
+
+        // stream.open() can block for seconds (TCP connect, MQTT CONNACK,
+        // SSH ready, RTT probe attach) — it must run with no lock held.
         match stream.open() {
             Ok(()) => {
-                streams.insert(id.clone(), stream);
+                let mut streams = self.streams.lock().unwrap();
+                if streams.contains_key(&id) {
+                    // Raced with another open() of the same id while we were
+                    // connecting with no lock held; close what we just opened
+                    // and preserve the original "already open" error instead
+                    // of clobbering the winner's entry.
+                    let _ = stream.close();
+                    return Err(format!("stream id '{id}' is already open"));
+                }
+                streams.insert(id.clone(), Arc::new(Mutex::new(stream)));
                 self.event_bus.publish(Event::PortOpened { stream_id: id });
                 Ok(())
             }
@@ -180,10 +223,10 @@ impl NetworkManager {
     }
 
     pub fn close(&self, id: &str) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.remove(id) {
-            Some(mut stream) => {
-                let _ = stream.close();
+        let stream = self.streams.lock().unwrap().remove(id);
+        match stream {
+            Some(stream) => {
+                let _ = stream.lock().unwrap().close();
                 self.event_bus.publish(Event::PortClosed {
                     stream_id: id.to_string(),
                 });
@@ -194,9 +237,12 @@ impl NetworkManager {
     }
 
     pub fn write(&self, id: &str, data: &[u8]) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
-            Some(stream) => stream.write(data).map_err(|e| e.to_string()),
+        match self.get(id) {
+            Some(stream) => stream
+                .lock()
+                .unwrap()
+                .write(data)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
@@ -211,9 +257,10 @@ impl NetworkManager {
         qos: u8,
         retain: bool,
     ) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
+        match self.get(id) {
             Some(stream) => stream
+                .lock()
+                .unwrap()
                 .publish(topic, data, qos, retain)
                 .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
@@ -223,17 +270,23 @@ impl NetworkManager {
     /// Adds an MQTT subscription beyond the one topic set at connect time —
     /// see `DataStream::subscribe`.
     pub fn subscribe(&self, id: &str, topic: &str, qos: u8) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
-            Some(stream) => stream.subscribe(topic, qos).map_err(|e| e.to_string()),
+        match self.get(id) {
+            Some(stream) => stream
+                .lock()
+                .unwrap()
+                .subscribe(topic, qos)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
 
     pub fn unsubscribe(&self, id: &str, topic: &str) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
-            Some(stream) => stream.unsubscribe(topic).map_err(|e| e.to_string()),
+        match self.get(id) {
+            Some(stream) => stream
+                .lock()
+                .unwrap()
+                .unsubscribe(topic)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
@@ -241,9 +294,12 @@ impl NetworkManager {
     /// Sends a WebSocket Text frame — see `DataStream::send_text`. Every
     /// other transport rejects this with its default "unsupported" error.
     pub fn send_text(&self, id: &str, text: &str) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
-            Some(stream) => stream.send_text(text).map_err(|e| e.to_string()),
+        match self.get(id) {
+            Some(stream) => stream
+                .lock()
+                .unwrap()
+                .send_text(text)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
@@ -251,9 +307,12 @@ impl NetworkManager {
     /// Tells an SSH tab's PTY the terminal size changed — see
     /// `DataStream::resize`. Every other transport rejects this.
     pub fn resize(&self, id: &str, cols: u32, rows: u32) -> Result<(), String> {
-        let mut streams = self.streams.lock().unwrap();
-        match streams.get_mut(id) {
-            Some(stream) => stream.resize(cols, rows).map_err(|e| e.to_string()),
+        match self.get(id) {
+            Some(stream) => stream
+                .lock()
+                .unwrap()
+                .resize(cols, rows)
+                .map_err(|e| e.to_string()),
             None => Err(format!("stream id '{id}' not found")),
         }
     }
@@ -263,22 +322,28 @@ impl NetworkManager {
     /// peer closed the socket. Called on the same ~16ms tick as
     /// `PortManager::drain_open_ports`.
     pub fn drain_open_streams(&self) -> Vec<(String, Vec<u8>)> {
-        let mut streams = self.streams.lock().unwrap();
         let mut out = Vec::new();
         let mut lost = Vec::new();
-        for (id, stream) in streams.iter_mut() {
+        for (id, stream) in self.snapshot() {
+            // try_lock: a stream busy in a slow write must not stall this
+            // tick for every *other* stream — its bytes just wait in the
+            // ring buffer until the next tick.
+            let Ok(mut stream) = stream.try_lock() else {
+                continue;
+            };
             if let Ok(bytes) = stream.read() {
                 if !bytes.is_empty() {
                     out.push((id.clone(), bytes));
                 }
             }
             if stream.connection_lost() {
-                lost.push(id.clone());
+                lost.push(id);
             }
         }
         for id in lost {
-            if let Some(mut stream) = streams.remove(&id) {
-                let _ = stream.close();
+            let removed = self.streams.lock().unwrap().remove(&id);
+            if let Some(stream) = removed {
+                let _ = stream.lock().unwrap().close();
                 self.event_bus.publish(Event::Error {
                     stream_id: id,
                     message: "connection closed by peer".to_string(),
@@ -291,9 +356,9 @@ impl NetworkManager {
     /// Closes every currently tracked stream — called on app shutdown,
     /// mirroring `PortManager::close_all`.
     pub fn close_all(&self) {
-        let mut streams = self.streams.lock().unwrap();
-        for (id, mut stream) in streams.drain() {
-            let _ = stream.close();
+        let streams: Vec<(String, SharedStream)> = self.streams.lock().unwrap().drain().collect();
+        for (id, stream) in streams {
+            let _ = stream.lock().unwrap().close();
             self.event_bus.publish(Event::PortClosed { stream_id: id });
         }
     }
@@ -302,6 +367,54 @@ impl NetworkManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::data_stream::DataCallback;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    /// Stands in for any transport whose connect is slow (an unreachable
+    /// MQTT broker, a TCP host that doesn't answer).
+    struct SlowOpenStream;
+
+    impl DataStream for SlowOpenStream {
+        fn open(&mut self) -> std::io::Result<()> {
+            thread::sleep(Duration::from_millis(400));
+            Ok(())
+        }
+        fn close(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+        fn read(&mut self) -> std::io::Result<Vec<u8>> {
+            Ok(Vec::new())
+        }
+        fn write(&mut self, _data: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+        fn on_data(&mut self, _callback: DataCallback) {}
+        fn is_open(&self) -> bool {
+            true
+        }
+    }
+
+    // Guards the per-stream locking shape: a slow connect must not hold the
+    // map lock, or the 16ms drain tick (all network tabs' data) stalls for
+    // the whole connect timeout.
+    #[test]
+    fn drain_is_not_blocked_by_slow_open() {
+        let manager = std::sync::Arc::new(NetworkManager::new(EventBus::new()));
+        let manager_for_open = manager.clone();
+        let opener = thread::spawn(move || {
+            let _ = manager_for_open.open("slow".to_string(), Box::new(SlowOpenStream));
+        });
+        thread::sleep(Duration::from_millis(50)); // let open() get into its sleep
+
+        let start = Instant::now();
+        let _ = manager.drain_open_streams();
+        assert!(
+            start.elapsed() < Duration::from_millis(200),
+            "drain_open_streams blocked behind a slow open()"
+        );
+        opener.join().unwrap();
+    }
 
     #[test]
     fn write_to_unknown_stream_errors() {

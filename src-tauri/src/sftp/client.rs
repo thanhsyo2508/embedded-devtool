@@ -68,8 +68,12 @@ struct SftpSessionEntry {
     sftp: SftpSession,
 }
 
+// The `sessions` lock only guards the map's shape and is held just long
+// enough to clone an entry's Arc — never across an awaited SFTP operation.
+// Holding it across awaits meant one large read_file() serialized every
+// other SFTP call (all sessions) behind the whole transfer.
 pub struct SftpManager {
-    sessions: Mutex<HashMap<String, SftpSessionEntry>>,
+    sessions: Mutex<HashMap<String, Arc<SftpSessionEntry>>>,
 }
 
 impl Default for SftpManager {
@@ -115,16 +119,28 @@ impl SftpManager {
             .map_err(|e| e.to_string())?;
         self.sessions.lock().await.insert(
             id.to_string(),
-            SftpSessionEntry {
+            Arc::new(SftpSessionEntry {
                 _ssh_handle: handle,
                 sftp,
-            },
+            }),
         );
         Ok(())
     }
 
+    /// Clones the session handle under the map lock, releasing it before the
+    /// caller awaits anything on the session.
+    async fn get(&self, id: &str) -> Result<Arc<SftpSessionEntry>, String> {
+        self.sessions
+            .lock()
+            .await
+            .get(id)
+            .cloned()
+            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))
+    }
+
     pub async fn disconnect(&self, id: &str) {
-        if let Some(entry) = self.sessions.lock().await.remove(id) {
+        let entry = self.sessions.lock().await.remove(id);
+        if let Some(entry) = entry {
             let _ = entry.sftp.close().await;
             let _ = entry
                 ._ssh_handle
@@ -134,10 +150,7 @@ impl SftpManager {
     }
 
     pub async fn list(&self, id: &str, path: &str) -> Result<Vec<SftpEntry>, String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         // An empty path (the frontend's root-node sentinel) isn't guaranteed
         // to resolve consistently across SFTP server implementations, and
         // even where a server accepts it, DirEntry::path() would then return
@@ -188,10 +201,7 @@ impl SftpManager {
     }
 
     pub async fn read_file(&self, id: &str, path: &str) -> Result<Vec<u8>, String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         entry.sftp.read(path).await.map_err(|e| e.to_string())
     }
 
@@ -203,36 +213,24 @@ impl SftpManager {
     /// trailing bytes when the new content is shorter than what's already
     /// on the remote file.
     pub async fn write_file(&self, id: &str, path: &str, content: &[u8]) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         let mut file = entry.sftp.create(path).await.map_err(|e| e.to_string())?;
         file.write_all(content).await.map_err(|e| e.to_string())?;
         file.shutdown().await.map_err(|e| e.to_string())
     }
 
     pub async fn mkdir(&self, id: &str, path: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         entry.sftp.create_dir(path).await.map_err(|e| e.to_string())
     }
 
     pub async fn rmdir(&self, id: &str, path: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         entry.sftp.remove_dir(path).await.map_err(|e| e.to_string())
     }
 
     pub async fn delete(&self, id: &str, path: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         entry
             .sftp
             .remove_file(path)
@@ -241,10 +239,7 @@ impl SftpManager {
     }
 
     pub async fn rename(&self, id: &str, from: &str, to: &str) -> Result<(), String> {
-        let sessions = self.sessions.lock().await;
-        let entry = sessions
-            .get(id)
-            .ok_or_else(|| format!("no SFTP session '{id}' — connect first"))?;
+        let entry = self.get(id).await?;
         entry.sftp.rename(from, to).await.map_err(|e| e.to_string())
     }
 

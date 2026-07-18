@@ -8,7 +8,7 @@
 
 use std::collections::HashMap;
 use std::io::Cursor;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 
 use serde::Serialize;
@@ -45,8 +45,12 @@ fn parse_list_line(line: &str) -> Option<FtpEntry> {
     })
 }
 
+// Each session gets its own lock; the outer `sessions` lock only guards the
+// map's shape and is never held across an FTP operation. Before this, one
+// large download held the single map-wide lock for the whole transfer,
+// blocking every other FTP command — including on unrelated sessions.
 pub struct FtpManager {
-    sessions: Mutex<HashMap<String, FtpStream>>,
+    sessions: Mutex<HashMap<String, Arc<Mutex<FtpStream>>>>,
 }
 
 impl Default for FtpManager {
@@ -78,13 +82,17 @@ impl FtpManager {
         stream
             .transfer_type(FileType::Binary)
             .map_err(|e| e.to_string())?;
-        self.sessions.lock().unwrap().insert(id.to_string(), stream);
+        self.sessions
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), Arc::new(Mutex::new(stream)));
         Ok(())
     }
 
     pub fn disconnect(&self, id: &str) {
-        if let Some(mut stream) = self.sessions.lock().unwrap().remove(id) {
-            let _ = stream.quit();
+        let stream = self.sessions.lock().unwrap().remove(id);
+        if let Some(stream) = stream {
+            let _ = stream.lock().unwrap().quit();
         }
     }
 
@@ -93,11 +101,15 @@ impl FtpManager {
         id: &str,
         f: impl FnOnce(&mut FtpStream) -> suppaftp::FtpResult<T>,
     ) -> Result<T, String> {
-        let mut sessions = self.sessions.lock().unwrap();
-        let stream = sessions
-            .get_mut(id)
+        let stream = self
+            .sessions
+            .lock()
+            .unwrap()
+            .get(id)
+            .cloned()
             .ok_or_else(|| format!("no FTP session '{id}' — connect first"))?;
-        f(stream).map_err(|e| e.to_string())
+        let mut stream = stream.lock().unwrap();
+        f(&mut stream).map_err(|e| e.to_string())
     }
 
     pub fn pwd(&self, id: &str) -> Result<String, String> {

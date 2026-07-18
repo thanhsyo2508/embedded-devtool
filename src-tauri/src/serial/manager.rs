@@ -443,14 +443,16 @@ impl PortManager {
 
     /// Drains buffered bytes for every currently open port. Called on a
     /// ~16ms tick by the batch emitter (M1-T1.6) — never per-byte. Each
-    /// port is locked individually (see `SharedPort`), so one port's
-    /// logging disk write (or any other per-port slowness) can't delay
-    /// draining any other port on the same tick.
+    /// port is locked individually (see `SharedPort`) with `try_lock`, so a
+    /// port whose lock is busy (an RS485 write sleeping out its guard time,
+    /// a write blocked on hardware flow control) is simply skipped this
+    /// tick — its bytes wait in the ring buffer — instead of stalling the
+    /// drain of every port after it in the loop.
     pub fn drain_open_ports(&self) -> Vec<(String, Vec<u8>)> {
         self.snapshot()
             .into_iter()
             .filter_map(|(id, port)| {
-                let mut mp = port.lock().unwrap();
+                let mut mp = port.try_lock().ok()?;
                 if !matches!(mp.state, PortState::Open) {
                     return None;
                 }

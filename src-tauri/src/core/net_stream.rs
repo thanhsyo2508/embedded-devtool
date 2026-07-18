@@ -22,6 +22,12 @@ const READ_BUF_SIZE: usize = 4096;
 /// How often a blocked read/accept wakes up to re-check the stop flag —
 /// bounds how long `close()` can take to join its threads.
 const POLL_TIMEOUT: Duration = Duration::from_millis(200);
+/// Bounds how long a TCP `write_all` can sit with no progress (peer stopped
+/// reading, send window full) before erroring out. Without it a stalled
+/// peer blocks the writer forever — and for `TcpServerStream::write`, that
+/// forever-hold of the `client` mutex also wedges `close()` and the
+/// per-connection reader's cleanup.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const RING_BUFFER_CAPACITY: usize = 1 << 20;
 
 fn is_transient_timeout(e: &io::Error) -> bool {
@@ -67,6 +73,7 @@ impl DataStream for TcpClientStream {
 
         let socket = TcpStream::connect((self.host.as_str(), self.port))?;
         socket.set_read_timeout(Some(POLL_TIMEOUT))?;
+        socket.set_write_timeout(Some(WRITE_TIMEOUT))?;
         let mut reader_socket = socket.try_clone()?;
         self.socket = Some(socket);
 
@@ -196,7 +203,9 @@ impl DataStream for TcpServerStream {
             while !stop_flag.load(Ordering::Relaxed) {
                 match listener.accept() {
                     Ok((socket, _addr)) => {
-                        if socket.set_read_timeout(Some(POLL_TIMEOUT)).is_err() {
+                        if socket.set_read_timeout(Some(POLL_TIMEOUT)).is_err()
+                            || socket.set_write_timeout(Some(WRITE_TIMEOUT)).is_err()
+                        {
                             continue;
                         }
                         let mut reader_socket = match socket.try_clone() {
