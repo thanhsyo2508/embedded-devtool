@@ -27,11 +27,11 @@
     "targets": "all",
     "createUpdaterArtifacts": true,
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
+      "icons\\edt_logo\\logo_32x32.png",
+      "icons\\edt_logo\\logo_128x128.png",
+      "icons\\edt_logo\\logo_128x128@2x.png",
+      "icons\\edt_logo\\logo_128x128.icns",
+      "icons\\edt_logo\\logo_128x128.ico"
     ]
   },
   "plugins": {
