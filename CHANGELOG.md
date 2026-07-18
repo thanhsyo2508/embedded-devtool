@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.1.9 — 2026-07-18
+
+- **SSH workspace:** an SSH tab is no longer just a terminal — a new
+  collapsible SFTP file-tree sidebar lets you browse, upload (including
+  drag-and-drop), rename, and delete remote files over the same
+  connection, without a separate FTP server. Double-click a file to edit
+  it in a built-in code editor (syntax highlighting, dirty-change
+  indicator, Ctrl+S to save) — multiple files can be open at once, and can
+  be split into two side-by-side editor groups (drag a tab to the other
+  group or its right edge, VSCode-style). The terminal itself moves to a
+  collapsible, resizable bottom dock and now supports multiple
+  simultaneous terminals, also splittable into two side-by-side groups.
+  Existing SSH tabs are unaffected until you opt in — the sidebar starts
+  closed and only one terminal runs unless you add more.
+- **Fix: serial port lock contention that could still stall the app with
+  multiple devices connected.** Following up on v0.1.8's fix, every
+  `PortManager` operation — including the 16ms tick that feeds live data to
+  every open tab, and per-port logging's disk writes — shared one lock
+  across all ports. Each port now has its own lock, so a slow or flaky
+  device can no longer block any other port's data, by construction.
+- **Fix: Send panel history.** Repeating the same command no longer
+  clutters Up-arrow recall with duplicate entries (re-sending a command
+  moves it to the top instead of adding a copy), and pressing Down-arrow
+  past the bottom no longer left Up-arrow looking unresponsive.
+- Updated the app icon.
+
 ## v0.1.8 — 2026-07-15
 
 - **Fix: tool freezing with multiple serial devices connected.** Opening a
