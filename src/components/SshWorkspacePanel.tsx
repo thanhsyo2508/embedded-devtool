@@ -15,6 +15,28 @@ const MAX_TERMINAL_HEIGHT = 700
 const DEFAULT_TERMINAL_HEIGHT = 240
 const TERMINAL_HEADER_HEIGHT = 32
 
+// Must match SftpEditorTabs' and SshTerminalGroups' own DRAG_TYPE constants.
+// Their own onDragOver/onDrop handlers stopPropagation() once the pointer is
+// over one of their specific drop-zone elements, but a drag gesture
+// naturally crosses gaps between those zones too — the dock header, the
+// resizers, the sidebar edge, empty space around a short terminal dock —
+// and *those* elements have no idea about our custom types, so a dragover
+// landing on them would otherwise bubble all the way up to PaneContent's
+// pane-body listener, which unconditionally shows the "split this pane"
+// overlay for any drag at all. This root-level catch-all sits above every
+// inner drop-zone but below PaneContent, so it swallows the event for our
+// own types regardless of exactly which inner element the pointer is over,
+// without having to instrument every gap individually.
+const INTERNAL_DRAG_TYPES = [
+  'application/x-sftp-file',
+  'application/x-ssh-terminal',
+  'application/x-sftp-tree-path',
+]
+
+function isInternalDrag(e: React.DragEvent<HTMLDivElement>): boolean {
+  return INTERNAL_DRAG_TYPES.some((type) => e.dataTransfer.types.includes(type))
+}
+
 function SidebarResizer({ width, onChange }: { width: number; onChange: (w: number) => void }) {
   const dragStart = useRef<{ x: number; width: number } | null>(null)
 
@@ -108,7 +130,19 @@ export function SshWorkspacePanel({ tab }: { tab: TabState }) {
   }
 
   return (
-    <div className="ssh-workspace">
+    <div
+      className="ssh-workspace"
+      onDragOver={(e) => {
+        if (!isInternalDrag(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+      onDrop={(e) => {
+        if (!isInternalDrag(e)) return
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+    >
       <div className="ssh-workspace-topbar">
         <button
           type="button"

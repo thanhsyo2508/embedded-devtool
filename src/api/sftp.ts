@@ -77,3 +77,19 @@ export function onSftpTransferDone(
 ): Promise<UnlistenFn> {
   return listen<SftpTransferDoneEvent>('sftp://transferDone', (event) => cb(event.payload))
 }
+
+/** Opens a remote path (file or folder) directly in VS Code's Remote-SSH
+ * extension via its `code --remote` CLI, instead of this app's own
+ * lightweight editor. VS Code manages its own SSH connection independently
+ * of this app's — it can't be handed a password here, so it prompts for
+ * one itself unless the target is already reachable via key-based auth or
+ * an existing `~/.ssh/config` entry. Requires the `code` CLI (and the
+ * Remote-SSH extension) to already be installed. */
+export function openSshPathInVscode(
+  host: string,
+  port: number,
+  username: string,
+  path: string,
+): Promise<void> {
+  return invoke('open_ssh_path_in_vscode', { host, port, username, path })
+}

@@ -42,6 +42,16 @@ interface SshTerminalsState {
   activeGroupId: Record<string, string>
   connecting: Record<string, boolean>
   errors: Record<string, string | null>
+  // Display number ("Terminal 2", "Terminal 3", ...) assigned once when a
+  // terminal is created and never recomputed afterward — deliberately NOT
+  // derived from a terminal's index within its current group's
+  // terminalIds, since that position changes whenever it's moved or split
+  // into a different group, which would silently relabel it (e.g. a lone
+  // terminal split into its own new group is always index 0 there, so a
+  // position-derived label would call it "Terminal 1" regardless of what
+  // it was called before).
+  terminalNumbers: Record<string, number>
+  nextTerminalNumber: Record<string, number>
 
   addTerminal: (tabId: string, config: SshConnectionConfig, groupId?: string) => Promise<void>
   closeTerminal: (tabId: string, groupId: string, terminalId: string) => Promise<void>
@@ -63,11 +73,16 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
   activeGroupId: {},
   connecting: {},
   errors: {},
+  terminalNumbers: {},
+  nextTerminalNumber: {},
 
   addTerminal: async (tabId, config, groupId) => {
     const groups = get().groups[tabId] ?? initialGroups(tabId)
     const targetGroupId = groupId ?? get().activeGroupId[tabId] ?? groups[0].id
     const terminalId = `${tabId}::term-${Date.now()}`
+    // The primary terminal is unnumbered ("Terminal"), so the first extra
+    // one is "Terminal 2".
+    const number = get().nextTerminalNumber[tabId] ?? 2
     const nextGroups = groups.map((g) =>
       g.id === targetGroupId
         ? { ...g, terminalIds: [...g.terminalIds, terminalId], activeTerminalId: terminalId }
@@ -78,6 +93,8 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
       activeGroupId: { ...state.activeGroupId, [tabId]: targetGroupId },
       connecting: { ...state.connecting, [terminalId]: true },
       errors: { ...state.errors, [terminalId]: null },
+      terminalNumbers: { ...state.terminalNumbers, [terminalId]: number },
+      nextTerminalNumber: { ...state.nextTerminalNumber, [tabId]: number + 1 },
     }))
     try {
       await openSsh(terminalId, config.host, config.port, config.username, config.password)
@@ -111,7 +128,14 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
       delete connecting[terminalId]
       const errors = { ...state.errors }
       delete errors[terminalId]
-      return { groups: { ...state.groups, [tabId]: nextGroups }, connecting, errors }
+      const terminalNumbers = { ...state.terminalNumbers }
+      delete terminalNumbers[terminalId]
+      return {
+        groups: { ...state.groups, [tabId]: nextGroups },
+        connecting,
+        errors,
+        terminalNumbers,
+      }
     })
   },
 
@@ -135,13 +159,26 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
   splitGroupRight: (tabId, terminalId) => {
     const groups = get().groups[tabId] ?? initialGroups(tabId)
     const [first, second] = groups
+    // Splitting *moves* the terminal into the new/second group — it must
+    // not stay referenced in `first` too, or the same terminal ends up
+    // shown as a tab in both groups at once.
+    const firstTerminalIds = first.terminalIds.filter((id) => id !== terminalId)
+    const firstActiveTerminalId =
+      first.activeTerminalId === terminalId
+        ? (firstTerminalIds[firstTerminalIds.length - 1] ?? null)
+        : first.activeTerminalId
+    const updatedFirst: TerminalGroup = {
+      ...first,
+      terminalIds: firstTerminalIds,
+      activeTerminalId: firstActiveTerminalId,
+    }
     let nextGroups: TerminalGroup[]
     let nextActiveGroupId: string
     if (second) {
       const terminalIds = second.terminalIds.includes(terminalId)
         ? second.terminalIds
         : [...second.terminalIds, terminalId]
-      nextGroups = [first, { ...second, terminalIds, activeTerminalId: terminalId }]
+      nextGroups = [updatedFirst, { ...second, terminalIds, activeTerminalId: terminalId }]
       nextActiveGroupId = second.id
     } else {
       const newGroup: TerminalGroup = {
@@ -149,7 +186,7 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
         terminalIds: [terminalId],
         activeTerminalId: terminalId,
       }
-      nextGroups = [first, newGroup]
+      nextGroups = [updatedFirst, newGroup]
       nextActiveGroupId = newGroup.id
     }
     set((state) => ({
@@ -212,15 +249,18 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
     set((state) => {
       const connecting = { ...state.connecting }
       const errors = { ...state.errors }
+      const terminalNumbers = { ...state.terminalNumbers }
       for (const id of extrasToClose) {
         delete connecting[id]
         delete errors[id]
+        delete terminalNumbers[id]
       }
       return {
         groups: { ...state.groups, [tabId]: nextGroups },
         activeGroupId: { ...state.activeGroupId, [tabId]: nextGroups[0].id },
         connecting,
         errors,
+        terminalNumbers,
       }
     })
   },
@@ -234,13 +274,24 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
       delete groupsNext[tabId]
       const activeGroupIdNext = { ...state.activeGroupId }
       delete activeGroupIdNext[tabId]
+      const nextTerminalNumberNext = { ...state.nextTerminalNumber }
+      delete nextTerminalNumberNext[tabId]
       const connecting = { ...state.connecting }
       const errors = { ...state.errors }
+      const terminalNumbers = { ...state.terminalNumbers }
       for (const id of extraIds) {
         delete connecting[id]
         delete errors[id]
+        delete terminalNumbers[id]
       }
-      return { groups: groupsNext, activeGroupId: activeGroupIdNext, connecting, errors }
+      return {
+        groups: groupsNext,
+        activeGroupId: activeGroupIdNext,
+        nextTerminalNumber: nextTerminalNumberNext,
+        connecting,
+        errors,
+        terminalNumbers,
+      }
     })
   },
 }))

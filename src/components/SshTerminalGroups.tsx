@@ -79,6 +79,7 @@ function TerminalGroupPane({
   const splitGroupRight = useSshTerminalsStore((s) => s.splitGroupRight)
   const moveTerminalToGroup = useSshTerminalsStore((s) => s.moveTerminalToGroup)
   const closeGroup = useSshTerminalsStore((s) => s.closeGroup)
+  const terminalNumbers = useSshTerminalsStore((s) => s.terminalNumbers)
 
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
@@ -90,6 +91,15 @@ function TerminalGroupPane({
     if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
     e.preventDefault()
     e.stopPropagation()
+    // A move to a *different* group unmounts the dragged tab's own DOM node
+    // (it's rendered by that group's own map(), so React tears it down and
+    // mounts a new one in the target group instead of moving the existing
+    // node) — the browser can then drop the native drag operation without
+    // ever firing dragend on it, which would otherwise leave onDragEndAny
+    // uncalled and the drag state (and its split-zone overlay) stuck "in
+    // progress" forever. Resetting it here too, not just from the tab's own
+    // onDragEnd, covers that case.
+    onDragEndAny()
     const raw = e.dataTransfer.getData(DRAG_TYPE)
     if (!raw) return
     const payload = JSON.parse(raw) as DragPayload
@@ -126,7 +136,9 @@ function TerminalGroupPane({
               onDragEnd={onDragEndAny}
             >
               <span className="tab-label">
-                {isPrimary ? t('ssh.terminal') : t('ssh.terminalN', { n: i + 1 })}
+                {isPrimary
+                  ? t('ssh.terminal')
+                  : t('ssh.terminalN', { n: terminalNumbers[id] ?? i + 1 })}
               </span>
               {!isPrimary && (
                 <button
@@ -206,6 +218,7 @@ function TerminalGroupPane({
             if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
             e.preventDefault()
             e.stopPropagation()
+            onDragEndAny()
             const raw = e.dataTransfer.getData(DRAG_TYPE)
             if (!raw) return
             const payload = JSON.parse(raw) as DragPayload

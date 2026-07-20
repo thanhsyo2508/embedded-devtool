@@ -113,6 +113,14 @@ function EditorGroupPane({
     if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
     e.preventDefault()
     e.stopPropagation()
+    // A move to a *different* group unmounts the dragged tab's own DOM node
+    // (it's rendered by that group's own map(), so React tears it down and
+    // mounts a new one in the target group instead of moving the existing
+    // node) — the browser can then drop the native drag operation without
+    // ever firing dragend on it, which would otherwise leave onTabDragEnd
+    // uncalled and the drag state stuck "in progress" forever. Resetting it
+    // here too, not just from the tab's own onDragEnd, covers that case.
+    onTabDragEnd()
     const raw = e.dataTransfer.getData(DRAG_TYPE)
     if (!raw) return
     const payload = JSON.parse(raw) as DragPayload
@@ -197,19 +205,23 @@ function EditorGroupPane({
                   <SplitIcon />
                 </button>
               )}
-              <button
-                type="button"
-                className="connect-button"
-                disabled={activeFile.saving || activeFile.content === activeFile.originalContent}
-                onClick={() => void saveFile(tab.id, activeFile.path)}
-              >
-                <DiskIcon /> {t('ssh.sftp.save')}
-              </button>
+              {!activeFile.isBinary && (
+                <button
+                  type="button"
+                  className="connect-button"
+                  disabled={activeFile.saving || activeFile.content === activeFile.originalContent}
+                  onClick={() => void saveFile(tab.id, activeFile.path)}
+                >
+                  <DiskIcon /> {t('ssh.sftp.save')}
+                </button>
+              )}
             </div>
           </div>
           {activeFile.error && <p className="connect-error">{activeFile.error}</p>}
           {activeFile.loading ? (
             <div className="sftp-editor-loading">{t('ssh.sftp.connecting')}</div>
+          ) : activeFile.isBinary ? (
+            <div className="sftp-editor-binary-notice">{t('ssh.sftp.binaryFile')}</div>
           ) : (
             <Editor
               className="sftp-code-editor"
@@ -232,6 +244,7 @@ function EditorGroupPane({
             if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
             e.preventDefault()
             e.stopPropagation()
+            onTabDragEnd()
             const raw = e.dataTransfer.getData(DRAG_TYPE)
             if (!raw) return
             const payload = JSON.parse(raw) as DragPayload

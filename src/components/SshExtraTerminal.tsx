@@ -6,6 +6,7 @@ import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import '@xterm/xterm/css/xterm.css'
 import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
 import { useSshTerminalsStore } from '../state/sshTerminalsStore'
+import { handleTerminalPathDragOver, handleTerminalPathDrop } from '../lib/terminalPathDrop'
 
 function pasteFromClipboard(term: Terminal) {
   void readText().then((text) => {
@@ -137,7 +138,12 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
         {connecting && <span className="line-count">{t('ssh.sftp.connecting')}</span>}
         {error && <span className="tab-error">{error}</span>}
       </div>
-      <div className="ssh-terminal" ref={containerRef} />
+      <div
+        className="ssh-terminal"
+        ref={containerRef}
+        onDragOver={handleTerminalPathDragOver}
+        onDrop={(e) => handleTerminalPathDrop(e, terminalId)}
+      />
     </div>
   )
 }

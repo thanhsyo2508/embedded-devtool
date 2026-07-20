@@ -2953,6 +2953,17 @@ input[type='checkbox']:disabled {
   border-bottom: 1px solid var(--border);
 }
 
+.sftp-tree-search {
+  flex: none;
+  margin: 6px 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+}
+
 .sftp-tree-status {
   padding: 6px 8px;
   font-size: 12px;
@@ -3173,12 +3184,15 @@ input[type='checkbox']:disabled {
   color: var(--text-muted);
 }
 
-.sftp-editor-loading {
+.sftp-editor-loading,
+.sftp-editor-binary-notice {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
+  padding: 20px;
+  text-align: center;
 }
 
 .sftp-code-editor {

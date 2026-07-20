@@ -278,7 +278,11 @@
       "save": "Lưu",
       "saveError": "Lưu thất bại — {{message}}",
       "splitRight": "Chia bên phải",
-      "closeGroup": "Đóng nhóm"
+      "closeGroup": "Đóng nhóm",
+      "binaryFile": "File này có vẻ là file nhị phân, không thể chỉnh sửa ở đây.",
+      "searchPlaceholder": "Tìm file…",
+      "openInVscode": "Mở trong VS Code",
+      "closeTabUnsavedConfirm": "Tab SSH này có file chưa lưu. Vẫn đóng và bỏ các thay đổi?"
     }
   },
   "library": {

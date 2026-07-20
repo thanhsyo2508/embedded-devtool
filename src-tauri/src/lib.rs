@@ -127,6 +127,39 @@ fn open_in_editor(file: String, line: Option<u32>) -> Result<(), String> {
         .map_err(|e| format!("could not launch VS Code ('code' CLI): {e}"))
 }
 
+/// Opens a remote path in VS Code's Remote-SSH extension, via `code
+/// --remote ssh-remote+user@host:port <path>` -- lets a user jump from the
+/// SSH workspace's SFTP tree straight into their full local VS Code
+/// (extensions, git integration, etc.) instead of this app's own
+/// lightweight editor. Works for both files and folders (a folder opens as
+/// a remote workspace). VS Code's Remote-SSH manages its own SSH connection
+/// entirely independently of this app's -- this command has no way to hand
+/// it a password, so if the target isn't already reachable via key-based
+/// auth or an existing `~/.ssh/config` entry, VS Code will prompt for one
+/// itself once it starts connecting. Same Windows `.cmd` shim handling as
+/// `open_in_editor`, since it's the same `code` CLI.
+#[tauri::command]
+fn open_ssh_path_in_vscode(
+    host: String,
+    port: u16,
+    username: String,
+    path: String,
+) -> Result<(), String> {
+    let remote = format!("ssh-remote+{username}@{host}:{port}");
+    let spawned = if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd")
+            .args(["/C", "code", "--remote", &remote, &path])
+            .spawn()
+    } else {
+        std::process::Command::new("code")
+            .args(["--remote", &remote, &path])
+            .spawn()
+    };
+    spawned
+        .map(|_| ())
+        .map_err(|e| format!("could not launch VS Code ('code' CLI): {e}"))
+}
+
 /// Downloads a plugin's Lua source so PluginLibraryPanel's "install from
 /// URL" flow can hand it to the same `parsePlugin` the local-file flow
 /// already uses -- see `plugin::fetch_plugin_source`'s doc comment.
@@ -2177,6 +2210,7 @@ pub fn run() {
             write_binary_file,
             read_text_file,
             open_in_editor,
+            open_ssh_path_in_vscode,
             fetch_plugin_from_url,
             keychain_save_password,
             keychain_load_password,

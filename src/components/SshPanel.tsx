@@ -7,6 +7,7 @@ import '@xterm/xterm/css/xterm.css'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
 import { keychainDeletePassword, keychainLoadPassword, keychainSavePassword } from '../api/keychain'
+import { handleTerminalPathDragOver, handleTerminalPathDrop } from '../lib/terminalPathDrop'
 import { RepeatIcon } from './icons'
 
 function pasteFromClipboard(term: Terminal) {
@@ -241,7 +242,12 @@ export function SshPanel({ tab }: { tab: TabState }) {
           </div>
         )}
       </div>
-      <div className="ssh-terminal" ref={containerRef} />
+      <div
+        className="ssh-terminal"
+        ref={containerRef}
+        onDragOver={handleTerminalPathDragOver}
+        onDrop={(e) => handleTerminalPathDrop(e, tab.id)}
+      />
     </div>
   )
 }

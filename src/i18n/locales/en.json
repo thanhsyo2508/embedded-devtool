@@ -278,7 +278,11 @@
       "save": "Save",
       "saveError": "Save failed — {{message}}",
       "splitRight": "Split right",
-      "closeGroup": "Close group"
+      "closeGroup": "Close group",
+      "binaryFile": "This file looks binary and can't be edited here.",
+      "searchPlaceholder": "Search files…",
+      "openInVscode": "Open in VS Code",
+      "closeTabUnsavedConfirm": "This SSH tab has unsaved file changes. Close anyway and discard them?"
     }
   },
   "library": {

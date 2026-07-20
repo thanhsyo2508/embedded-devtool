@@ -3,11 +3,19 @@ import { useTranslation } from 'react-i18next'
 import { open } from '@tauri-apps/plugin-dialog'
 import type { TabState } from '../state/tabsStore'
 import { DEFAULT_SFTP_SESSION, useSftpStore } from '../state/sftpStore'
-import type { SftpEntry } from '../api/sftp'
+import { openSshPathInVscode, type SftpEntry } from '../api/sftp'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { ChevronDownIcon, CodeIcon, FolderIcon, RefreshIcon } from './icons'
 
 const ROOT_PATH = ''
+
+/** dataTransfer type for dragging a tree row's path into a terminal to
+ * insert it (see SshPanel.tsx/SshExtraTerminal.tsx) — distinct from
+ * SftpEditorTabs' `application/x-sftp-file` (a different payload shape:
+ * a plain path string here, not JSON) and from SshTerminalGroups'
+ * `application/x-ssh-terminal`, so none of the three drag systems can
+ * misinterpret another's payload. */
+export const TREE_DRAG_TYPE = 'application/x-sftp-tree-path'
 
 interface MenuState {
   x: number
@@ -16,34 +24,57 @@ interface MenuState {
   entry: SftpEntry | null
 }
 
+/** Client-side only, over whatever's already been fetched — same "no new
+ * recursive backend search" scope boundary as the command-palette Quick
+ * Open. Folders are never hidden by a query (so the tree stays navigable
+ * while typing and you can still open one to look for a match inside) —
+ * only non-matching files get filtered out. */
+function filterEntries(entries: SftpEntry[], query: string): SftpEntry[] {
+  if (!query) return entries
+  return entries.filter((e) => e.isDir || e.name.toLowerCase().includes(query))
+}
+
 function TreeRow({
   tab,
   entry,
   depth,
   onMenu,
+  filter,
 }: {
   tab: TabState
   entry: SftpEntry
   depth: number
   onMenu: (e: React.MouseEvent, parentPath: string, entry: SftpEntry) => void
+  filter: string
 }) {
   const session = useSftpStore((s) => s.sessions[tab.id]) ?? DEFAULT_SFTP_SESSION
   const toggleNode = useSftpStore((s) => s.toggleNode)
   const openFile = useSftpStore((s) => s.openFile)
   const isExpanded = session.expanded.has(entry.path)
   const node = session.nodes[entry.path]
+  const children = node?.entries ? filterEntries(node.entries, filter) : null
 
   return (
     <>
       <div
         className={`sftp-tree-row ${session.groups.some((g) => g.activeFilePath === entry.path) ? 'on' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 6}px` }}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(TREE_DRAG_TYPE, entry.path)
+          e.dataTransfer.effectAllowed = 'copy'
+        }}
         onClick={() => {
           if (entry.isDir) void toggleNode(tab.id, entry.path)
           else void openFile(tab.id, entry)
         }}
         onContextMenu={(e) => {
           e.preventDefault()
+          // Without this, the event bubbles to the sidebar's own
+          // onContextMenu (below), which fires right after and overwrites
+          // this row's entry-specific menu with the generic root one —
+          // Rename/Delete/Open-in-VS-Code would never show for any row.
+          e.stopPropagation()
           onMenu(e, entry.path.slice(0, entry.path.length - entry.name.length - 1), entry)
         }}
       >
@@ -58,11 +89,18 @@ function TreeRow({
         <span className="sftp-tree-name">{entry.name}</span>
         {node?.loading && <span className="sftp-tree-loading" />}
       </div>
-      {entry.isDir && isExpanded && node?.entries && (
+      {entry.isDir && isExpanded && children && (
         <>
-          {node.error && <div className="sftp-tree-error">{node.error}</div>}
-          {node.entries.map((child) => (
-            <TreeRow key={child.path} tab={tab} entry={child} depth={depth + 1} onMenu={onMenu} />
+          {node?.error && <div className="sftp-tree-error">{node.error}</div>}
+          {children.map((child) => (
+            <TreeRow
+              key={child.path}
+              tab={tab}
+              entry={child}
+              depth={depth + 1}
+              onMenu={onMenu}
+              filter={filter}
+            />
           ))}
         </>
       )}
@@ -81,8 +119,11 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
   const uploadBytes = useSftpStore((s) => s.uploadBytes)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [query, setQuery] = useState('')
 
   const rootNode = session.nodes[ROOT_PATH]
+  const filter = query.trim().toLowerCase()
+  const rootEntries = rootNode?.entries ? filterEntries(rootNode.entries, filter) : null
 
   const openMenu = (e: React.MouseEvent, parentPath: string, entry: SftpEntry | null) => {
     setMenu({ x: e.clientX, y: e.clientY, parentPath, entry })
@@ -137,11 +178,34 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
           },
         },
       )
+      if (tab.connectionConfig.kind === 'ssh') {
+        const { host, port, username } = tab.connectionConfig
+        items.push({
+          label: t('ssh.sftp.openInVscode'),
+          separatorBefore: true,
+          onClick: () => {
+            openSshPathInVscode(host, port, username, menu.entry!.path).catch((err: unknown) => {
+              window.alert(String(err))
+            })
+          },
+        })
+      }
     }
     return items
   }
 
+  const handleDragOver = (e: React.DragEvent) => {
+    // Only claim OS-file drags here — an internal tree-row drag (headed
+    // for a terminal, not the sidebar itself) carries no 'Files' type, so
+    // this leaves that alone rather than flashing an upload-drop highlight
+    // on the sidebar while the user is dragging a path out of it.
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault()
+    setDragOver(true)
+  }
+
   const handleDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return
     e.preventDefault()
     setDragOver(false)
     const files = Array.from(e.dataTransfer.files)
@@ -155,10 +219,7 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
   return (
     <div
       className={`sftp-tree-sidebar ${dragOver ? 'drag-over' : ''}`}
-      onDragOver={(e) => {
-        e.preventDefault()
-        setDragOver(true)
-      }}
+      onDragOver={handleDragOver}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
       onContextMenu={(e) => {
@@ -177,12 +238,28 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
           <RefreshIcon />
         </button>
       </div>
+      {session.connected && (
+        <input
+          type="text"
+          className="sftp-tree-search"
+          placeholder={t('ssh.sftp.searchPlaceholder')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
       {session.connecting && <p className="sftp-tree-status">{t('ssh.sftp.connecting')}</p>}
       {session.connectError && <p className="connect-error">{session.connectError}</p>}
-      {session.connected && rootNode?.entries && (
+      {session.connected && rootEntries && (
         <div className="sftp-tree-body">
-          {rootNode.entries.map((entry) => (
-            <TreeRow key={entry.path} tab={tab} entry={entry} depth={0} onMenu={openMenu} />
+          {rootEntries.map((entry) => (
+            <TreeRow
+              key={entry.path}
+              tab={tab}
+              entry={entry}
+              depth={0}
+              onMenu={openMenu}
+              filter={filter}
+            />
           ))}
         </div>
       )}

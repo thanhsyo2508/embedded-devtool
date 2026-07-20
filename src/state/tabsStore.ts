@@ -26,6 +26,7 @@ import {
 import { sftpDisconnect } from '../api/sftp'
 import { useSftpStore } from './sftpStore'
 import { useSshTerminalsStore } from './sshTerminalsStore'
+import i18n from '../i18n'
 import { useSettingsStore, type Encoding, type NewlineMode } from './settingsStore'
 import { detectLogLevel, type LogLevel } from '../lib/logLevel'
 import { matchTriggers } from '../lib/triggers'
@@ -977,6 +978,13 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
 
   closeTab: async (id) => {
     const tab = get().tabs.find((t) => t.id === id)
+    if (tab?.connectionKind === 'ssh') {
+      const session = useSftpStore.getState().sessions[id]
+      const hasUnsavedEdits = session?.openFiles.some((f) => f.content !== f.originalContent)
+      if (hasUnsavedEdits && !window.confirm(i18n.t('ssh.sftp.closeTabUnsavedConfirm'))) {
+        return
+      }
+    }
     if (tab?.scriptRunning) {
       await stopScriptApi(id).catch(() => {})
     }

@@ -37,6 +37,12 @@ export interface OpenSftpFile {
   loading: boolean
   saving: boolean
   error: string | null
+  /** True if the file's bytes look binary (see `isBinaryContent`) — the
+   * editor shows a "can't edit" message instead of the code editor for
+   * these, since decoding binary data as UTF-8 text and saving it back
+   * would corrupt it (lossy round-trip through the replacement character
+   * for any invalid byte sequences). */
+  isBinary: boolean
 }
 
 /** One editor column (VSCode-style "editor group"). `filePaths` are
@@ -86,6 +92,21 @@ export const DEFAULT_SFTP_SESSION: SftpTabSession = emptySession()
 
 function bytesToText(bytes: number[]): string {
   return new TextDecoder().decode(new Uint8Array(bytes))
+}
+
+/** Same heuristic git/most editors use: a NUL byte anywhere in the first
+ * chunk of the file is a strong, cheap signal it's not text — real text
+ * files (in any encoding editors commonly round-trip through) never
+ * legitimately contain one. Checked before decoding so a genuinely binary
+ * file (image, executable, ...) never gets silently mangled by a lossy
+ * UTF-8 decode-then-re-encode round trip if someone hits Save. */
+const BINARY_SNIFF_LENGTH = 8000
+function isBinaryContent(bytes: number[]): boolean {
+  const end = Math.min(bytes.length, BINARY_SNIFF_LENGTH)
+  for (let i = 0; i < end; i++) {
+    if (bytes[i] === 0) return true
+  }
+  return false
 }
 
 function textToBytes(text: string): number[] {
@@ -257,6 +278,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       loading: true,
       saving: false,
       error: null,
+      isBinary: false,
     }
     patchSession(set, tabId, (s) => ({
       openFiles: [...s.openFiles, placeholder],
@@ -269,6 +291,14 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     }))
     try {
       const bytes = await sftpReadFile(tabId, entry.path)
+      if (isBinaryContent(bytes)) {
+        patchSession(set, tabId, (s) => ({
+          openFiles: s.openFiles.map((f) =>
+            f.path === entry.path ? { ...f, loading: false, isBinary: true } : f,
+          ),
+        }))
+        return
+      }
       const text = bytesToText(bytes)
       patchSession(set, tabId, (s) => ({
         openFiles: s.openFiles.map((f) =>
@@ -332,9 +362,22 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   splitGroupRight: (tabId, path) => {
     patchSession(set, tabId, (s) => {
       const [first, second] = s.groups
+      // Splitting *moves* the file into the new/second group — it must not
+      // stay referenced in `first` too, or the same file ends up shown as
+      // a tab in both groups at once.
+      const firstFilePaths = first.filePaths.filter((p) => p !== path)
+      const firstActiveFilePath =
+        first.activeFilePath === path
+          ? (firstFilePaths[firstFilePaths.length - 1] ?? null)
+          : first.activeFilePath
+      const updatedFirst: SftpEditorGroup = {
+        ...first,
+        filePaths: firstFilePaths,
+        activeFilePath: firstActiveFilePath,
+      }
       if (second) {
         const groups = [
-          first,
+          updatedFirst,
           {
             ...second,
             filePaths: second.filePaths.includes(path)
@@ -350,7 +393,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
         filePaths: [path],
         activeFilePath: path,
       }
-      return { groups: [first, newGroup], activeGroupId: newGroup.id }
+      return { groups: [updatedFirst, newGroup], activeGroupId: newGroup.id }
     })
   },
 
@@ -398,7 +441,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   saveFile: async (tabId, path) => {
     const session = get().ensureSession(tabId)
     const file = session.openFiles.find((f) => f.path === path)
-    if (!file || file.content === file.originalContent) return
+    if (!file || file.isBinary || file.content === file.originalContent) return
     patchSession(set, tabId, (s) => ({
       openFiles: s.openFiles.map((f) =>
         f.path === path ? { ...f, saving: true, error: null } : f,
