@@ -10,9 +10,11 @@ use std::sync::{Arc, Mutex};
 
 use crate::core::data_stream::DataStream;
 use crate::core::event_bus::{Event, EventBus};
+use crate::core::known_hosts::KnownHosts;
 use crate::core::mqtt_stream::{MqttConfig, MqttStream};
 use crate::core::net_stream::{TcpClientStream, TcpServerStream, UdpDataStream};
 use crate::core::rtt_stream::{RttConfig, RttStream};
+use crate::core::ssh_auth::SshAuth;
 use crate::core::ssh_stream::SshStream;
 use crate::core::ws_stream::{WsClientStream, WsServerStream};
 
@@ -28,13 +30,15 @@ type SharedStream = Arc<Mutex<Box<dyn DataStream>>>;
 pub struct NetworkManager {
     streams: Mutex<HashMap<String, SharedStream>>,
     event_bus: EventBus,
+    known_hosts: Arc<KnownHosts>,
 }
 
 impl NetworkManager {
-    pub fn new(event_bus: EventBus) -> Self {
+    pub fn new(event_bus: EventBus, known_hosts: Arc<KnownHosts>) -> Self {
         Self {
             streams: Mutex::new(HashMap::new()),
             event_bus,
+            known_hosts,
         }
     }
 
@@ -175,6 +179,9 @@ impl NetworkManager {
         }
     }
 
+    /// `private_key_path` (non-empty) selects key-based auth over
+    /// `password` — see `core::ssh_auth::SshAuth`.
+    #[allow(clippy::too_many_arguments)]
     pub fn open_ssh(
         &self,
         id: String,
@@ -182,8 +189,23 @@ impl NetworkManager {
         port: u16,
         username: String,
         password: String,
+        private_key_path: Option<String>,
+        passphrase: Option<String>,
     ) -> Result<(), String> {
-        self.open(id, Box::new(SshStream::new(host, port, username, password)))
+        let auth = match private_key_path {
+            Some(path) if !path.is_empty() => SshAuth::PrivateKey { path, passphrase },
+            _ => SshAuth::Password(password),
+        };
+        self.open(
+            id,
+            Box::new(SshStream::new(
+                host,
+                port,
+                username,
+                auth,
+                self.known_hosts.clone(),
+            )),
+        )
     }
 
     fn open(&self, id: String, mut stream: Box<dyn DataStream>) -> Result<(), String> {
@@ -398,9 +420,17 @@ mod tests {
     // Guards the per-stream locking shape: a slow connect must not hold the
     // map lock, or the 16ms drain tick (all network tabs' data) stalls for
     // the whole connect timeout.
+    // None of these tests actually open an SSH stream, so this path is
+    // never read from or written to — any placeholder works.
+    fn test_known_hosts() -> Arc<KnownHosts> {
+        Arc::new(KnownHosts::load(std::path::PathBuf::from(
+            "unused-test-known-hosts",
+        )))
+    }
+
     #[test]
     fn drain_is_not_blocked_by_slow_open() {
-        let manager = std::sync::Arc::new(NetworkManager::new(EventBus::new()));
+        let manager = std::sync::Arc::new(NetworkManager::new(EventBus::new(), test_known_hosts()));
         let manager_for_open = manager.clone();
         let opener = thread::spawn(move || {
             let _ = manager_for_open.open("slow".to_string(), Box::new(SlowOpenStream));
@@ -418,21 +448,21 @@ mod tests {
 
     #[test]
     fn write_to_unknown_stream_errors() {
-        let manager = NetworkManager::new(EventBus::new());
+        let manager = NetworkManager::new(EventBus::new(), test_known_hosts());
         let err = manager.write("nope", b"hi").unwrap_err();
         assert!(err.contains("not found"));
     }
 
     #[test]
     fn close_unknown_stream_errors() {
-        let manager = NetworkManager::new(EventBus::new());
+        let manager = NetworkManager::new(EventBus::new(), test_known_hosts());
         let err = manager.close("nope").unwrap_err();
         assert!(err.contains("not found"));
     }
 
     #[test]
     fn close_all_on_empty_manager_does_nothing() {
-        let manager = NetworkManager::new(EventBus::new());
+        let manager = NetworkManager::new(EventBus::new(), test_known_hosts());
         manager.close_all();
     }
 }

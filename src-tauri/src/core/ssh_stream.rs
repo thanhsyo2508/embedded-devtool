@@ -13,9 +13,10 @@
 //! frontend must not run it through the newline-splitting logic the
 //! generic line monitor uses.
 //!
-//! Host key verification is not implemented yet (`check_server_key` always
-//! accepts) — there's no known-hosts UI. This is a real gap, not something
-//! silently handled securely; MITM protection is absent until that lands.
+//! Host key verification uses `core::known_hosts`'s trust-on-first-use
+//! store — the first connection to a given host:port is trusted
+//! automatically (no interactive prompt; see that module's doc comment for
+//! why), but a later connection presenting a *different* key is refused.
 
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -29,7 +30,9 @@ use russh::{ChannelMsg, Disconnect};
 use tokio::sync::mpsc;
 
 use super::data_stream::{DataCallback, DataStream};
+use super::known_hosts::{self, KnownHosts};
 use super::ring_buffer::RingBuffer;
+use super::ssh_auth::{self, SshAuth};
 use super::stream_pump::spawn_pump_thread;
 
 const RING_BUFFER_CAPACITY: usize = 1 << 20;
@@ -41,16 +44,28 @@ const DEFAULT_ROWS: u32 = 24;
 /// silently never receives anything).
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
-struct SshHandler;
+struct SshHandler {
+    known_hosts: Arc<KnownHosts>,
+    host: String,
+    port: u16,
+}
 
 impl client::Handler for SshHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh::keys::PublicKey,
+        server_public_key: &russh::keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(true)
+        match known_hosts::verify_host_key(
+            &self.known_hosts,
+            &self.host,
+            self.port,
+            server_public_key,
+        ) {
+            Ok(()) => Ok(true),
+            Err(msg) => Err(russh::Error::InvalidConfig(msg)),
+        }
     }
 }
 
@@ -63,7 +78,8 @@ pub struct SshStream {
     host: String,
     port: u16,
     username: String,
-    password: String,
+    auth: SshAuth,
+    known_hosts: Arc<KnownHosts>,
     cmd_tx: Option<mpsc::UnboundedSender<SshCommand>>,
     worker_thread: Option<JoinHandle<()>>,
     pump_thread: Option<JoinHandle<()>>,
@@ -74,12 +90,19 @@ pub struct SshStream {
 }
 
 impl SshStream {
-    pub fn new(host: String, port: u16, username: String, password: String) -> Self {
+    pub fn new(
+        host: String,
+        port: u16,
+        username: String,
+        auth: SshAuth,
+        known_hosts: Arc<KnownHosts>,
+    ) -> Self {
         Self {
             host,
             port,
             username,
-            password,
+            auth,
+            known_hosts,
             cmd_tx: None,
             worker_thread: None,
             pump_thread: None,
@@ -108,7 +131,8 @@ impl DataStream for SshStream {
         let host = self.host.clone();
         let port = self.port;
         let username = self.username.clone();
-        let password = self.password.clone();
+        let auth = self.auth.clone();
+        let known_hosts = self.known_hosts.clone();
 
         self.worker_thread = Some(thread::spawn(move || {
             let runtime = match tokio::runtime::Builder::new_current_thread()
@@ -124,8 +148,13 @@ impl DataStream for SshStream {
 
             runtime.block_on(async move {
                 let config = Arc::new(client::Config::default());
+                let handler = SshHandler {
+                    known_hosts,
+                    host: host.clone(),
+                    port,
+                };
                 let mut session =
-                    match client::connect(config, (host.as_str(), port), SshHandler).await {
+                    match client::connect(config, (host.as_str(), port), handler).await {
                         Ok(s) => s,
                         Err(e) => {
                             let _ = ready_tx.send(Err(e.to_string()));
@@ -133,16 +162,9 @@ impl DataStream for SshStream {
                         }
                     };
 
-                match session.authenticate_password(username, password).await {
-                    Ok(result) if result.success() => {}
-                    Ok(_) => {
-                        let _ = ready_tx.send(Err("authentication failed".to_string()));
-                        return;
-                    }
-                    Err(e) => {
-                        let _ = ready_tx.send(Err(e.to_string()));
-                        return;
-                    }
+                if let Err(e) = ssh_auth::authenticate(&mut session, &username, &auth).await {
+                    let _ = ready_tx.send(Err(e));
+                    return;
                 }
 
                 let mut channel = match session.channel_open_session().await {

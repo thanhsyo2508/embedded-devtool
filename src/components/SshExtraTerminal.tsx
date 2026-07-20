@@ -1,12 +1,14 @@
-import { useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import '@xterm/xterm/css/xterm.css'
 import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
 import { useSshTerminalsStore } from '../state/sshTerminalsStore'
 import { handleTerminalPathDragOver, handleTerminalPathDrop } from '../lib/terminalPathDrop'
+import { TerminalSearchBar } from './TerminalSearchBar'
 
 function pasteFromClipboard(term: Terminal) {
   void readText().then((text) => {
@@ -17,8 +19,13 @@ function pasteFromClipboard(term: Terminal) {
 interface ExtraTerminalEntry {
   term: Terminal
   fitAddon: FitAddon
+  searchAddon: SearchAddon
   hostDiv: HTMLDivElement
   disposeForGood: () => void
+  /** Reassigned on every mount, not just creation — see SshPanel.tsx's
+   * identical field for why (the Ctrl+F handler is wired up once, but a
+   * remount after switching away gets a fresh setShowSearch). */
+  setShowSearch: (v: boolean) => void
 }
 
 // Deliberately a separate module-level map from SshPanel's own
@@ -41,6 +48,7 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
   const containerRef = useRef<HTMLDivElement>(null)
   const connecting = useSshTerminalsStore((s) => s.connecting[terminalId])
   const error = useSshTerminalsStore((s) => s.errors[terminalId])
+  const [showSearch, setShowSearch] = useState(false)
 
   // useLayoutEffect, not useEffect — same reasoning as SshPanel's own mount
   // effect: fitAddon.fit() needs real layout size before first paint.
@@ -57,6 +65,8 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
       })
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
+      const searchAddon = new SearchAddon()
+      term.loadAddon(searchAddon)
       const hostDiv = document.createElement('div')
       hostDiv.style.width = '100%'
       hostDiv.style.height = '100%'
@@ -72,10 +82,18 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
       term.attachCustomKeyEventHandler((event) => {
         if (event.type !== 'keydown') return true
         const isPaste = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v'
-        if (!isPaste) return true
-        event.preventDefault()
-        pasteFromClipboard(term)
-        return false
+        if (isPaste) {
+          event.preventDefault()
+          pasteFromClipboard(term)
+          return false
+        }
+        const isFind = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f'
+        if (isFind) {
+          event.preventDefault()
+          entry!.setShowSearch(true)
+          return false
+        }
+        return true
       })
       const unlistenPromise = onNetworkData((batch) => {
         if (batch.id !== terminalId) return
@@ -85,6 +103,7 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
       entry = {
         term,
         fitAddon,
+        searchAddon,
         hostDiv,
         disposeForGood: () => {
           dataDisposable.dispose()
@@ -92,9 +111,12 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
           void unlistenPromise.then((unlisten) => unlisten())
           term.dispose()
         },
+        setShowSearch,
       }
       extraTerminals.set(terminalId, entry)
     }
+
+    entry.setShowSearch = setShowSearch
 
     const { term, fitAddon, hostDiv } = entry
     container.appendChild(hostDiv)
@@ -138,12 +160,20 @@ export function SshExtraTerminal({ tabId, terminalId }: { tabId: string; termina
         {connecting && <span className="line-count">{t('ssh.sftp.connecting')}</span>}
         {error && <span className="tab-error">{error}</span>}
       </div>
-      <div
-        className="ssh-terminal"
-        ref={containerRef}
-        onDragOver={handleTerminalPathDragOver}
-        onDrop={(e) => handleTerminalPathDrop(e, terminalId)}
-      />
+      <div className="ssh-terminal-wrap">
+        <div
+          className="ssh-terminal"
+          ref={containerRef}
+          onDragOver={handleTerminalPathDragOver}
+          onDrop={(e) => handleTerminalPathDrop(e, terminalId)}
+        />
+        {showSearch && extraTerminals.get(terminalId) && (
+          <TerminalSearchBar
+            searchAddon={extraTerminals.get(terminalId)!.searchAddon}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
+      </div>
     </div>
   )
 }

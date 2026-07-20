@@ -6,6 +6,8 @@ export interface SshConnectionConfig {
   port: number
   username: string
   password: string
+  privateKeyPath?: string
+  passphrase?: string
 }
 
 /** One terminal-dock column (same VSCode-style "editor group" idea as
@@ -97,7 +99,15 @@ export const useSshTerminalsStore = create<SshTerminalsState>((set, get) => ({
       nextTerminalNumber: { ...state.nextTerminalNumber, [tabId]: number + 1 },
     }))
     try {
-      await openSsh(terminalId, config.host, config.port, config.username, config.password)
+      await openSsh(
+        terminalId,
+        config.host,
+        config.port,
+        config.username,
+        config.password,
+        config.privateKeyPath,
+        config.passphrase,
+      )
       set((state) => ({ connecting: { ...state.connecting, [terminalId]: false } }))
     } catch (err) {
       set((state) => ({

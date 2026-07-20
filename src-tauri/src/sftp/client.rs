@@ -25,20 +25,45 @@ use std::time::UNIX_EPOCH;
 use russh::client::{self, Config};
 use russh::Disconnect;
 use russh_sftp::client::SftpSession;
+
+use crate::core::known_hosts::{self, KnownHosts};
+use crate::core::ssh_auth::{self, SshAuth};
 use serde::Serialize;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
-struct SftpSshHandler;
+/// Chunk size for download/upload progress reporting — small enough that a
+/// multi-MB firmware image or log file reports progress in reasonably fine
+/// steps, large enough that a typical config-file-sized transfer (this
+/// app's common case) doesn't spam dozens of near-instant progress events.
+const TRANSFER_CHUNK_SIZE: usize = 256 * 1024;
+
+/// Same `core::known_hosts`-backed TOFU check as `core::ssh_stream`'s own
+/// handler (this is a separate connection, per this module's own doc
+/// comment, so it needs its own copy of the handler — sharing the SSH tab's
+/// wasn't an option there either).
+struct SftpSshHandler {
+    known_hosts: Arc<KnownHosts>,
+    host: String,
+    port: u16,
+}
 
 impl client::Handler for SftpSshHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh::keys::PublicKey,
+        server_public_key: &russh::keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        Ok(true)
+        match known_hosts::verify_host_key(
+            &self.known_hosts,
+            &self.host,
+            self.port,
+            server_public_key,
+        ) {
+            Ok(()) => Ok(true),
+            Err(msg) => Err(russh::Error::InvalidConfig(msg)),
+        }
     }
 }
 
@@ -74,21 +99,20 @@ struct SftpSessionEntry {
 // other SFTP call (all sessions) behind the whole transfer.
 pub struct SftpManager {
     sessions: Mutex<HashMap<String, Arc<SftpSessionEntry>>>,
-}
-
-impl Default for SftpManager {
-    fn default() -> Self {
-        Self::new()
-    }
+    known_hosts: Arc<KnownHosts>,
 }
 
 impl SftpManager {
-    pub fn new() -> Self {
+    pub fn new(known_hosts: Arc<KnownHosts>) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            known_hosts,
         }
     }
 
+    /// `private_key_path` (non-empty) selects key-based auth over
+    /// `password` — see `core::ssh_auth::SshAuth`.
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect(
         &self,
         id: &str,
@@ -96,16 +120,26 @@ impl SftpManager {
         port: u16,
         username: &str,
         password: &str,
+        private_key_path: Option<&str>,
+        passphrase: Option<&str>,
     ) -> Result<(), String> {
+        let auth = match private_key_path {
+            Some(path) if !path.is_empty() => SshAuth::PrivateKey {
+                path: path.to_string(),
+                passphrase: passphrase.map(|p| p.to_string()),
+            },
+            _ => SshAuth::Password(password.to_string()),
+        };
         let config = Arc::new(Config::default());
-        let mut handle = client::connect(config, (host, port), SftpSshHandler)
+        let ssh_handler = SftpSshHandler {
+            known_hosts: self.known_hosts.clone(),
+            host: host.to_string(),
+            port,
+        };
+        let mut handle = client::connect(config, (host, port), ssh_handler)
             .await
             .map_err(|e| format!("failed to connect: {e}"))?;
-        match handle.authenticate_password(username, password).await {
-            Ok(result) if result.success() => {}
-            Ok(_) => return Err("authentication failed".to_string()),
-            Err(e) => return Err(e.to_string()),
-        }
+        ssh_auth::authenticate(&mut handle, username, &auth).await?;
         let channel = handle
             .channel_open_session()
             .await
@@ -243,28 +277,92 @@ impl SftpManager {
         entry.sftp.rename(from, to).await.map_err(|e| e.to_string())
     }
 
+    /// Downloads in chunks (rather than `read_file`'s whole-file-into-memory
+    /// shot) so `on_progress(bytes_so_far, total_bytes)` can report progress
+    /// for a large transfer instead of the caller only finding out once the
+    /// entire thing has already completed.
     pub async fn download(
         &self,
         id: &str,
         remote_path: &str,
         local_path: &str,
+        mut on_progress: impl FnMut(u64, u64) + Send,
     ) -> Result<(), String> {
-        let bytes = self.read_file(id, remote_path).await?;
-        tokio::fs::write(local_path, bytes)
+        let entry = self.get(id).await?;
+        let total = entry
+            .sftp
+            .metadata(remote_path)
+            .await
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let mut remote_file = entry
+            .sftp
+            .open(remote_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut local_file = tokio::fs::File::create(local_path)
+            .await
+            .map_err(|e| format!("failed to write {local_path}: {e}"))?;
+        let mut buf = vec![0u8; TRANSFER_CHUNK_SIZE];
+        let mut transferred: u64 = 0;
+        loop {
+            let n = remote_file
+                .read(&mut buf)
+                .await
+                .map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            local_file
+                .write_all(&buf[..n])
+                .await
+                .map_err(|e| format!("failed to write {local_path}: {e}"))?;
+            transferred += n as u64;
+            on_progress(transferred, total);
+        }
+        local_file
+            .flush()
             .await
             .map_err(|e| format!("failed to write {local_path}: {e}"))
     }
 
+    /// Same chunked-with-progress shape as `download`, and the same
+    /// `.create()`-not-`.write()` truncation reasoning as `write_file`.
     pub async fn upload(
         &self,
         id: &str,
         local_path: &str,
         remote_path: &str,
+        mut on_progress: impl FnMut(u64, u64) + Send,
     ) -> Result<(), String> {
-        let bytes = tokio::fs::read(local_path)
+        let entry = self.get(id).await?;
+        let mut local_file = tokio::fs::File::open(local_path)
             .await
             .map_err(|e| format!("failed to read {local_path}: {e}"))?;
-        self.write_file(id, remote_path, &bytes).await
+        let total = local_file.metadata().await.map(|m| m.len()).unwrap_or(0);
+        let mut remote_file = entry
+            .sftp
+            .create(remote_path)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut buf = vec![0u8; TRANSFER_CHUNK_SIZE];
+        let mut transferred: u64 = 0;
+        loop {
+            let n = local_file
+                .read(&mut buf)
+                .await
+                .map_err(|e| format!("failed to read {local_path}: {e}"))?;
+            if n == 0 {
+                break;
+            }
+            remote_file
+                .write_all(&buf[..n])
+                .await
+                .map_err(|e| e.to_string())?;
+            transferred += n as u64;
+            on_progress(transferred, total);
+        }
+        remote_file.shutdown().await.map_err(|e| e.to_string())
     }
 }
 
@@ -272,58 +370,66 @@ impl SftpManager {
 mod tests {
     use super::*;
 
+    // None of these tests actually connect, so this path is never read
+    // from or written to — any placeholder works.
+    fn test_manager() -> SftpManager {
+        SftpManager::new(Arc::new(KnownHosts::load(std::path::PathBuf::from(
+            "unused-test-known-hosts",
+        ))))
+    }
+
     #[tokio::test]
     async fn list_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.list("nope", "/").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn read_file_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.read_file("nope", "/x").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn write_file_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.write_file("nope", "/x", b"hi").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn mkdir_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.mkdir("nope", "/x").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn rmdir_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.rmdir("nope", "/x").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn delete_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.delete("nope", "/x").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn rename_on_unknown_session_errors() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         let err = manager.rename("nope", "/x", "/y").await.unwrap_err();
         assert!(err.contains("connect first"));
     }
 
     #[tokio::test]
     async fn disconnect_on_unknown_session_is_a_noop() {
-        let manager = SftpManager::new();
+        let manager = test_manager();
         manager.disconnect("nope").await;
     }
 }

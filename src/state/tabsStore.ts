@@ -197,7 +197,15 @@ export type ConnectionConfig =
   | { kind: 'ws-client'; url: string }
   | { kind: 'ws-server'; port: number }
   | ({ kind: 'mqtt' } & MqttParams)
-  | { kind: 'ssh'; host: string; port: number; username: string; password: string }
+  | {
+      kind: 'ssh'
+      host: string
+      port: number
+      username: string
+      password: string
+      privateKeyPath?: string
+      passphrase?: string
+    }
   | { kind: 'rtt'; probeSerial?: string; chip: string }
 
 /** What `openTab` accepts to start a new connection of any kind. `id` is
@@ -216,7 +224,16 @@ export type OpenTabRequest =
   | { kind: 'ws-client'; id: string; url: string }
   | { kind: 'ws-server'; id: string; port: number }
   | ({ kind: 'mqtt'; id: string } & MqttParams)
-  | { kind: 'ssh'; id: string; host: string; port: number; username: string; password: string }
+  | {
+      kind: 'ssh'
+      id: string
+      host: string
+      port: number
+      username: string
+      password: string
+      privateKeyPath?: string
+      passphrase?: string
+    }
   | { kind: 'rtt'; id: string; probeSerial?: string; chip: string }
 
 export interface TabState {
@@ -905,6 +922,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
                           port: req.port,
                           username: req.username,
                           password: req.password,
+                          privateKeyPath: req.privateKeyPath,
+                          passphrase: req.passphrase,
                         }
                       : { kind: 'rtt', probeSerial: req.probeSerial, chip: req.chip }
 
@@ -970,7 +989,15 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
     else if (req.kind === 'ws-server') await openWsServer(req.id, req.port)
     else if (req.kind === 'mqtt') await openMqtt(req.id, req)
     else if (req.kind === 'ssh')
-      await openSsh(req.id, req.host, req.port, req.username, req.password)
+      await openSsh(
+        req.id,
+        req.host,
+        req.port,
+        req.username,
+        req.password,
+        req.privateKeyPath,
+        req.passphrase,
+      )
     else await openRtt(req.id, req.probeSerial, req.chip)
 
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
@@ -1057,7 +1084,15 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       else if (config.kind === 'mqtt') await openMqtt(id, config)
       else if (config.kind === 'ssh') {
         const password = sshPasswordOverride ?? config.password
-        await openSsh(id, config.host, config.port, config.username, password)
+        await openSsh(
+          id,
+          config.host,
+          config.port,
+          config.username,
+          password,
+          config.privateKeyPath,
+          config.passphrase,
+        )
         if (sshPasswordOverride !== undefined) {
           set((state) => ({
             tabs: state.tabs.map((t) =>

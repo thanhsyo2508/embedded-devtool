@@ -1647,7 +1647,21 @@ fn open_mqtt(
 /// line-oriented byte stream every other open_* command here backs — the
 /// frontend renders it with a real terminal emulator (xterm.js) instead of
 /// the generic monitor.
+/// Clears a previously-trusted host's key fingerprint so its next
+/// connection is trusted fresh — the escape hatch for "I know this host's
+/// key legitimately changed (reinstalled, etc.), let me back in" after a
+/// `core::known_hosts` mismatch refusal.
 #[tauri::command]
+fn forget_known_host(
+    known_hosts: tauri::State<Arc<crate::core::known_hosts::KnownHosts>>,
+    host: String,
+    port: u16,
+) {
+    known_hosts.forget(&format!("{host}:{port}"));
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
 fn open_ssh(
     network: tauri::State<Arc<NetworkManager>>,
     id: String,
@@ -1655,8 +1669,18 @@ fn open_ssh(
     port: u16,
     username: String,
     password: String,
+    private_key_path: Option<String>,
+    passphrase: Option<String>,
 ) -> Result<(), String> {
-    network.open_ssh(id, host, port, username, password)
+    network.open_ssh(
+        id,
+        host,
+        port,
+        username,
+        password,
+        private_key_path,
+        passphrase,
+    )
 }
 
 /// Tells an SSH tab's PTY the terminal was resized — see
@@ -1993,6 +2017,7 @@ fn ftp_server_is_running(manager: tauri::State<Arc<ftp::FtpServerManager>>) -> b
 // session, keyed by that tab's own id.
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 async fn sftp_connect(
     manager: tauri::State<'_, Arc<sftp::SftpManager>>,
     id: String,
@@ -2000,10 +2025,20 @@ async fn sftp_connect(
     port: u16,
     username: String,
     password: String,
+    private_key_path: Option<String>,
+    passphrase: Option<String>,
 ) -> Result<(), String> {
     let manager = manager.inner().clone();
     manager
-        .connect(&id, &host, port, &username, &password)
+        .connect(
+            &id,
+            &host,
+            port,
+            &username,
+            &password,
+            private_key_path.as_deref(),
+            passphrase.as_deref(),
+        )
         .await
 }
 
@@ -2098,11 +2133,22 @@ struct SftpTransferDoneEvent {
     message: String,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct SftpTransferProgressEvent {
+    id: String,
+    operation: &'static str,
+    transferred: u64,
+    total: u64,
+}
+
 /// Downloads/uploads run on Tauri's own async runtime (already inside an
-/// `async fn` command, so `tokio::spawn` rather than FTP's `thread::spawn`)
-/// and report completion over "sftp://transferDone" — same reasoning as
-/// FTP's/flash's done events, since a large file can take a while and the
-/// command shouldn't block the frontend's ability to do anything else.
+/// `async fn` command, so `tokio::spawn` rather than FTP's `thread::spawn`),
+/// report progress over "sftp://transferProgress" as they run, and report
+/// completion over "sftp://transferDone" — same "long op -> its own task,
+/// report completion via event" reasoning as FTP's/flash's done events,
+/// since a large file can take a while and the command shouldn't block the
+/// frontend's ability to do anything else.
 #[tauri::command]
 async fn sftp_download(
     app: AppHandle,
@@ -2113,7 +2159,22 @@ async fn sftp_download(
 ) -> Result<(), String> {
     let manager = manager.inner().clone();
     tokio::spawn(async move {
-        let (success, message) = match manager.download(&id, &remote_path, &local_path).await {
+        let progress_app = app.clone();
+        let progress_id = id.clone();
+        let (success, message) = match manager
+            .download(&id, &remote_path, &local_path, move |transferred, total| {
+                let _ = progress_app.emit(
+                    "sftp://transferProgress",
+                    SftpTransferProgressEvent {
+                        id: progress_id.clone(),
+                        operation: "download",
+                        transferred,
+                        total,
+                    },
+                );
+            })
+            .await
+        {
             Ok(()) => (true, "Download complete".to_string()),
             Err(e) => (false, e),
         };
@@ -2140,7 +2201,22 @@ async fn sftp_upload(
 ) -> Result<(), String> {
     let manager = manager.inner().clone();
     tokio::spawn(async move {
-        let (success, message) = match manager.upload(&id, &local_path, &remote_path).await {
+        let progress_app = app.clone();
+        let progress_id = id.clone();
+        let (success, message) = match manager
+            .upload(&id, &local_path, &remote_path, move |transferred, total| {
+                let _ = progress_app.emit(
+                    "sftp://transferProgress",
+                    SftpTransferProgressEvent {
+                        id: progress_id.clone(),
+                        operation: "upload",
+                        transferred,
+                        total,
+                    },
+                );
+            })
+            .await
+        {
             Ok(()) => (true, "Upload complete".to_string()),
             Err(e) => (false, e),
         };
@@ -2161,7 +2237,6 @@ async fn sftp_upload(
 pub fn run() {
     let event_bus = EventBus::new();
     let manager = Arc::new(PortManager::new(event_bus.clone()));
-    let network = Arc::new(NetworkManager::new(event_bus.clone()));
 
     serial::manager::spawn_reconnect_watcher(manager.clone());
     serial::manager::spawn_hotplug_watcher(event_bus.clone());
@@ -2171,10 +2246,8 @@ pub fn run() {
     let rest_api = Arc::new(restapi::RestApiManager::new());
     let ftp_manager = Arc::new(ftp::FtpManager::new());
     let ftp_server_manager = Arc::new(ftp::FtpServerManager::new());
-    let sftp_manager = Arc::new(sftp::SftpManager::new());
 
     let manager_for_state = manager.clone();
-    let network_for_state = network.clone();
     let event_bus_for_state = event_bus.clone();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -2183,19 +2256,35 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .manage(manager_for_state)
-        .manage(network_for_state)
         .manage(event_bus_for_state)
         .manage(scripts)
         .manage(plugins)
         .manage(rest_api)
         .manage(ftp_manager)
         .manage(ftp_server_manager)
-        .manage(sftp_manager)
         .manage(KeepAwakeState(Mutex::new(None)))
         .setup(move |app| {
             let handle = app.handle().clone();
+            // Resolved here rather than alongside the other managers above
+            // because it needs the app's own config directory, which isn't
+            // available until the app handle exists — network/sftp_manager
+            // both depend on it (host-key trust-on-first-use), so they're
+            // constructed here too instead of earlier with the others.
+            let known_hosts_path = app
+                .path()
+                .app_config_dir()
+                .unwrap_or_else(|_| std::env::temp_dir())
+                .join("known_hosts");
+            let known_hosts =
+                Arc::new(crate::core::known_hosts::KnownHosts::load(known_hosts_path));
+            let network = Arc::new(NetworkManager::new(event_bus.clone(), known_hosts.clone()));
+            let sftp_manager = Arc::new(sftp::SftpManager::new(known_hosts.clone()));
+            app.manage(network.clone());
+            app.manage(sftp_manager);
+            app.manage(known_hosts);
+
             spawn_batch_emitter(handle.clone(), manager.clone(), event_bus.clone());
-            spawn_network_batch_emitter(handle.clone(), network.clone(), event_bus.clone());
+            spawn_network_batch_emitter(handle.clone(), network, event_bus.clone());
             spawn_lifecycle_forwarder(handle, event_bus.clone());
             Ok(())
         })
@@ -2211,6 +2300,7 @@ pub fn run() {
             read_text_file,
             open_in_editor,
             open_ssh_path_in_vscode,
+            forget_known_host,
             fetch_plugin_from_url,
             keychain_save_password,
             keychain_load_password,

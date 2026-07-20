@@ -27,6 +27,10 @@ export interface ConnectionProfile extends LibraryItem {
   clientId?: string
   username?: string
   password?: string
+  /** SSH only — the key file's path, not its contents. Safe to persist
+   * (unlike `password`/a key's passphrase, both deliberately never saved
+   * here — see ConnectPanel's currentConfigData). */
+  privateKeyPath?: string
   subscribeTopic?: string
   publishTopic?: string
   probeSerial?: string

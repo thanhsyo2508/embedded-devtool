@@ -10,14 +10,25 @@ export interface SftpEntry {
   modifiedMs: number
 }
 
+/** `privateKeyPath` (non-empty) selects key-based auth over `password`. */
 export function sftpConnect(
   id: string,
   host: string,
   port: number,
   username: string,
   password: string,
+  privateKeyPath?: string,
+  passphrase?: string,
 ): Promise<void> {
-  return invoke('sftp_connect', { id, host, port, username, password })
+  return invoke('sftp_connect', {
+    id,
+    host,
+    port,
+    username,
+    password,
+    privateKeyPath,
+    passphrase,
+  })
 }
 
 export function sftpDisconnect(id: string): Promise<void> {
@@ -76,6 +87,19 @@ export function onSftpTransferDone(
   cb: (event: SftpTransferDoneEvent) => void,
 ): Promise<UnlistenFn> {
   return listen<SftpTransferDoneEvent>('sftp://transferDone', (event) => cb(event.payload))
+}
+
+export interface SftpTransferProgressEvent {
+  id: string
+  operation: SftpTransferOperation
+  transferred: number
+  total: number
+}
+
+export function onSftpTransferProgress(
+  cb: (event: SftpTransferProgressEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<SftpTransferProgressEvent>('sftp://transferProgress', (event) => cb(event.payload))
 }
 
 /** Opens a remote path (file or folder) directly in VS Code's Remote-SSH

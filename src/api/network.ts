@@ -31,14 +31,32 @@ export function openWsServer(id: string, port: number): Promise<void> {
  * tab's data isn't line-oriented text, it's raw terminal bytes (including
  * ANSI escapes) meant for a real terminal emulator (xterm.js), not the
  * generic monitor. */
+/** `privateKeyPath` (non-empty) selects key-based auth over `password`. */
 export function openSsh(
   id: string,
   host: string,
   port: number,
   username: string,
   password: string,
+  privateKeyPath?: string,
+  passphrase?: string,
 ): Promise<void> {
-  return invoke('open_ssh', { id, host, port, username, password })
+  return invoke('open_ssh', {
+    id,
+    host,
+    port,
+    username,
+    password,
+    privateKeyPath,
+    passphrase,
+  })
+}
+
+/** Escape hatch for a `core::known_hosts` mismatch refusal — clears the
+ * previously-trusted fingerprint for this host:port so the next connection
+ * is trusted fresh, for the legitimate "server was reinstalled" case. */
+export function forgetKnownHost(host: string, port: number): Promise<void> {
+  return invoke('forget_known_host', { host, port })
 }
 
 /** Tells the remote PTY the terminal was resized. */

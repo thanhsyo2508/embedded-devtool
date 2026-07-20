@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import {
   onSftpTransferDone,
+  onSftpTransferProgress,
   sftpConnect,
   sftpDelete,
   sftpDisconnect,
+  sftpDownload,
   sftpList,
   sftpMkdir,
   sftpReadFile,
@@ -21,6 +23,8 @@ export interface SftpConnectionConfig {
   port: number
   username: string
   password: string
+  privateKeyPath?: string
+  passphrase?: string
 }
 
 interface SftpTreeNodeState {
@@ -55,16 +59,34 @@ export interface SftpEditorGroup {
   activeFilePath: string | null
 }
 
+export interface SftpTransferProgress {
+  operation: 'upload' | 'download'
+  transferred: number
+  total: number
+}
+
 interface SftpTabSession {
   connected: boolean
   connecting: boolean
   connectError: string | null
+  /** Stashed on a successful connect so `reconnect` can redial without the
+   * caller having to supply host/port/username/password again — the SSH
+   * tab's own connectionConfig doesn't change while the tab is open, so
+   * this is safe to reuse for as long as the session lives. */
+  config: SftpConnectionConfig | null
   sidebarVisible: boolean
   nodes: Record<string, SftpTreeNodeState>
   expanded: Set<string>
   openFiles: OpenSftpFile[]
   groups: SftpEditorGroup[]
   activeGroupId: string
+  /** Only one transfer's progress is tracked per tab at a time — same
+   * simplification the pre-existing transferDone event already made
+   * (both are keyed by the tab's own SFTP session id, not a per-transfer
+   * id), so two concurrent transfers on the same tab would show whichever
+   * one's progress event landed last. Good enough for this app's actual
+   * usage (one deliberate upload/download at a time from the tree). */
+  transferProgress: SftpTransferProgress | null
 }
 
 const ROOT_PATH = ''
@@ -75,12 +97,14 @@ function emptySession(): SftpTabSession {
     connected: false,
     connecting: false,
     connectError: null,
+    config: null,
     sidebarVisible: false,
     nodes: {},
     expanded: new Set(),
     openFiles: [],
     groups: [{ id: INITIAL_GROUP_ID, filePaths: [], activeFilePath: null }],
     activeGroupId: INITIAL_GROUP_ID,
+    transferProgress: null,
   }
 }
 
@@ -109,6 +133,17 @@ function isBinaryContent(bytes: number[]): boolean {
   return false
 }
 
+// Above this, decoding the whole file into a JS string and handing it to
+// react-simple-code-editor (an uncontrolled-textarea-based editor with no
+// virtualization) risks a real UI freeze — worth a confirm rather than
+// silently trying and possibly hanging.
+const LARGE_FILE_WARN_BYTES = 2 * 1024 * 1024
+export function formatBytes(n: number): string {
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${n} B`
+}
+
 function textToBytes(text: string): number[] {
   return Array.from(new TextEncoder().encode(text))
 }
@@ -126,6 +161,7 @@ interface SftpState {
   ensureSession: (tabId: string) => SftpTabSession
 
   toggleSidebar: (tabId: string, config: SftpConnectionConfig) => Promise<void>
+  reconnect: (tabId: string) => Promise<void>
   toggleNode: (tabId: string, path: string) => Promise<void>
   refreshNode: (tabId: string, path: string) => Promise<void>
 
@@ -151,6 +187,7 @@ interface SftpState {
     bytes: number[],
   ) => Promise<void>
   uploadLocalFile: (tabId: string, parentPath: string, localPath: string) => Promise<void>
+  downloadFile: (tabId: string, entry: SftpEntry, localPath: string) => Promise<void>
 
   disconnectSession: (tabId: string) => Promise<void>
   disposeSession: (tabId: string) => void
@@ -183,6 +220,17 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       } else {
         addToast('error', i18n.t('toast.sftpTransferError', { message: event.message }))
       }
+      patchSession(set, event.id, { transferProgress: null })
+    })
+
+    void onSftpTransferProgress((event) => {
+      patchSession(set, event.id, {
+        transferProgress: {
+          operation: event.operation,
+          transferred: event.transferred,
+          total: event.total,
+        },
+      })
     })
   },
 
@@ -201,13 +249,52 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     patchSession(set, tabId, { sidebarVisible: nextVisible })
     if (!nextVisible || session.connected || session.connecting) return
 
-    patchSession(set, tabId, { connecting: true, connectError: null })
+    patchSession(set, tabId, { connecting: true, connectError: null, config })
     try {
-      await sftpConnect(tabId, config.host, config.port, config.username, config.password)
+      await sftpConnect(
+        tabId,
+        config.host,
+        config.port,
+        config.username,
+        config.password,
+        config.privateKeyPath,
+        config.passphrase,
+      )
       patchSession(set, tabId, { connected: true, connecting: false })
       await get().toggleNode(tabId, ROOT_PATH)
     } catch (err) {
       patchSession(set, tabId, { connecting: false, connectError: String(err) })
+    }
+  },
+
+  /** Manual recovery for a session that's gone stale (e.g. the SSH
+   * connection silently dropped after a network blip) — `sftp_connect`
+   * overwrites any existing session for this id server-side, so there's no
+   * need to explicitly disconnect the dead one first. */
+  reconnect: async (tabId) => {
+    const session = get().ensureSession(tabId)
+    if (!session.config || session.connecting) return
+    const { config } = session
+    patchSession(set, tabId, { connecting: true, connectError: null })
+    try {
+      await sftpConnect(
+        tabId,
+        config.host,
+        config.port,
+        config.username,
+        config.password,
+        config.privateKeyPath,
+        config.passphrase,
+      )
+      patchSession(set, tabId, {
+        connected: true,
+        connecting: false,
+        nodes: {},
+        expanded: new Set(),
+      })
+      await get().toggleNode(tabId, ROOT_PATH)
+    } catch (err) {
+      patchSession(set, tabId, { connected: false, connecting: false, connectError: String(err) })
     }
   },
 
@@ -245,6 +332,12 @@ export const useSftpStore = create<SftpState>((set, get) => ({
           ...s.nodes,
           [path]: { entries: s.nodes[path]?.entries ?? null, loading: false, error: String(err) },
         },
+        // A failure listing the *root* specifically (not some subfolder,
+        // which could just be a permissions error) is the strongest signal
+        // available that the whole SFTP session died rather than one
+        // operation — surface it as a disconnect so the sidebar shows a
+        // Reconnect affordance instead of a dead, silently-stale tree.
+        ...(path === ROOT_PATH ? { connected: false, connectError: String(err) } : {}),
       }))
     }
   },
@@ -268,6 +361,14 @@ export const useSftpStore = create<SftpState>((set, get) => ({
         ),
         activeGroupId: targetGroupId,
       }))
+      return
+    }
+    if (
+      entry.size > LARGE_FILE_WARN_BYTES &&
+      !window.confirm(
+        i18n.t('ssh.sftp.largeFileConfirm', { size: formatBytes(entry.size), name: entry.name }),
+      )
+    ) {
       return
     }
     const placeholder: OpenSftpFile = {
@@ -491,6 +592,15 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
+    // A plain same-folder rename has toParent === parentPath, so this is a
+    // harmless repeat refresh there — but for a move (drag onto a
+    // different folder), the destination's own listing needs refreshing
+    // too, or the moved file won't show up in it until manually refreshed.
+    const toName = to.split('/').pop() ?? to
+    const toParent = to.slice(0, to.length - toName.length - 1)
+    if (toParent !== parentPath) {
+      await get().refreshNode(tabId, toParent)
+    }
   },
 
   uploadBytes: async (tabId, parentPath, fileName, bytes) => {
@@ -508,6 +618,12 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
+  },
+
+  downloadFile: async (tabId, entry, localPath) => {
+    await sftpDownload(tabId, entry.path, localPath).catch((err) =>
+      patchSession(set, tabId, { connectError: String(err) }),
+    )
   },
 
   disconnectSession: async (tabId) => {

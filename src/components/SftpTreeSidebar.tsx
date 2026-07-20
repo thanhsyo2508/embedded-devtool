@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { open } from '@tauri-apps/plugin-dialog'
+import { open, save } from '@tauri-apps/plugin-dialog'
+import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { TabState } from '../state/tabsStore'
-import { DEFAULT_SFTP_SESSION, useSftpStore } from '../state/sftpStore'
+import { DEFAULT_SFTP_SESSION, formatBytes, useSftpStore } from '../state/sftpStore'
 import { openSshPathInVscode, type SftpEntry } from '../api/sftp'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { ChevronDownIcon, CodeIcon, FolderIcon, RefreshIcon } from './icons'
@@ -50,6 +51,7 @@ function TreeRow({
   const session = useSftpStore((s) => s.sessions[tab.id]) ?? DEFAULT_SFTP_SESSION
   const toggleNode = useSftpStore((s) => s.toggleNode)
   const openFile = useSftpStore((s) => s.openFile)
+  const rename = useSftpStore((s) => s.rename)
   const isExpanded = session.expanded.has(entry.path)
   const node = session.nodes[entry.path]
   const children = node?.entries ? filterEntries(node.entries, filter) : null
@@ -62,7 +64,30 @@ function TreeRow({
         draggable
         onDragStart={(e) => {
           e.dataTransfer.setData(TREE_DRAG_TYPE, entry.path)
-          e.dataTransfer.effectAllowed = 'copy'
+          e.dataTransfer.effectAllowed = 'copyMove'
+        }}
+        onDragOver={(e) => {
+          // Only folders are drop targets for a move — dropping a file
+          // path onto another file wouldn't mean anything.
+          if (!entry.isDir || !e.dataTransfer.types.includes(TREE_DRAG_TYPE)) return
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        onDrop={(e) => {
+          if (!entry.isDir || !e.dataTransfer.types.includes(TREE_DRAG_TYPE)) return
+          e.preventDefault()
+          e.stopPropagation()
+          const draggedPath = e.dataTransfer.getData(TREE_DRAG_TYPE)
+          if (!draggedPath || draggedPath === entry.path) return
+          const name = draggedPath.split('/').pop() ?? draggedPath
+          const draggedParent = draggedPath.slice(0, draggedPath.length - name.length - 1)
+          // Already directly inside this folder, or being dropped onto
+          // itself's own parent by mistake — nothing to do either way.
+          if (draggedParent === entry.path) return
+          const newPath = entry.path.endsWith('/')
+            ? `${entry.path}${name}`
+            : `${entry.path}/${name}`
+          void rename(tab.id, draggedParent, draggedPath, newPath)
         }}
         onClick={() => {
           if (entry.isDir) void toggleNode(tab.id, entry.path)
@@ -112,11 +137,13 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
   const { t } = useTranslation()
   const session = useSftpStore((s) => s.sessions[tab.id]) ?? DEFAULT_SFTP_SESSION
   const refreshNode = useSftpStore((s) => s.refreshNode)
+  const reconnect = useSftpStore((s) => s.reconnect)
   const mkdir = useSftpStore((s) => s.mkdir)
   const rename = useSftpStore((s) => s.rename)
   const deleteEntry = useSftpStore((s) => s.deleteEntry)
   const uploadLocalFile = useSftpStore((s) => s.uploadLocalFile)
   const uploadBytes = useSftpStore((s) => s.uploadBytes)
+  const downloadFile = useSftpStore((s) => s.downloadFile)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [query, setQuery] = useState('')
@@ -177,7 +204,21 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
             }
           },
         },
+        {
+          label: t('ssh.sftp.copyPath'),
+          onClick: () => void writeText(menu.entry!.path),
+        },
       )
+      if (!menu.entry.isDir) {
+        items.push({
+          label: t('ssh.sftp.download'),
+          onClick: () => {
+            void save({ defaultPath: menu.entry!.name }).then((path) => {
+              if (path) void downloadFile(tab.id, menu.entry!, path)
+            })
+          },
+        })
+      }
       if (tab.connectionConfig.kind === 'ssh') {
         const { host, port, username } = tab.connectionConfig
         items.push({
@@ -238,6 +279,31 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
           <RefreshIcon />
         </button>
       </div>
+      {session.transferProgress && (
+        <div className="sftp-tree-transfer">
+          <div className="sftp-tree-transfer-label">
+            {t(
+              session.transferProgress.operation === 'upload'
+                ? 'ssh.sftp.uploading'
+                : 'ssh.sftp.downloading',
+            )}{' '}
+            {session.transferProgress.total > 0
+              ? `${Math.round((session.transferProgress.transferred / session.transferProgress.total) * 100)}%`
+              : formatBytes(session.transferProgress.transferred)}
+          </div>
+          <div className="sftp-tree-transfer-bar">
+            <div
+              className="sftp-tree-transfer-fill"
+              style={{
+                width:
+                  session.transferProgress.total > 0
+                    ? `${Math.min(100, (session.transferProgress.transferred / session.transferProgress.total) * 100)}%`
+                    : '100%',
+              }}
+            />
+          </div>
+        </div>
+      )}
       {session.connected && (
         <input
           type="text"
@@ -248,7 +314,21 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
         />
       )}
       {session.connecting && <p className="sftp-tree-status">{t('ssh.sftp.connecting')}</p>}
-      {session.connectError && <p className="connect-error">{session.connectError}</p>}
+      {session.connectError && (
+        <div className="sftp-tree-status">
+          <p className="connect-error">{session.connectError}</p>
+          {session.config && (
+            <button
+              type="button"
+              className="connect-button"
+              disabled={session.connecting}
+              onClick={() => void reconnect(tab.id)}
+            >
+              <RefreshIcon /> {t('ssh.reconnect')}
+            </button>
+          )}
+        </div>
+      )}
       {session.connected && rootEntries && (
         <div className="sftp-tree-body">
           {rootEntries.map((entry) => (

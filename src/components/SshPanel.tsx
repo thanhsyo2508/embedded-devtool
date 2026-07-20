@@ -2,12 +2,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { readText, writeText } from '@tauri-apps/plugin-clipboard-manager'
 import '@xterm/xterm/css/xterm.css'
 import { useTabsStore, type TabState } from '../state/tabsStore'
-import { onNetworkData, sshResize, writeNetworkStream } from '../api/network'
+import { forgetKnownHost, onNetworkData, sshResize, writeNetworkStream } from '../api/network'
 import { keychainDeletePassword, keychainLoadPassword, keychainSavePassword } from '../api/keychain'
 import { handleTerminalPathDragOver, handleTerminalPathDrop } from '../lib/terminalPathDrop'
+import { TerminalSearchBar } from './TerminalSearchBar'
 import { RepeatIcon } from './icons'
 
 function pasteFromClipboard(term: Terminal) {
@@ -19,12 +21,20 @@ function pasteFromClipboard(term: Terminal) {
 interface SshTerminalEntry {
   term: Terminal
   fitAddon: FitAddon
+  searchAddon: SearchAddon
   /** The terminal's own DOM node, created once and re-parented (via plain
    * `appendChild`) into whichever container is currently mounted — moving
    * a node keeps its rendered content intact, unlike calling `term.open()`
    * again on a new element. */
   hostDiv: HTMLDivElement
   disposeForGood: () => void
+  /** Reassigned on every mount (not just creation, see below) — the Ctrl+F
+   * key handler is wired up once, at creation, but the component instance
+   * (and its setShowSearch) is fresh on every switch-away-and-back remount,
+   * so the handler must read this through `entry` at call time rather than
+   * close over the very first mount's setter directly, or Ctrl+F would
+   * silently stop opening the search bar after the first remount. */
+  setShowSearch: (v: boolean) => void
 }
 
 // Module-level, outside React entirely: only a tab actually being *closed*
@@ -53,7 +63,10 @@ export function SshPanel({ tab }: { tab: TabState }) {
     tab.connectionConfig.kind === 'ssh' ? tab.connectionConfig.password : '',
   )
   const [reconnecting, setReconnecting] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
   const [rememberPassword, setRememberPassword] = useState(false)
+  const isKeyAuth =
+    tab.connectionConfig.kind === 'ssh' && Boolean(tab.connectionConfig.privateKeyPath)
 
   // Stable per-connection identifier for the OS keychain entry -- not the
   // tab id, which is fresh every time this same connection is (re)opened
@@ -118,6 +131,8 @@ export function SshPanel({ tab }: { tab: TabState }) {
       })
       const fitAddon = new FitAddon()
       term.loadAddon(fitAddon)
+      const searchAddon = new SearchAddon()
+      term.loadAddon(searchAddon)
       const hostDiv = document.createElement('div')
       hostDiv.style.width = '100%'
       hostDiv.style.height = '100%'
@@ -144,10 +159,18 @@ export function SshPanel({ tab }: { tab: TabState }) {
       term.attachCustomKeyEventHandler((event) => {
         if (event.type !== 'keydown') return true
         const isPaste = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v'
-        if (!isPaste) return true
-        event.preventDefault()
-        pasteFromClipboard(term)
-        return false
+        if (isPaste) {
+          event.preventDefault()
+          pasteFromClipboard(term)
+          return false
+        }
+        const isFind = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f'
+        if (isFind) {
+          event.preventDefault()
+          entry!.setShowSearch(true)
+          return false
+        }
+        return true
       })
 
       const unlistenPromise = onNetworkData((batch) => {
@@ -158,6 +181,7 @@ export function SshPanel({ tab }: { tab: TabState }) {
       entry = {
         term,
         fitAddon,
+        searchAddon,
         hostDiv,
         disposeForGood: () => {
           dataDisposable.dispose()
@@ -165,9 +189,15 @@ export function SshPanel({ tab }: { tab: TabState }) {
           void unlistenPromise.then((unlisten) => unlisten())
           term.dispose()
         },
+        setShowSearch,
       }
       sshTerminals.set(tab.id, entry)
     }
+
+    // Reassigned on every effect run, not just creation — see the field's
+    // own doc comment on why (the Ctrl+F handler is wired up once, but a
+    // remount after switching away gets a fresh setShowSearch).
+    entry.setShowSearch = setShowSearch
 
     const { term, fitAddon, hostDiv } = entry
     container.appendChild(hostDiv)
@@ -218,36 +248,68 @@ export function SshPanel({ tab }: { tab: TabState }) {
         {tab.status === 'error' && <span className="tab-error">{tab.errorMessage}</span>}
         {tab.status !== 'open' && (
           <div className="ssh-reconnect">
-            <input
-              type="password"
-              value={password}
-              placeholder={t('ssh.passwordPlaceholder')}
-              disabled={reconnecting}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void handleReconnect()
-              }}
-            />
+            {/* A key-based tab has nothing to type — the stored key path
+                (and passphrase, if any) is reused automatically, same as
+                the SFTP sidebar's own reconnect. */}
+            {!isKeyAuth && (
+              <input
+                type="password"
+                value={password}
+                placeholder={t('ssh.passwordPlaceholder')}
+                disabled={reconnecting}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleReconnect()
+                }}
+              />
+            )}
             <button type="button" disabled={reconnecting} onClick={() => void handleReconnect()}>
               <RepeatIcon /> {reconnecting ? t('ssh.reconnecting') : t('ssh.reconnect')}
             </button>
-            <label className="ssh-remember-password" title={t('ssh.rememberPasswordHint')}>
-              <input
-                type="checkbox"
-                checked={rememberPassword}
-                onChange={(e) => handleToggleRemember(e.target.checked)}
-              />
-              {t('ssh.rememberPassword')}
-            </label>
+            {/* A rejected connection due to a changed host key (see
+                core::known_hosts) is otherwise a permanent dead end from
+                inside the app — this is the escape hatch for "I know the
+                key legitimately changed (server reinstalled, etc.)". */}
+            {tab.errorMessage?.toLowerCase().includes('host key') &&
+              tab.connectionConfig.kind === 'ssh' && (
+                <button
+                  type="button"
+                  title={t('ssh.forgetHostKeyHint')}
+                  onClick={() => {
+                    if (tab.connectionConfig.kind !== 'ssh') return
+                    void forgetKnownHost(tab.connectionConfig.host, tab.connectionConfig.port)
+                  }}
+                >
+                  {t('ssh.forgetHostKey')}
+                </button>
+              )}
+            {!isKeyAuth && (
+              <label className="ssh-remember-password" title={t('ssh.rememberPasswordHint')}>
+                <input
+                  type="checkbox"
+                  checked={rememberPassword}
+                  onChange={(e) => handleToggleRemember(e.target.checked)}
+                />
+                {t('ssh.rememberPassword')}
+              </label>
+            )}
           </div>
         )}
       </div>
-      <div
-        className="ssh-terminal"
-        ref={containerRef}
-        onDragOver={handleTerminalPathDragOver}
-        onDrop={(e) => handleTerminalPathDrop(e, tab.id)}
-      />
+      <div className="ssh-terminal-wrap">
+        <div
+          className="ssh-terminal"
+          ref={containerRef}
+          onDragOver={handleTerminalPathDragOver}
+          onDrop={(e) => handleTerminalPathDrop(e, tab.id)}
+        />
+        {showSearch && sshTerminals.get(tab.id) && (
+          <TerminalSearchBar
+            searchAddon={sshTerminals.get(tab.id)!.searchAddon}
+            onClose={() => setShowSearch(false)}
+          />
+        )}
+      </div>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
 import {
   listSerialPorts,
   onUsbPlugged,
@@ -26,6 +27,7 @@ import { useLastConnectionStore, type LastConnectionConfig } from '../state/last
 import { useRecentConnectionsStore } from '../state/recentConnectionsStore'
 import {
   ChipIcon,
+  FolderIcon,
   GaugeIcon,
   GlobeIcon,
   MessageIcon,
@@ -153,6 +155,13 @@ export function ConnectPanel({
   const [sshPort, setSshPort] = useState(() => lastFor('ssh')?.port ?? 22)
   const [sshUsername, setSshUsername] = useState(() => lastFor('ssh')?.username ?? '')
   const [sshPassword, setSshPassword] = useState('')
+  const [sshAuthMethod, setSshAuthMethod] = useState<'password' | 'key'>('password')
+  const [sshPrivateKeyPath, setSshPrivateKeyPath] = useState(
+    () => lastFor('ssh')?.privateKeyPath ?? '',
+  )
+  // Passphrase never seeded, same reasoning as sshPassword above — it's a
+  // secret, not persisted to localStorage.
+  const [sshPassphrase, setSshPassphrase] = useState('')
   const [probeSerial, setProbeSerial] = useState(() => lastFor('rtt')?.probeSerial ?? '')
   const [chip, setChip] = useState(() => lastFor('rtt')?.chip ?? '')
   const [probes, setProbes] = useState<SwdProbeInfo[]>([])
@@ -330,10 +339,18 @@ export function ConnectPanel({
               : target === 'ws-server'
                 ? { kind: 'ws-server', port: wsServerPort }
                 : target === 'ssh'
-                  ? // Password never included here — this snapshot feeds both
-                    // "Save profile" and the last-used-config memory, both of
-                    // which persist to localStorage.
-                    { kind: 'ssh', host: sshHost, port: sshPort, username: sshUsername }
+                  ? // Password/passphrase never included here — this snapshot
+                    // feeds both "Save profile" and the last-used-config
+                    // memory, both of which persist to localStorage. The key
+                    // *path* isn't a secret, so it's safe to remember.
+                    {
+                      kind: 'ssh',
+                      host: sshHost,
+                      port: sshPort,
+                      username: sshUsername,
+                      privateKeyPath:
+                        sshAuthMethod === 'key' ? sshPrivateKeyPath || undefined : undefined,
+                    }
                   : target === 'rtt'
                     ? { kind: 'rtt', probeSerial: probeSerial || undefined, chip }
                     : {
@@ -417,7 +434,9 @@ export function ConnectPanel({
           host: sshHost,
           port: sshPort,
           username: sshUsername,
-          password: sshPassword,
+          password: sshAuthMethod === 'password' ? sshPassword : '',
+          privateKeyPath: sshAuthMethod === 'key' ? sshPrivateKeyPath : undefined,
+          passphrase: sshAuthMethod === 'key' ? sshPassphrase || undefined : undefined,
         })
       } else {
         tabId = `rtt:${chip}-${Date.now()}`
@@ -496,7 +515,9 @@ export function ConnectPanel({
             : target === 'mqtt'
               ? Boolean(brokerHost) && Boolean(clientId)
               : target === 'ssh'
-                ? Boolean(sshHost) && Boolean(sshUsername) && Boolean(sshPassword)
+                ? Boolean(sshHost) &&
+                  Boolean(sshUsername) &&
+                  (sshAuthMethod === 'password' ? Boolean(sshPassword) : Boolean(sshPrivateKeyPath))
                 : target === 'rtt'
                   ? Boolean(chip)
                   : true
@@ -885,6 +906,22 @@ export function ConnectPanel({
                   onChange={(e) => setSshUsername(e.target.value)}
                 />
               </label>
+            </div>
+            <div className="seg">
+              <span
+                className={sshAuthMethod === 'password' ? 'on' : ''}
+                onClick={() => setSshAuthMethod('password')}
+              >
+                {t('connect.sshPassword')}
+              </span>
+              <span
+                className={sshAuthMethod === 'key' ? 'on' : ''}
+                onClick={() => setSshAuthMethod('key')}
+              >
+                {t('connect.sshPrivateKey')}
+              </span>
+            </div>
+            {sshAuthMethod === 'password' ? (
               <label className="field-group">
                 <span className="field-caption">{t('connect.password')}</span>
                 <input
@@ -893,7 +930,42 @@ export function ConnectPanel({
                   onChange={(e) => setSshPassword(e.target.value)}
                 />
               </label>
-            </div>
+            ) : (
+              <>
+                <label className="field-group">
+                  <span className="field-caption">{t('connect.sshPrivateKeyPath')}</span>
+                  <div className="field-row">
+                    <input
+                      className="flash-path"
+                      value={sshPrivateKeyPath}
+                      placeholder={t('flash.noFileSelected')}
+                      onChange={(e) => setSshPrivateKeyPath(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="icon-button"
+                      title={t('common.browse')}
+                      onClick={() => {
+                        void openFileDialog({ multiple: false }).then((picked) => {
+                          if (typeof picked === 'string') setSshPrivateKeyPath(picked)
+                        })
+                      }}
+                    >
+                      <FolderIcon />
+                    </button>
+                  </div>
+                </label>
+                <label className="field-group">
+                  <span className="field-caption">{t('connect.sshPassphrase')}</span>
+                  <input
+                    type="password"
+                    value={sshPassphrase}
+                    placeholder={t('connect.sshPassphraseOptional')}
+                    onChange={(e) => setSshPassphrase(e.target.value)}
+                  />
+                </label>
+              </>
+            )}
           </>
         )}
 

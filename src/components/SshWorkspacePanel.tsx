@@ -122,6 +122,8 @@ export function SshWorkspacePanel({ tab }: { tab: TabState }) {
           port: tab.connectionConfig.port,
           username: tab.connectionConfig.username,
           password: tab.connectionConfig.password,
+          privateKeyPath: tab.connectionConfig.privateKeyPath,
+          passphrase: tab.connectionConfig.passphrase,
         }
       : null
 
