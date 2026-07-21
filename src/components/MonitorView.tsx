@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
+import { openPath } from '@tauri-apps/plugin-opener'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
 import { applyFilters, compileFilter } from '../lib/filterLines'
 import { renderLine } from '../lib/ansiRender'
@@ -14,6 +15,7 @@ import {
   CodeIcon,
   DiskIcon,
   FilterIcon,
+  FolderIcon,
   GaugeIcon,
   PuzzleIcon,
   RepeatIcon,
@@ -163,6 +165,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const handleToggleLogging = () => {
     setLogBusy(true)
     void toggleLogging(tab.id).finally(() => setLogBusy(false))
+  }
+
+  const handleOpenLogFolder = () => {
+    if (tab.logDir) void openPath(tab.logDir)
   }
 
   const handleClear = () => {
@@ -675,6 +681,16 @@ export function MonitorView({ tab }: { tab: TabState }) {
               onClick={handleToggleLogging}
             >
               <DiskIcon />
+            </button>
+          )}
+          {tab.connectionKind === 'serial' && tab.isLogging && tab.logDir && (
+            <button
+              type="button"
+              title={t('monitor.openLogFolder', { dir: tab.logDir })}
+              aria-label={t('monitor.openLogFolder', { dir: tab.logDir })}
+              onClick={handleOpenLogFolder}
+            >
+              <FolderIcon />
             </button>
           )}
         </div>

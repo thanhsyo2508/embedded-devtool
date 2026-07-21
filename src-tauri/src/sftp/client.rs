@@ -20,7 +20,7 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::UNIX_EPOCH;
+use std::time::{Duration, UNIX_EPOCH};
 
 use russh::client::{self, Config};
 use russh::Disconnect;
@@ -31,12 +31,22 @@ use crate::core::ssh_auth::{self, SshAuth};
 use serde::Serialize;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 
 /// Chunk size for download/upload progress reporting — small enough that a
 /// multi-MB firmware image or log file reports progress in reasonably fine
 /// steps, large enough that a typical config-file-sized transfer (this
 /// app's common case) doesn't spam dozens of near-instant progress events.
 const TRANSFER_CHUNK_SIZE: usize = 256 * 1024;
+
+/// Bounds the whole connect+auth+subsystem sequence in `connect()` below —
+/// unlike `core::ssh_stream::SshStream` (which bounds its own connect with
+/// `CONNECT_TIMEOUT` via a channel `recv_timeout`), nothing here capped the
+/// SSH dial, auth round-trip, or SFTP subsystem request, so a stalled peer
+/// (or one that accepts the TCP connection but never replies) hung this
+/// forever with no way for the user to give up. Same reasoning as
+/// `ftp::client::FtpManager::connect`'s fix.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Same `core::known_hosts`-backed TOFU check as `core::ssh_stream`'s own
 /// handler (this is a separate connection, per this module's own doc
@@ -136,28 +146,33 @@ impl SftpManager {
             host: host.to_string(),
             port,
         };
-        let mut handle = client::connect(config, (host, port), ssh_handler)
-            .await
-            .map_err(|e| format!("failed to connect: {e}"))?;
-        ssh_auth::authenticate(&mut handle, username, &auth).await?;
-        let channel = handle
-            .channel_open_session()
-            .await
-            .map_err(|e| e.to_string())?;
-        channel
-            .request_subsystem(true, "sftp")
-            .await
-            .map_err(|e| e.to_string())?;
-        let sftp = SftpSession::new(channel.into_stream())
-            .await
-            .map_err(|e| e.to_string())?;
-        self.sessions.lock().await.insert(
-            id.to_string(),
-            Arc::new(SftpSessionEntry {
+        let entry = timeout(CONNECT_TIMEOUT, async move {
+            let mut handle = client::connect(config, (host, port), ssh_handler)
+                .await
+                .map_err(|e| format!("failed to connect: {e}"))?;
+            ssh_auth::authenticate(&mut handle, username, &auth).await?;
+            let channel = handle
+                .channel_open_session()
+                .await
+                .map_err(|e| e.to_string())?;
+            channel
+                .request_subsystem(true, "sftp")
+                .await
+                .map_err(|e| e.to_string())?;
+            let sftp = SftpSession::new(channel.into_stream())
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok::<_, String>(SftpSessionEntry {
                 _ssh_handle: handle,
                 sftp,
-            }),
-        );
+            })
+        })
+        .await
+        .map_err(|_| "timed out connecting to SFTP server".to_string())??;
+        self.sessions
+            .lock()
+            .await
+            .insert(id.to_string(), Arc::new(entry));
         Ok(())
     }
 

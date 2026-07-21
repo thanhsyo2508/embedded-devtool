@@ -49,10 +49,10 @@ function formatHexId(id: number | null): string | null {
 // and only revealing the Client/Server sub-toggle for those two families
 // keeps the picker from growing to 7 same-level options — see the "role"
 // state below.
-type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt' | 'ssh' | 'rtt'
+type ProtocolFamily = 'serial' | 'tcp' | 'udp' | 'ws' | 'mqtt' | 'ssh' | 'ftp' | 'rtt'
 type ConnectionRole = 'client' | 'server'
 
-const FAMILIES: ProtocolFamily[] = ['serial', 'tcp', 'udp', 'ws', 'mqtt', 'ssh', 'rtt']
+const FAMILIES: ProtocolFamily[] = ['serial', 'tcp', 'udp', 'ws', 'mqtt', 'ssh', 'ftp', 'rtt']
 
 function familyOf(kind: ConnectionKind): ProtocolFamily {
   switch (kind) {
@@ -95,6 +95,7 @@ const MDNS_PRESETS_BY_TARGET: Partial<Record<ConnectionKind, { value: string; la
     ],
     mqtt: [{ value: '_mqtt._tcp.local.', label: 'MQTT (_mqtt._tcp)' }],
     ssh: [{ value: '_ssh._tcp.local.', label: 'SSH (_ssh._tcp)' }],
+    ftp: [{ value: '_ftp._tcp.local.', label: 'FTP (_ftp._tcp)' }],
   }
 
 const MDNS_SCAN_MS = 3000
@@ -162,6 +163,11 @@ export function ConnectPanel({
   // Passphrase never seeded, same reasoning as sshPassword above — it's a
   // secret, not persisted to localStorage.
   const [sshPassphrase, setSshPassphrase] = useState('')
+  const [ftpHost, setFtpHost] = useState(() => lastFor('ftp')?.host ?? '192.168.1.1')
+  const [ftpPort, setFtpPort] = useState(() => lastFor('ftp')?.port ?? 21)
+  const [ftpUsername, setFtpUsername] = useState(() => lastFor('ftp')?.username ?? 'anonymous')
+  // Password intentionally never seeded — same reasoning as sshPassword above.
+  const [ftpPassword, setFtpPassword] = useState('')
   const [probeSerial, setProbeSerial] = useState(() => lastFor('rtt')?.probeSerial ?? '')
   const [chip, setChip] = useState(() => lastFor('rtt')?.chip ?? '')
   const [probes, setProbes] = useState<SwdProbeInfo[]>([])
@@ -215,6 +221,12 @@ export function ConnectPanel({
       setSshUsername(p.username ?? '')
       // Password is deliberately never saved in a profile — re-enter it.
       setSshPassword('')
+    } else if (p.kind === 'ftp') {
+      setFtpHost(p.host ?? '')
+      setFtpPort(p.port ?? 21)
+      setFtpUsername(p.username ?? 'anonymous')
+      // Password is deliberately never saved in a profile — re-enter it.
+      setFtpPassword('')
     } else if (p.kind === 'rtt') {
       setProbeSerial(p.probeSerial ?? '')
       setChip(p.chip ?? '')
@@ -351,20 +363,46 @@ export function ConnectPanel({
                       privateKeyPath:
                         sshAuthMethod === 'key' ? sshPrivateKeyPath || undefined : undefined,
                     }
-                  : target === 'rtt'
-                    ? { kind: 'rtt', probeSerial: probeSerial || undefined, chip }
-                    : {
-                        kind: 'mqtt',
-                        brokerHost,
-                        brokerPort,
-                        clientId,
-                        username: mqttUsername,
-                        password: mqttPassword,
-                        subscribeTopic,
-                        publishTopic,
-                      }
+                  : target === 'ftp'
+                    ? // Password never included here, same reasoning as ssh's
+                      // case above.
+                      { kind: 'ftp', host: ftpHost, port: ftpPort, username: ftpUsername }
+                    : target === 'rtt'
+                      ? { kind: 'rtt', probeSerial: probeSerial || undefined, chip }
+                      : {
+                          kind: 'mqtt',
+                          brokerHost,
+                          brokerPort,
+                          clientId,
+                          username: mqttUsername,
+                          password: mqttPassword,
+                          subscribeTopic,
+                          publishTopic,
+                        }
+
+  // Every backend connect command now has its own bounded timeout (see
+  // ftp::client::FtpManager::connect, core::net_stream, core::sftp::client,
+  // core::rtt_stream — the transports that used to be able to hang forever),
+  // but Tauri's `invoke()` still has no cancellation support at all, so
+  // there's no way to actually abort the in-flight backend call once
+  // dispatched. What the UI *can* do is stop waiting on it: `attemptId`
+  // marks each `handleConnect` call, and `handleCancelConnect` bumps it so
+  // a still-pending attempt's eventual result (success or timeout error) is
+  // recognized as stale and ignored instead of surprising the user with a
+  // just-cancelled connection or a late error for a form they've since
+  // edited. The abandoned backend call keeps running until its own timeout
+  // — this can't force it to stop sooner — but the user isn't stuck
+  // waiting on it.
+  const attemptIdRef = useRef(0)
+
+  const handleCancelConnect = () => {
+    attemptIdRef.current += 1
+    setLoading(false)
+    setError(null)
+  }
 
   const handleConnect = async () => {
+    const attemptId = (attemptIdRef.current += 1)
     setLoading(true)
     setError(null)
     try {
@@ -438,6 +476,16 @@ export function ConnectPanel({
           privateKeyPath: sshAuthMethod === 'key' ? sshPrivateKeyPath : undefined,
           passphrase: sshAuthMethod === 'key' ? sshPassphrase || undefined : undefined,
         })
+      } else if (target === 'ftp') {
+        tabId = `ftp:${ftpUsername}@${ftpHost}:${ftpPort}-${Date.now()}`
+        await openTab({
+          kind: 'ftp',
+          id: tabId,
+          host: ftpHost,
+          port: ftpPort,
+          username: ftpUsername,
+          password: ftpPassword,
+        })
       } else {
         tabId = `rtt:${chip}-${Date.now()}`
         await openTab({
@@ -447,21 +495,27 @@ export function ConnectPanel({
           chip,
         })
       }
+      if (attemptIdRef.current !== attemptId) return // cancelled/superseded — ignore
       const configSnapshot = currentConfigData()
       rememberLastConnection(target, configSnapshot)
       const openedTab = useTabsStore.getState().tabs.find((t) => t.id === tabId)
       if (openedTab) pushRecentConnection(target, configSnapshot, openedTab.connectionLabel)
       onConnected(tabId)
     } catch (err) {
+      if (attemptIdRef.current !== attemptId) return
       setError(String(err))
     } finally {
-      setLoading(false)
+      if (attemptIdRef.current === attemptId) setLoading(false)
     }
   }
 
   // LAN discovery only makes sense where there's a remote host to fill in.
   const discoverVisible =
-    target === 'tcp-client' || target === 'ws-client' || family === 'mqtt' || family === 'ssh'
+    target === 'tcp-client' ||
+    target === 'ws-client' ||
+    family === 'mqtt' ||
+    family === 'ssh' ||
+    family === 'ftp'
   const mdnsPresets = MDNS_PRESETS_BY_TARGET[target] ?? []
 
   // Re-target the preset list (and drop stale results from a previous
@@ -500,6 +554,9 @@ export function ConnectPanel({
     } else if (family === 'ssh') {
       setSshHost(addr)
       setSshPort(svc.port)
+    } else if (family === 'ftp') {
+      setFtpHost(addr)
+      setFtpPort(svc.port)
     }
   }
 
@@ -518,9 +575,11 @@ export function ConnectPanel({
                 ? Boolean(sshHost) &&
                   Boolean(sshUsername) &&
                   (sshAuthMethod === 'password' ? Boolean(sshPassword) : Boolean(sshPrivateKeyPath))
-                : target === 'rtt'
-                  ? Boolean(chip)
-                  : true
+                : target === 'ftp'
+                  ? Boolean(ftpHost) && Boolean(ftpUsername)
+                  : target === 'rtt'
+                    ? Boolean(chip)
+                    : true
 
   const selected = ports.find((p) => p.portName === portName) ?? null
   const hasDetails = Boolean(
@@ -969,6 +1028,46 @@ export function ConnectPanel({
           </>
         )}
 
+        {target === 'ftp' && (
+          <div className="field-grid">
+            <label className="field-group">
+              <span className="field-caption">
+                <GlobeIcon /> {t('connect.host')}
+              </span>
+              <input
+                type="text"
+                value={ftpHost}
+                placeholder="192.168.1.1"
+                onChange={(e) => setFtpHost(e.target.value)}
+              />
+            </label>
+            <label className="field-group">
+              <span className="field-caption">{t('connect.port')}</span>
+              <input
+                type="number"
+                value={ftpPort}
+                onChange={(e) => setFtpPort(Number(e.target.value))}
+              />
+            </label>
+            <label className="field-group">
+              <span className="field-caption">{t('connect.username')}</span>
+              <input
+                type="text"
+                value={ftpUsername}
+                onChange={(e) => setFtpUsername(e.target.value)}
+              />
+            </label>
+            <label className="field-group">
+              <span className="field-caption">{t('connect.password')}</span>
+              <input
+                type="password"
+                value={ftpPassword}
+                onChange={(e) => setFtpPassword(e.target.value)}
+              />
+            </label>
+          </div>
+        )}
+
         {target === 'rtt' && (
           <>
             <label className="field-group">
@@ -1058,15 +1157,25 @@ export function ConnectPanel({
 
         {error && <p className="connect-error">{error}</p>}
 
-        <button
-          type="button"
-          className="connect-button"
-          disabled={!canConnect || loading}
-          onClick={() => void handleConnect()}
-        >
-          {loading ? <Spinner /> : <PlugIcon />}
-          {loading ? t('connect.connecting') : t('connect.connect')}
-        </button>
+        {loading ? (
+          <div className="flash-actions">
+            <button type="button" className="connect-button" disabled>
+              <Spinner /> {t('connect.connecting')}
+            </button>
+            <button type="button" className="connect-button" onClick={handleCancelConnect}>
+              <XIcon /> {t('common.cancel')}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="connect-button"
+            disabled={!canConnect}
+            onClick={() => void handleConnect()}
+          >
+            <PlugIcon /> {t('connect.connect')}
+          </button>
+        )}
       </div>
     </div>
   )

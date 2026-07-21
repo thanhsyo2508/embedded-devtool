@@ -254,6 +254,14 @@ export function detectLocalSubnet(): Promise<string> {
   return invoke('detect_local_subnet')
 }
 
+/** This machine's own LAN-facing IPv4 address — same best-effort/single-NIC
+ * caveat as detectLocalSubnet. Used to show "connect to ftp://<addr>:<port>"
+ * next to the local FTP server instead of making the user go find it via
+ * ipconfig/ifconfig themselves. */
+export function localIpAddress(): Promise<string> {
+  return invoke('local_ip_address')
+}
+
 export function commonScanPorts(): Promise<[number, string][]> {
   return invoke('common_scan_ports')
 }

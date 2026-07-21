@@ -50,13 +50,13 @@ export const useRecentConnectionsStore = create<RecentConnectionsState>()(
 
 /** Turns a recent entry straight into an `openTab` request — lets the
  * command palette reconnect in one action instead of opening ConnectPanel
- * and clicking through it. SSH never persists a password (see
+ * and clicking through it. SSH/FTP never persist a password (see
  * ConnectPanel's currentConfigData), so callers must prompt for one and
  * pass it through; every other kind reconnects with no extra input. */
 export function recentConnectionToOpenRequest(
   recent: RecentConnection,
   id: string,
-  sshPassword?: string,
+  passwordOverride?: string,
 ): OpenTabRequest {
   const c = recent.config
   switch (recent.kind) {
@@ -108,7 +108,16 @@ export function recentConnectionToOpenRequest(
         host: c.host ?? '',
         port: c.port ?? 22,
         username: c.username ?? '',
-        password: sshPassword ?? '',
+        password: passwordOverride ?? '',
+      }
+    case 'ftp':
+      return {
+        kind: 'ftp',
+        id,
+        host: c.host ?? '',
+        port: c.port ?? 21,
+        username: c.username ?? '',
+        password: passwordOverride ?? '',
       }
     case 'rtt':
       return { kind: 'rtt', id, probeSerial: c.probeSerial, chip: c.chip ?? '' }

@@ -9,6 +9,17 @@
   --err: #b23b3b;
   --log-font-size: 12px;
 
+  /* Code-editor syntax colors — a small dedicated palette, not reused UI
+     chrome colors, so keywords/properties/functions each read as visually
+     distinct at a glance (see .sftp-code-editor's token rules) rather than
+     all collapsing onto the same accent/ok/text-muted trio. */
+  --syntax-comment: #7c6f64;
+  --syntax-string: #4a7a40;
+  --syntax-number: #b8860b;
+  --syntax-keyword: #8f3f8f;
+  --syntax-property: #3a6ea5;
+  --syntax-function: #b35900;
+
   /* Design tokens (theme-independent) — a small, deliberate scale so
      radius/elevation/motion stay consistent instead of each component
      picking its own value. */
@@ -40,6 +51,12 @@
     --accent: #e8734f;
     --ok: #7fbf6d;
     --err: #e07575;
+    --syntax-comment: #8a9a7c;
+    --syntax-string: #7fbf6d;
+    --syntax-number: #e0a458;
+    --syntax-keyword: #c586c0;
+    --syntax-property: #6fa8dc;
+    --syntax-function: #dcdcaa;
   }
 }
 
@@ -54,6 +71,12 @@
   --accent: #e8734f;
   --ok: #7fbf6d;
   --err: #e07575;
+  --syntax-comment: #8a9a7c;
+  --syntax-string: #7fbf6d;
+  --syntax-number: #e0a458;
+  --syntax-keyword: #c586c0;
+  --syntax-property: #6fa8dc;
+  --syntax-function: #dcdcaa;
 }
 
 :root[data-theme='light'] {
@@ -65,6 +88,12 @@
   --accent: #c4472b;
   --ok: #4a7a40;
   --err: #b23b3b;
+  --syntax-comment: #7c6f64;
+  --syntax-string: #4a7a40;
+  --syntax-number: #b8860b;
+  --syntax-keyword: #8f3f8f;
+  --syntax-property: #3a6ea5;
+  --syntax-function: #b35900;
 }
 
 * {
@@ -267,8 +296,8 @@ body,
 
 /* ---- connect panel ---- */
 .connect-panel {
-  max-width: 380px;
-  width: 100%;
+  width: 480px;
+  /* width: 100%; */
   margin: auto;
   padding: 22px;
   background: var(--panel);
@@ -637,6 +666,7 @@ body,
 .seg {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -3232,6 +3262,7 @@ input[type='checkbox']:disabled {
 }
 
 .sftp-editor-body {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -3250,6 +3281,69 @@ input[type='checkbox']:disabled {
   color: var(--text-muted);
 }
 
+.sftp-editor-toolbar-actions .icon-button.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.sftp-editor-toolbar-actions .icon-button.text-toggle {
+  width: auto;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.sftp-editor-cursor-pos {
+  flex: none;
+  white-space: nowrap;
+}
+
+.editor-find-bar {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.editor-find-bar input {
+  width: 160px;
+  padding: 3px 6px;
+  font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text);
+}
+
+.editor-find-bar button {
+  flex: none;
+  min-width: 22px;
+  height: 22px;
+}
+
+.editor-find-bar-count {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  padding: 0 2px;
+}
+
+.sftp-editor-saveall-bar {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
 .sftp-editor-loading,
 .sftp-editor-binary-notice {
   flex: 1;
@@ -3261,17 +3355,136 @@ input[type='checkbox']:disabled {
   text-align: center;
 }
 
-.sftp-code-editor {
+/* Gutter + editor sit side by side in one scrollable row: the row itself
+   scrolls vertically (so the gutter tracks the text line-for-line), while
+   the editor pane gets its own independent horizontal scrollbar (so long
+   unwrapped lines scroll without dragging the gutter sideways with them). */
+.sftp-code-editor-wrap {
   flex: 1;
+  display: flex;
+  align-items: flex-start;
   min-height: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.sftp-code-editor-gutter {
+  flex: none;
+  padding: 10px 10px 10px 12px;
+  text-align: right;
+  color: var(--text-muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  user-select: none;
+  border-right: 1px solid var(--border);
+}
+
+.sftp-code-editor {
+  flex: 1;
+  min-width: 0;
   color: var(--text);
   font-family: ui-monospace, Consolas, monospace;
   font-size: 12px;
   line-height: 1.5;
-  overflow: auto;
+  overflow-x: auto;
+}
+
+/* Opt-in — line numbers can't stay aligned once a line visually wraps onto
+   more than one row, so wrapping and the gutter are mutually exclusive
+   (see SftpEditorTabs.tsx: the gutter is only rendered when wrap is off). */
+.sftp-code-editor.wrap-lines textarea,
+.sftp-code-editor.wrap-lines pre {
+  white-space: pre-wrap !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+}
+
+.sftp-code-editor:not(.wrap-lines) textarea,
+.sftp-code-editor:not(.wrap-lines) pre {
+  white-space: pre !important;
+}
+
+/* ---- Remote file syntax highlighting (Prism tokens) — a dedicated
+   --syntax-* palette (see :root above), not the app's UI accent/ok colors:
+   reusing accent/ok for both "keyword" and "property" made everything
+   important-looking collapse onto the same one or two hues, and a plain
+   text-muted comment barely read as a comment at all next to punctuation
+   in the same color. Covers the broader token set the JSON/Python/Bash/
+   YAML/INI/Markdown/C/C++/Rust/TOML/JS/TS/CSS/markup grammars
+   sftpFileLanguage.ts loads actually emit. */
+.sftp-code-editor .token.comment,
+.sftp-code-editor .token.prolog,
+.sftp-code-editor .token.doctype,
+.sftp-code-editor .token.cdata {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.sftp-code-editor .token.string,
+.sftp-code-editor .token.char,
+.sftp-code-editor .token.attr-value,
+.sftp-code-editor .token.regex,
+.sftp-code-editor .token.url {
+  color: var(--syntax-string);
+}
+
+.sftp-code-editor .token.number,
+.sftp-code-editor .token.boolean,
+.sftp-code-editor .token.null,
+.sftp-code-editor .token.constant {
+  color: var(--syntax-number);
+}
+
+.sftp-code-editor .token.keyword,
+.sftp-code-editor .token.important,
+.sftp-code-editor .token.atrule,
+.sftp-code-editor .token.builtin,
+.sftp-code-editor .token.operator {
+  color: var(--syntax-keyword);
+  font-weight: 600;
+}
+
+.sftp-code-editor .token.property,
+.sftp-code-editor .token.tag,
+.sftp-code-editor .token.attr-name,
+.sftp-code-editor .token.selector,
+.sftp-code-editor .token.class-name,
+.sftp-code-editor .token.variable {
+  color: var(--syntax-property);
+}
+
+.sftp-code-editor .token.function {
+  color: var(--syntax-function);
+}
+
+.sftp-code-editor .token.punctuation,
+.sftp-code-editor .token.entity {
+  color: var(--text-muted);
+}
+
+/* Find-bar matches — highlightForPath wraps every occurrence of the query
+   in this token (see its own doc comment) while the language grammar
+   re-tokenizes the matched text underneath, so these only ever need to add
+   a background, never a color. */
+.sftp-code-editor .token.search-match {
+  background: color-mix(in srgb, #ffd54f 55%, transparent);
+  border-radius: 2px;
+}
+
+/* The one occurrence the find bar's ↑/↓ currently points at — rendered
+   noticeably stronger than the plain search-match highlight above (must
+   come after it in the stylesheet: both selectors are equal specificity,
+   so source order is what makes this one win on the span that gets both
+   classes). */
+.sftp-code-editor .token.search-match-current {
+  background: color-mix(in srgb, #ff9800 75%, transparent);
+  outline: 1px solid color-mix(in srgb, #ff9800 90%, transparent);
+  outline-offset: -1px;
+  border-radius: 2px;
 }
 
 .plot-channel-toggle {

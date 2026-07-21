@@ -24,7 +24,9 @@ import {
   type MqttParams,
 } from '../api/network'
 import { sftpDisconnect } from '../api/sftp'
+import { ftpConnect, ftpDisconnect } from '../api/ftp'
 import { useSftpStore } from './sftpStore'
+import { useFtpTreeStore } from './ftpTreeStore'
 import { useSshTerminalsStore } from './sshTerminalsStore'
 import i18n from '../i18n'
 import { useSettingsStore, type Encoding, type NewlineMode } from './settingsStore'
@@ -181,6 +183,7 @@ export type ConnectionKind =
   | 'ws-server'
   | 'mqtt'
   | 'ssh'
+  | 'ftp'
   | 'rtt'
 
 /** What a tab connects over — serial keeps the full `OpenPortRequest` (data
@@ -206,6 +209,7 @@ export type ConnectionConfig =
       privateKeyPath?: string
       passphrase?: string
     }
+  | { kind: 'ftp'; host: string; port: number; username: string; password: string }
   | { kind: 'rtt'; probeSerial?: string; chip: string }
 
 /** What `openTab` accepts to start a new connection of any kind. `id` is
@@ -234,6 +238,7 @@ export type OpenTabRequest =
       privateKeyPath?: string
       passphrase?: string
     }
+  | { kind: 'ftp'; id: string; host: string; port: number; username: string; password: string }
   | { kind: 'rtt'; id: string; probeSerial?: string; chip: string }
 
 export interface TabState {
@@ -575,6 +580,8 @@ function connectionLabelFor(config: ConnectionConfig): string {
       return `mqtt://${config.brokerHost}:${config.brokerPort}`
     case 'ssh':
       return `${config.username}@${config.host}:${config.port}`
+    case 'ftp':
+      return `ftp://${config.username}@${config.host}:${config.port}`
     case 'rtt':
       return `SWD · ${config.chip}`
   }
@@ -925,7 +932,15 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
                           privateKeyPath: req.privateKeyPath,
                           passphrase: req.passphrase,
                         }
-                      : { kind: 'rtt', probeSerial: req.probeSerial, chip: req.chip }
+                      : req.kind === 'ftp'
+                        ? {
+                            kind: 'ftp',
+                            host: req.host,
+                            port: req.port,
+                            username: req.username,
+                            password: req.password,
+                          }
+                        : { kind: 'rtt', probeSerial: req.probeSerial, chip: req.chip }
 
     const newTab: TabState = {
       id: req.id,
@@ -998,6 +1013,8 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         req.privateKeyPath,
         req.passphrase,
       )
+    else if (req.kind === 'ftp')
+      await ftpConnect(req.id, req.host, req.port, req.username, req.password)
     else await openRtt(req.id, req.probeSerial, req.chip)
 
     set((state) => ({ tabs: [...state.tabs, newTab], activeTabId: newTab.id }))
@@ -1012,6 +1029,13 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         return
       }
     }
+    if (tab?.connectionKind === 'ftp') {
+      const session = useFtpTreeStore.getState().sessions[id]
+      const hasUnsavedEdits = session?.openFiles.some((f) => f.content !== f.originalContent)
+      if (hasUnsavedEdits && !window.confirm(i18n.t('ftp.tree.closeTabUnsavedConfirm'))) {
+        return
+      }
+    }
     if (tab?.scriptRunning) {
       await stopScriptApi(id).catch(() => {})
     }
@@ -1021,11 +1045,15 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         .map((p) => pluginStop(p.runId).catch(() => {})),
     )
     if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
+    else if (tab?.connectionKind === 'ftp') await ftpDisconnect(id).catch(() => {})
     else await closeNetworkStream(id).catch(() => {})
     if (tab?.connectionKind === 'ssh') {
       await sftpDisconnect(id).catch(() => {})
       useSftpStore.getState().disposeSession(id)
       await useSshTerminalsStore.getState().disposeSession(id)
+    }
+    if (tab?.connectionKind === 'ftp') {
+      useFtpTreeStore.getState().disposeSession(id)
     }
     set((state) => {
       const tabs = state.tabs.filter((tab) => tab.id !== id)
@@ -1048,10 +1076,14 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
         .map((p) => pluginStop(p.runId).catch(() => {})),
     )
     if (tab?.connectionKind === 'serial') await closeSerialPort(id).catch(() => {})
+    else if (tab?.connectionKind === 'ftp') await ftpDisconnect(id).catch(() => {})
     else await closeNetworkStream(id).catch(() => {})
     if (tab?.connectionKind === 'ssh') {
       await useSftpStore.getState().disconnectSession(id)
       await useSshTerminalsStore.getState().disposeSession(id)
+    }
+    if (tab?.connectionKind === 'ftp') {
+      useFtpTreeStore.getState().disconnectSession(id)
     }
     set((state) => ({
       tabs: state.tabs.map((tab) =>
@@ -1102,6 +1134,12 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
             ),
           }))
         }
+      } else if (config.kind === 'ftp') {
+        await ftpConnect(id, config.host, config.port, config.username, config.password)
+        // Same reasoning as ensureConnected's own doc comment: this is the
+        // tab's one and only FTP connection, already redialed above, so the
+        // tree store just needs telling it's back — not a second dial.
+        useFtpTreeStore.getState().ensureConnected(id, config)
       } else await openRtt(id, config.probeSerial, config.chip)
     } catch (err) {
       set((state) => ({

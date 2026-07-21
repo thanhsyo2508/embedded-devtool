@@ -8,6 +8,7 @@ import { MqttPanel } from './MqttPanel'
 import { UdpPanel } from './UdpPanel'
 import { WsPanel } from './WsPanel'
 import { SshWorkspacePanel } from './SshWorkspacePanel'
+import { FtpWorkspacePanel } from './FtpWorkspacePanel'
 import { SwdWatchPanel } from './SwdWatchPanel'
 
 // The specialized/raw toggle is per-tab-view, not global — once multiple
@@ -30,6 +31,12 @@ export function TabContent({ tab }: { tab: TabState }) {
     // A PTY has no line-oriented "raw log" fallback that would make sense —
     // unlike MQTT/UDP/WS, there's no toggle here.
     return <SshWorkspacePanel tab={tab} />
+  }
+
+  if (tab.connectionKind === 'ftp') {
+    // FTP is a stateful file browser, not a byte stream — MonitorView/
+    // SendPanel don't apply, same reasoning as SSH above.
+    return <FtpWorkspacePanel tab={tab} />
   }
 
   if (tab.connectionKind === 'rtt') {

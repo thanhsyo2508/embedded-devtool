@@ -5,7 +5,7 @@
 //! fans out to callbacks.
 
 use std::io::{self, Read, Write};
-use std::net::{Shutdown, TcpListener, TcpStream, UdpSocket};
+use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -28,6 +28,12 @@ const POLL_TIMEOUT: Duration = Duration::from_millis(200);
 /// forever-hold of the `client` mutex also wedges `close()` and the
 /// per-connection reader's cleanup.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
+/// Bounds the initial dial in `TcpClientStream::open` — plain
+/// `TcpStream::connect` has no timeout of its own, so against an
+/// unreachable host that silently drops the SYN (a common firewall/dead-IP
+/// case) it would otherwise hang forever with no way for the user to give
+/// up. Same fix, same reasoning as `ftp::client::FtpManager::connect`'s.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const RING_BUFFER_CAPACITY: usize = 1 << 20;
 
 fn is_transient_timeout(e: &io::Error) -> bool {
@@ -71,7 +77,16 @@ impl DataStream for TcpClientStream {
             return Ok(());
         }
 
-        let socket = TcpStream::connect((self.host.as_str(), self.port))?;
+        let addr = (self.host.as_str(), self.port)
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("failed to resolve {}:{}", self.host, self.port),
+                )
+            })?;
+        let socket = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT)?;
         socket.set_read_timeout(Some(POLL_TIMEOUT))?;
         socket.set_write_timeout(Some(WRITE_TIMEOUT))?;
         let mut reader_socket = socket.try_clone()?;

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import './App.css'
 import { useTabsStore } from './state/tabsStore'
 import { useSftpStore } from './state/sftpStore'
+import { useFtpTreeStore } from './state/ftpTreeStore'
 import { useLayoutStore } from './state/layoutStore'
 import { findPane, findPaneForTab, makePane, mapTabIds, removeTab } from './lib/layoutTree'
 import {
@@ -71,6 +72,7 @@ function App() {
   const wireWsEventsOnce = useWsStore((s) => s.wireEventsOnce)
   const tabs = useTabsStore((s) => s.tabs)
   const sftpSessions = useSftpStore((s) => s.sessions)
+  const ftpSessions = useFtpTreeStore((s) => s.sessions)
   const closeTab = useTabsStore((s) => s.closeTab)
   const clearLines = useTabsStore((s) => s.clearLines)
   const togglePause = useTabsStore((s) => s.togglePause)
@@ -263,9 +265,9 @@ function App() {
   // Reopens every saved connection under a freshly assigned id (runtime ids
   // aren't stable across restarts), restoring per-tab filters/triggers/
   // scripts and rebuilding the Snap Layout tree from the saved placeholder
-  // ids — see lib/projectProfile's module docs. SSH tabs pause for a
+  // ids — see lib/projectProfile's module docs. SSH/FTP tabs pause for a
   // password prompt (never saved to disk); a tab that fails to (re)connect
-  // or whose SSH prompt is cancelled is dropped from the restored layout
+  // or whose prompt is cancelled is dropped from the restored layout
   // instead of leaving a dangling reference to a tab that doesn't exist.
   const handleOpenProject = async () => {
     const path = await open({ filters: PROJECT_FILE_FILTERS, multiple: false })
@@ -294,7 +296,7 @@ function App() {
     for (let i = 0; i < profile.tabs.length; i++) {
       const tabConfig = profile.tabs[i]
       const newId = `${tabConfig.connectionConfig.kind}-${Date.now()}-${i}`
-      let sshPassword: string | undefined
+      let passwordOverride: string | undefined
       if (tabConfig.connectionConfig.kind === 'ssh') {
         const cfg = tabConfig.connectionConfig
         const entered = window.prompt(
@@ -304,10 +306,22 @@ function App() {
           failedIndices.push(i)
           continue
         }
-        sshPassword = entered
+        passwordOverride = entered
+      } else if (tabConfig.connectionConfig.kind === 'ftp') {
+        const cfg = tabConfig.connectionConfig
+        const entered = window.prompt(
+          t('app.ftpPasswordPrompt', { username: cfg.username, host: cfg.host, port: cfg.port }),
+        )
+        if (entered === null) {
+          failedIndices.push(i)
+          continue
+        }
+        passwordOverride = entered
       }
       try {
-        await openTab(connectionConfigToOpenRequest(tabConfig.connectionConfig, newId, sshPassword))
+        await openTab(
+          connectionConfigToOpenRequest(tabConfig.connectionConfig, newId, passwordOverride),
+        )
       } catch {
         failedIndices.push(i)
         continue
@@ -349,25 +363,26 @@ function App() {
     }
   }
 
-  // One-click reconnect from the command palette — SSH is the only kind
-  // that needs a prompt first, since its password is deliberately never
-  // persisted (see ConnectPanel's currentConfigData / ssh case).
+  // One-click reconnect from the command palette — SSH/FTP are the only
+  // kinds that need a prompt first, since their password is deliberately
+  // never persisted (see ConnectPanel's currentConfigData).
   const handleReconnectRecent = async (recent: RecentConnection) => {
-    let sshPassword: string | undefined
-    if (recent.kind === 'ssh') {
+    let passwordOverride: string | undefined
+    if (recent.kind === 'ssh' || recent.kind === 'ftp') {
+      const promptKey = recent.kind === 'ssh' ? 'app.sshPasswordPrompt' : 'app.ftpPasswordPrompt'
       const entered = window.prompt(
-        t('app.sshPasswordPrompt', {
+        t(promptKey, {
           username: recent.config.username,
           host: recent.config.host,
           port: recent.config.port,
         }),
       )
       if (entered === null) return
-      sshPassword = entered
+      passwordOverride = entered
     }
     const id = `${recent.kind}-${Date.now()}`
     try {
-      await openTab(recentConnectionToOpenRequest(recent, id, sshPassword))
+      await openTab(recentConnectionToOpenRequest(recent, id, passwordOverride))
       pushRecentConnection(recent.kind, recent.config, recent.label)
       openTabInFocusedPane(id)
       setShowConnect(false)
@@ -504,29 +519,52 @@ function App() {
     }
 
     // Quick-open for remote files already browsed into an SSH tab's SFTP
-    // sidebar — client-side filter over already-fetched entries only, not a
-    // new recursive backend search (deliberate v1 scope boundary).
+    // sidebar (or an FTP tab's own tree) — client-side filter over
+    // already-fetched entries only, not a new recursive backend search
+    // (deliberate v1 scope boundary).
     const remoteFilesCategory = t('commandPalette.category.remoteFiles')
     for (const tab of tabs) {
-      if (tab.connectionKind !== 'ssh') continue
-      const session = sftpSessions[tab.id]
-      if (!session) continue
-      for (const node of Object.values(session.nodes)) {
-        for (const entry of node.entries ?? []) {
-          if (entry.isDir) continue
-          commands.push({
-            id: `sftp-open-${tab.id}-${entry.path}`,
-            category: remoteFilesCategory,
-            label: t('commandPalette.openRemoteFile', {
-              path: entry.path,
-              label: tab.connectionLabel,
-            }),
-            run: () => {
-              const pane = findPaneForTab(layoutRoot, tab.id)
-              if (pane) setActiveTabInPane(pane.id, tab.id)
-              void useSftpStore.getState().openFile(tab.id, entry)
-            },
-          })
+      if (tab.connectionKind === 'ssh') {
+        const session = sftpSessions[tab.id]
+        if (!session) continue
+        for (const node of Object.values(session.nodes)) {
+          for (const entry of node.entries ?? []) {
+            if (entry.isDir) continue
+            commands.push({
+              id: `remote-open-${tab.id}-${entry.path}`,
+              category: remoteFilesCategory,
+              label: t('commandPalette.openRemoteFile', {
+                path: entry.path,
+                label: tab.connectionLabel,
+              }),
+              run: () => {
+                const pane = findPaneForTab(layoutRoot, tab.id)
+                if (pane) setActiveTabInPane(pane.id, tab.id)
+                void useSftpStore.getState().openFile(tab.id, entry)
+              },
+            })
+          }
+        }
+      } else if (tab.connectionKind === 'ftp') {
+        const session = ftpSessions[tab.id]
+        if (!session) continue
+        for (const node of Object.values(session.nodes)) {
+          for (const entry of node.entries ?? []) {
+            if (entry.isDir) continue
+            commands.push({
+              id: `remote-open-${tab.id}-${entry.path}`,
+              category: remoteFilesCategory,
+              label: t('commandPalette.openRemoteFile', {
+                path: entry.path,
+                label: tab.connectionLabel,
+              }),
+              run: () => {
+                const pane = findPaneForTab(layoutRoot, tab.id)
+                if (pane) setActiveTabInPane(pane.id, tab.id)
+                void useFtpTreeStore.getState().openFile(tab.id, entry)
+              },
+            })
+          }
         }
       }
     }
@@ -567,7 +605,17 @@ function App() {
 
     return commands
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t, hasAnyTabs, focusedTab, plotVisible, tabs, layoutRoot, recentConnections, sftpSessions])
+  }, [
+    t,
+    hasAnyTabs,
+    focusedTab,
+    plotVisible,
+    tabs,
+    layoutRoot,
+    recentConnections,
+    sftpSessions,
+    ftpSessions,
+  ])
 
   // M3-T2.2: global keyboard shortcuts. Ctrl on Windows/Linux, Cmd on macOS.
   // Shortcuts that target "the current tab" now act on the focused pane's

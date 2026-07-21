@@ -3,11 +3,11 @@ import Editor from 'react-simple-code-editor'
 import { useTranslation } from 'react-i18next'
 import { useTabsStore, type TabState } from '../state/tabsStore'
 import {
-  DEFAULT_SFTP_SESSION,
-  useSftpStore,
-  type OpenSftpFile,
-  type SftpEditorGroup,
-} from '../state/sftpStore'
+  DEFAULT_FTP_SESSION,
+  useFtpTreeStore,
+  type FtpEditorGroup,
+  type OpenFtpFile,
+} from '../state/ftpTreeStore'
 import { highlightForPath } from '../lib/sftpFileLanguage'
 import { EditorFindBar, type EditorMatch } from './EditorFindBar'
 import { DiskIcon, SearchIcon, SplitIcon, XIcon } from './icons'
@@ -15,17 +15,11 @@ import { DiskIcon, SearchIcon, SplitIcon, XIcon } from './icons'
 const MIN_GROUP_WIDTH = 240
 const DEFAULT_GROUP_WIDTH = 420
 
-// A custom dataTransfer type, distinct from TabStrip's/PaneContent's plain
-// 'text/plain' tab-id payload (see App.css's SplitResizer-adjacent comment
-// in PaneContent.tsx) — using our own type means a drag started here is
-// invisible to the outer connection-tab-strip/pane-split drop handlers
-// (they only read 'text/plain', which we never set), and vice versa: an
-// outer tab drag never matches our own onDragOver/onDrop type checks below.
-// Every one of our own drag handlers also calls stopPropagation() once it
-// recognizes this type, so the drag never bubbles up to PaneContent's
-// pane-body listener and flashes its "drop to split pane" overlay while the
-// user is just rearranging file tabs inside one SSH tab's editor area.
-const DRAG_TYPE = 'application/x-sftp-file'
+// Mirrors SftpEditorTabs' `DRAG_TYPE` — its own distinct dataTransfer type
+// so a drag started here is invisible to both the outer pane-split system
+// (which only reads 'text/plain') and to an SFTP editor's own drag handlers
+// (a different type string), and vice versa.
+const DRAG_TYPE = 'application/x-ftp-file'
 
 interface DragPayload {
   groupId: string
@@ -72,8 +66,8 @@ function EditorGroupPane({
   onTabDragEnd,
 }: {
   tab: TabState
-  group: SftpEditorGroup
-  openFiles: OpenSftpFile[]
+  group: FtpEditorGroup
+  openFiles: OpenFtpFile[]
   isFocused: boolean
   canSplit: boolean
   canClose: boolean
@@ -82,14 +76,14 @@ function EditorGroupPane({
   onTabDragEnd: () => void
 }) {
   const { t } = useTranslation()
-  const closeFile = useSftpStore((s) => s.closeFile)
-  const setActiveFile = useSftpStore((s) => s.setActiveFile)
-  const setActiveGroup = useSftpStore((s) => s.setActiveGroup)
-  const setFileContent = useSftpStore((s) => s.setFileContent)
-  const saveFile = useSftpStore((s) => s.saveFile)
-  const splitGroupRight = useSftpStore((s) => s.splitGroupRight)
-  const moveFileToGroup = useSftpStore((s) => s.moveFileToGroup)
-  const closeGroup = useSftpStore((s) => s.closeGroup)
+  const closeFile = useFtpTreeStore((s) => s.closeFile)
+  const setActiveFile = useFtpTreeStore((s) => s.setActiveFile)
+  const setActiveGroup = useFtpTreeStore((s) => s.setActiveGroup)
+  const setFileContent = useFtpTreeStore((s) => s.setFileContent)
+  const saveFile = useFtpTreeStore((s) => s.saveFile)
+  const splitGroupRight = useFtpTreeStore((s) => s.splitGroupRight)
+  const moveFileToGroup = useFtpTreeStore((s) => s.moveFileToGroup)
+  const closeGroup = useFtpTreeStore((s) => s.closeGroup)
   const activeTabId = useTabsStore((s) => s.activeTabId)
   const [wordWrap, setWordWrap] = useState(false)
   const [showFind, setShowFind] = useState(false)
@@ -100,14 +94,12 @@ function EditorGroupPane({
 
   const files = group.filePaths
     .map((path) => openFiles.find((f) => f.path === path))
-    .filter((f): f is OpenSftpFile => f !== undefined)
+    .filter((f): f is OpenFtpFile => f !== undefined)
   const activeFile = files.find((f) => f.path === group.activeFilePath) ?? null
 
   // Resets the cursor readout and closes any open find bar the moment the
   // active file changes — adjusted during render rather than in an effect,
-  // per React's guidance for resetting state derived from a changed value
-  // (same pattern as ConnectPanel's presetsFor/CommandPalette's
-  // queryForSelection).
+  // per React's guidance for resetting state derived from a changed value.
   const [trackedFilePath, setTrackedFilePath] = useState(activeFile?.path)
   if (activeFile?.path !== trackedFilePath) {
     setTrackedFilePath(activeFile?.path)
@@ -143,13 +135,10 @@ function EditorGroupPane({
     if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
     e.preventDefault()
     e.stopPropagation()
-    // A move to a *different* group unmounts the dragged tab's own DOM node
-    // (it's rendered by that group's own map(), so React tears it down and
-    // mounts a new one in the target group instead of moving the existing
-    // node) — the browser can then drop the native drag operation without
-    // ever firing dragend on it, which would otherwise leave onTabDragEnd
-    // uncalled and the drag state stuck "in progress" forever. Resetting it
-    // here too, not just from the tab's own onDragEnd, covers that case.
+    // A move to a *different* group unmounts the dragged tab's own DOM node,
+    // so the browser can drop the native drag operation without ever firing
+    // dragend on it — resetting the drag state here too (not just from the
+    // tab's own onDragEnd) covers that case. Same fix as SftpEditorTabs.
     onTabDragEnd()
     const raw = e.dataTransfer.getData(DRAG_TYPE)
     if (!raw) return
@@ -219,7 +208,7 @@ function EditorGroupPane({
                   e.stopPropagation()
                   if (
                     dirty &&
-                    !window.confirm(t('ssh.sftp.closeUnsavedConfirm', { name: file.name }))
+                    !window.confirm(t('ftp.tree.closeUnsavedConfirm', { name: file.name }))
                   ) {
                     return
                   }
@@ -235,8 +224,8 @@ function EditorGroupPane({
           <button
             type="button"
             className="icon-button sftp-editor-group-close"
-            aria-label={t('ssh.sftp.closeGroup')}
-            title={t('ssh.sftp.closeGroup')}
+            aria-label={t('ftp.tree.closeGroup')}
+            title={t('ftp.tree.closeGroup')}
             onClick={() => closeGroup(tab.id, group.id)}
           >
             <XIcon />
@@ -250,15 +239,15 @@ function EditorGroupPane({
             <div className="sftp-editor-toolbar-actions">
               {!activeFile.isBinary && (
                 <span className="sftp-editor-cursor-pos">
-                  {t('ssh.sftp.cursorPos', { line: cursorPos.line, col: cursorPos.col })}
+                  {t('ftp.tree.cursorPos', { line: cursorPos.line, col: cursorPos.col })}
                 </span>
               )}
               {!activeFile.isBinary && (
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label={t('ssh.sftp.findInFile')}
-                  title={t('ssh.sftp.findInFile')}
+                  aria-label={t('ftp.tree.findInFile')}
+                  title={t('ftp.tree.findInFile')}
                   onClick={() => setShowFind(true)}
                 >
                   <SearchIcon />
@@ -268,19 +257,19 @@ function EditorGroupPane({
                 <button
                   type="button"
                   className={`icon-button text-toggle ${wordWrap ? 'on' : ''}`}
-                  aria-label={t('ssh.sftp.wordWrap')}
-                  title={t('ssh.sftp.wordWrap')}
+                  aria-label={t('ftp.tree.wordWrap')}
+                  title={t('ftp.tree.wordWrap')}
                   onClick={() => setWordWrap((w) => !w)}
                 >
-                  {t('ssh.sftp.wordWrapShort')}
+                  {t('ftp.tree.wordWrapShort')}
                 </button>
               )}
               {canSplit && (
                 <button
                   type="button"
                   className="icon-button"
-                  aria-label={t('ssh.sftp.splitRight')}
-                  title={t('ssh.sftp.splitRight')}
+                  aria-label={t('ftp.tree.splitRight')}
+                  title={t('ftp.tree.splitRight')}
                   onClick={() => splitGroupRight(tab.id, activeFile.path)}
                 >
                   <SplitIcon />
@@ -293,16 +282,16 @@ function EditorGroupPane({
                   disabled={activeFile.saving || activeFile.content === activeFile.originalContent}
                   onClick={() => void saveFile(tab.id, activeFile.path)}
                 >
-                  <DiskIcon /> {t('ssh.sftp.save')}
+                  <DiskIcon /> {t('ftp.tree.save')}
                 </button>
               )}
             </div>
           </div>
           {activeFile.error && <p className="connect-error">{activeFile.error}</p>}
           {activeFile.loading ? (
-            <div className="sftp-editor-loading">{t('ssh.sftp.connecting')}</div>
+            <div className="sftp-editor-loading">{t('ftp.tree.connecting')}</div>
           ) : activeFile.isBinary ? (
-            <div className="sftp-editor-binary-notice">{t('ssh.sftp.binaryFile')}</div>
+            <div className="sftp-editor-binary-notice">{t('ftp.tree.binaryFile')}</div>
           ) : (
             <div className="sftp-code-editor-wrap" ref={editorWrapRef}>
               {!wordWrap && (
@@ -339,7 +328,7 @@ function EditorGroupPane({
               {showFind && (
                 <EditorFindBar
                   content={activeFile.content}
-                  placeholder={t('ssh.sftp.findInFile')}
+                  placeholder={t('ftp.tree.findInFile')}
                   onJump={jumpToMatch}
                   onQueryChange={setFindQuery}
                   onCurrentIndexChange={setCurrentMatchIndex}
@@ -374,16 +363,16 @@ function EditorGroupPane({
   )
 }
 
-export function SftpEditorTabs({ tab }: { tab: TabState }) {
+export function FtpEditorTabs({ tab }: { tab: TabState }) {
   const { t } = useTranslation()
-  const session = useSftpStore((s) => s.sessions[tab.id]) ?? DEFAULT_SFTP_SESSION
-  const saveAllFiles = useSftpStore((s) => s.saveAllFiles)
+  const session = useFtpTreeStore((s) => s.sessions[tab.id]) ?? DEFAULT_FTP_SESSION
+  const saveAllFiles = useFtpTreeStore((s) => s.saveAllFiles)
   const [savingAll, setSavingAll] = useState(false)
   const [firstGroupWidth, setFirstGroupWidth] = useState(DEFAULT_GROUP_WIDTH)
   const [isDraggingTab, setIsDraggingTab] = useState(false)
 
   if (session.openFiles.length === 0) {
-    return <div className="sftp-editor-empty">{t('ssh.sftp.noFileOpen')}</div>
+    return <div className="sftp-editor-empty">{t('ftp.tree.noFileOpen')}</div>
   }
 
   const dirtyFiles = session.openFiles.filter((f) => !f.isBinary && f.content !== f.originalContent)
@@ -402,7 +391,7 @@ export function SftpEditorTabs({ tab }: { tab: TabState }) {
               void saveAllFiles(tab.id).finally(() => setSavingAll(false))
             }}
           >
-            <DiskIcon /> {t('ssh.sftp.saveAll', { count: dirtyFiles.length })}
+            <DiskIcon /> {t('ftp.tree.saveAll', { count: dirtyFiles.length })}
           </button>
         </div>
       )}

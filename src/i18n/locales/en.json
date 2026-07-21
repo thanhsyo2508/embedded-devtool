@@ -230,6 +230,7 @@
     "openProjectError": "Could not read project file: {{error}}",
     "confirmCloseAllTabs": "Opening a project closes every tab currently open. Continue?",
     "sshPasswordPrompt": "SSH password for {{username}}@{{host}}:{{port}}",
+    "ftpPasswordPrompt": "FTP password for {{username}}@{{host}}:{{port}}",
     "partialRestoreWarning": "{{failed}} of {{total}} connection(s) could not be reopened."
   },
   "layout": {
@@ -292,7 +293,13 @@
       "uploading": "Uploading",
       "downloading": "Downloading",
       "largeFileConfirm": "\"{{name}}\" is {{size}} — opening it may be slow. Open anyway?",
-      "closeTabUnsavedConfirm": "This SSH tab has unsaved file changes. Close anyway and discard them?"
+      "closeTabUnsavedConfirm": "This SSH tab has unsaved file changes. Close anyway and discard them?",
+      "cursorPos": "Line {{line}}, Col {{col}}",
+      "findInFile": "Find in file (Ctrl+F)",
+      "wordWrap": "Word wrap",
+      "wordWrapShort": "Wrap",
+      "saveAll": "Save All ({{count}})",
+      "connectionLostWhileEditing": "SFTP connection lost — unsaved changes can't be saved until you reconnect."
     }
   },
   "library": {
@@ -311,6 +318,7 @@
       "ws": "WebSocket",
       "mqtt": "MQTT",
       "ssh": "SSH",
+      "ftp": "FTP",
       "rtt": "SWD"
     },
     "role": {
@@ -409,6 +417,7 @@
     "modbusSlaveListening": "Modbus Slave (listening)",
     "logToFile": "Log to file",
     "loggingTo": "Logging to {{dir}}",
+    "openLogFolder": "Open log folder ({{dir}})",
     "contextMenu": {
       "copy": "Copy",
       "searchForThis": "Search buffer for this",
@@ -594,27 +603,48 @@
     "empty": "No devices flashed yet."
   },
   "ftp": {
-    "title": "FTP Client/Server",
-    "clientTab": "Client",
-    "serverTab": "Server",
-    "connect": "Connect",
-    "disconnect": "Disconnect",
-    "newFolder": "New folder",
-    "newFolderPrompt": "New folder name:",
-    "upload": "Upload file",
-    "download": "Download",
-    "deleteConfirm": "Delete \"{{name}}\"? This cannot be undone.",
-    "name": "Name",
-    "size": "Size",
-    "modified": "Modified",
-    "emptyDir": "This folder is empty.",
-    "serverHint": "Runs a local plain-FTP server so a device can read/write files on this computer — leave username blank to allow anonymous access.",
+    "title": "FTP Server",
+    "serverHint": "Runs a plain-FTP server on this computer that any device on your LAN can read/write files through — leave username blank to allow anonymous access. If nothing connects from another device, check that your firewall allows this app through (Windows may prompt for this the first time).",
     "rootDir": "Root folder",
     "selectRootDir": "Select a folder to share…",
     "serverUsername": "Username (optional)",
     "startServer": "Start server",
     "stopServer": "Stop server",
-    "serverRunningHint": "Serving on port {{port}}. Stop the server before changing settings."
+    "serverRunningHint": "Serving on port {{port}}. Stop the server before changing settings.",
+    "tree": {
+      "explorer": "Explorer",
+      "noFileOpen": "No file open. Browse the sidebar and click a file to edit it.",
+      "connecting": "Connecting…",
+      "reconnect": "Reconnect",
+      "newFile": "New file…",
+      "newFilePrompt": "New file name?",
+      "newFolder": "New folder…",
+      "newFolderPrompt": "New folder name?",
+      "rename": "Rename…",
+      "renamePrompt": "New name?",
+      "delete": "Delete",
+      "deleteConfirm": "Delete \"{{name}}\"?",
+      "closeUnsavedConfirm": "\"{{name}}\" has unsaved changes. Close anyway?",
+      "upload": "Upload local file…",
+      "refresh": "Refresh",
+      "save": "Save",
+      "splitRight": "Split right",
+      "closeGroup": "Close group",
+      "binaryFile": "This file looks binary and can't be edited here.",
+      "searchPlaceholder": "Search files…",
+      "copyPath": "Copy path",
+      "download": "Download…",
+      "uploading": "Uploading",
+      "downloading": "Downloading",
+      "largeFileConfirm": "\"{{name}}\" is {{size}} — opening it may be slow. Open anyway?",
+      "closeTabUnsavedConfirm": "This FTP tab has unsaved file changes. Close anyway and discard them?",
+      "cursorPos": "Line {{line}}, Col {{col}}",
+      "findInFile": "Find in file (Ctrl+F)",
+      "wordWrap": "Word wrap",
+      "wordWrapShort": "Wrap",
+      "saveAll": "Save All ({{count}})",
+      "connectionLostWhileEditing": "FTP connection lost — unsaved changes can't be saved until you reconnect."
+    }
   },
   "flash": {
     "title": "Flash",

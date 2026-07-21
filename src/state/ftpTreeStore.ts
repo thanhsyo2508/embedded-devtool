@@ -1,39 +1,41 @@
 import { create } from 'zustand'
 import {
-  onSftpTransferDone,
-  onSftpTransferProgress,
-  sftpConnect,
-  sftpDelete,
-  sftpDisconnect,
-  sftpDownload,
-  sftpList,
-  sftpMkdir,
-  sftpReadFile,
-  sftpRename,
-  sftpRmdir,
-  sftpUpload,
-  sftpWriteFile,
-  type SftpEntry,
-} from '../api/sftp'
+  ftpConnect,
+  ftpDelete,
+  ftpDownload,
+  ftpList,
+  ftpMkdir,
+  ftpReadFile,
+  ftpRename,
+  ftpRmdir,
+  ftpUpload,
+  ftpWriteFile,
+  onFtpTransferDone,
+  onFtpTransferProgress,
+  type FtpEntry,
+} from '../api/ftp'
 import i18n from '../i18n'
 import { useToastStore } from './toastStore'
 
-export interface SftpConnectionConfig {
+// Mirrors sftpStore.ts's tree+editor-groups shape, adapted for the FTP
+// client instead of SSH's SFTP subsystem — see that file for the fuller
+// rationale behind each piece (per-tab session keying, editor groups,
+// binary/large-file guards, ...). FTP has no key-based auth, so its
+// connection config is just host/port/username/password.
+export interface FtpConnectionConfig {
   host: string
   port: number
   username: string
   password: string
-  privateKeyPath?: string
-  passphrase?: string
 }
 
-interface SftpTreeNodeState {
-  entries: SftpEntry[] | null
+interface FtpTreeNodeState {
+  entries: FtpEntry[] | null
   loading: boolean
   error: string | null
 }
 
-export interface OpenSftpFile {
+export interface OpenFtpFile {
   path: string
   name: string
   content: string
@@ -41,64 +43,51 @@ export interface OpenSftpFile {
   loading: boolean
   saving: boolean
   error: string | null
-  /** True if the file's bytes look binary (see `isBinaryContent`) — the
-   * editor shows a "can't edit" message instead of the code editor for
-   * these, since decoding binary data as UTF-8 text and saving it back
-   * would corrupt it (lossy round-trip through the replacement character
-   * for any invalid byte sequences). */
   isBinary: boolean
 }
 
-/** One editor column (VSCode-style "editor group"). `filePaths` are
- * references into the session's shared `openFiles` — a file split into two
- * groups is the same underlying buffer in both, so editing it in either
- * group updates the other immediately (no separate copy to keep in sync). */
-export interface SftpEditorGroup {
+export interface FtpEditorGroup {
   id: string
   filePaths: string[]
   activeFilePath: string | null
 }
 
-export interface SftpTransferProgress {
+export interface FtpTransferProgress {
   operation: 'upload' | 'download'
   transferred: number
   total: number
 }
 
-interface SftpTabSession {
+interface FtpTabSession {
   connected: boolean
   connecting: boolean
   connectError: string | null
   /** Stashed on a successful connect so `reconnect` can redial without the
-   * caller having to supply host/port/username/password again — the SSH
-   * tab's own connectionConfig doesn't change while the tab is open, so
-   * this is safe to reuse for as long as the session lives. */
-  config: SftpConnectionConfig | null
+   * caller having to supply host/port/username/password again. */
+  config: FtpConnectionConfig | null
   sidebarVisible: boolean
-  nodes: Record<string, SftpTreeNodeState>
+  nodes: Record<string, FtpTreeNodeState>
   expanded: Set<string>
-  openFiles: OpenSftpFile[]
-  groups: SftpEditorGroup[]
+  openFiles: OpenFtpFile[]
+  groups: FtpEditorGroup[]
   activeGroupId: string
-  /** Only one transfer's progress is tracked per tab at a time — same
-   * simplification the pre-existing transferDone event already made
-   * (both are keyed by the tab's own SFTP session id, not a per-transfer
-   * id), so two concurrent transfers on the same tab would show whichever
-   * one's progress event landed last. Good enough for this app's actual
-   * usage (one deliberate upload/download at a time from the tree). */
-  transferProgress: SftpTransferProgress | null
+  transferProgress: FtpTransferProgress | null
 }
 
 const ROOT_PATH = ''
 const INITIAL_GROUP_ID = 'group-1'
 
-function emptySession(): SftpTabSession {
+function emptySession(): FtpTabSession {
   return {
     connected: false,
     connecting: false,
     connectError: null,
     config: null,
-    sidebarVisible: false,
+    // Unlike the SSH+SFTP workspace (sidebar is opt-in, the terminal is the
+    // useful default view), an FTP tab has no other content — starting
+    // collapsed would just show a blank pane until the user finds the
+    // toggle button.
+    sidebarVisible: true,
     nodes: {},
     expanded: new Set(),
     openFiles: [],
@@ -110,20 +99,13 @@ function emptySession(): SftpTabSession {
 
 /** Stable fallback for `sessions[tabId]` before `ensureSession`/
  * `toggleSidebar` has ever run for that tab — a single module-level
- * instance so it's referentially stable across renders (not a new object
- * per selector call). */
-export const DEFAULT_SFTP_SESSION: SftpTabSession = emptySession()
+ * instance so it's referentially stable across renders. */
+export const DEFAULT_FTP_SESSION: FtpTabSession = emptySession()
 
 function bytesToText(bytes: number[]): string {
   return new TextDecoder().decode(new Uint8Array(bytes))
 }
 
-/** Same heuristic git/most editors use: a NUL byte anywhere in the first
- * chunk of the file is a strong, cheap signal it's not text — real text
- * files (in any encoding editors commonly round-trip through) never
- * legitimately contain one. Checked before decoding so a genuinely binary
- * file (image, executable, ...) never gets silently mangled by a lossy
- * UTF-8 decode-then-re-encode round trip if someone hits Save. */
 const BINARY_SNIFF_LENGTH = 8000
 function isBinaryContent(bytes: number[]): boolean {
   const end = Math.min(bytes.length, BINARY_SNIFF_LENGTH)
@@ -133,10 +115,6 @@ function isBinaryContent(bytes: number[]): boolean {
   return false
 }
 
-// Above this, decoding the whole file into a JS string and handing it to
-// react-simple-code-editor (an uncontrolled-textarea-based editor with no
-// virtualization) risks a real UI freeze — worth a confirm rather than
-// silently trying and possibly hanging.
 const LARGE_FILE_WARN_BYTES = 2 * 1024 * 1024
 export function formatBytes(n: number): string {
   if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)} MB`
@@ -153,19 +131,28 @@ function joinPath(base: string, name: string): string {
   return base.endsWith('/') ? `${base}${name}` : `${base}/${name}`
 }
 
-interface SftpState {
-  sessions: Record<string, SftpTabSession>
+interface FtpTreeState {
+  sessions: Record<string, FtpTabSession>
   eventsWired: boolean
 
   wireEventsOnce: () => void
-  ensureSession: (tabId: string) => SftpTabSession
+  ensureSession: (tabId: string) => FtpTabSession
 
-  toggleSidebar: (tabId: string, config: SftpConnectionConfig) => Promise<void>
+  /** Marks this tab's FTP session live and lists the root — a no-op past
+   * the first call. Unlike SFTP-over-SSH (a genuinely separate connection
+   * from the SSH tab's own), an FTP tab has exactly one control connection
+   * total, already dialed by `tabsStore.openTab` before this tab ever
+   * existed — dialing a second one here would waste a handshake and, worse,
+   * would break the many minimal embedded FTP servers that only accept one
+   * client at a time. `config` is stashed only so a later manual
+   * `reconnect` can redial without re-prompting for credentials. */
+  ensureConnected: (tabId: string, config: FtpConnectionConfig) => void
+  toggleSidebar: (tabId: string) => void
   reconnect: (tabId: string) => Promise<void>
   toggleNode: (tabId: string, path: string) => Promise<void>
   refreshNode: (tabId: string, path: string) => Promise<void>
 
-  openFile: (tabId: string, entry: SftpEntry, groupId?: string) => Promise<void>
+  openFile: (tabId: string, entry: FtpEntry, groupId?: string) => Promise<void>
   closeFile: (tabId: string, groupId: string, path: string) => void
   closeFileEverywhere: (tabId: string, path: string) => void
   setActiveFile: (tabId: string, groupId: string, path: string) => void
@@ -181,8 +168,8 @@ interface SftpState {
   saveAllFiles: (tabId: string) => Promise<void>
 
   mkdir: (tabId: string, parentPath: string, name: string) => Promise<void>
-  rmdir: (tabId: string, parentPath: string, entry: SftpEntry) => Promise<void>
-  deleteEntry: (tabId: string, parentPath: string, entry: SftpEntry) => Promise<void>
+  rmdir: (tabId: string, parentPath: string, entry: FtpEntry) => Promise<void>
+  deleteEntry: (tabId: string, parentPath: string, entry: FtpEntry) => Promise<void>
   rename: (tabId: string, parentPath: string, from: string, to: string) => Promise<void>
   uploadBytes: (
     tabId: string,
@@ -191,16 +178,16 @@ interface SftpState {
     bytes: number[],
   ) => Promise<void>
   uploadLocalFile: (tabId: string, parentPath: string, localPath: string) => Promise<void>
-  downloadFile: (tabId: string, entry: SftpEntry, localPath: string) => Promise<void>
+  downloadFile: (tabId: string, entry: FtpEntry, localPath: string) => Promise<void>
 
-  disconnectSession: (tabId: string) => Promise<void>
+  disconnectSession: (tabId: string) => void
   disposeSession: (tabId: string) => void
 }
 
 function patchSession(
-  set: (fn: (state: SftpState) => Partial<SftpState>) => void,
+  set: (fn: (state: FtpTreeState) => Partial<FtpTreeState>) => void,
   tabId: string,
-  patch: Partial<SftpTabSession> | ((session: SftpTabSession) => Partial<SftpTabSession>),
+  patch: Partial<FtpTabSession> | ((session: FtpTabSession) => Partial<FtpTabSession>),
 ) {
   set((state) => {
     const current = state.sessions[tabId] ?? emptySession()
@@ -209,7 +196,7 @@ function patchSession(
   })
 }
 
-export const useSftpStore = create<SftpState>((set, get) => ({
+export const useFtpTreeStore = create<FtpTreeState>((set, get) => ({
   sessions: {},
   eventsWired: false,
 
@@ -217,17 +204,17 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     if (get().eventsWired) return
     set({ eventsWired: true })
 
-    void onSftpTransferDone((event) => {
+    void onFtpTransferDone((event) => {
       const addToast = useToastStore.getState().addToast
       if (event.success) {
         addToast('success', event.message)
       } else {
-        addToast('error', i18n.t('toast.sftpTransferError', { message: event.message }))
+        addToast('error', i18n.t('toast.ftpTransferError', { message: event.message }))
       }
       patchSession(set, event.id, { transferProgress: null })
     })
 
-    void onSftpTransferProgress((event) => {
+    void onFtpTransferProgress((event) => {
       patchSession(set, event.id, {
         transferProgress: {
           operation: event.operation,
@@ -246,33 +233,21 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     return fresh
   },
 
-  toggleSidebar: async (tabId, config) => {
+  ensureConnected: (tabId, config) => {
     get().wireEventsOnce()
     const session = get().ensureSession(tabId)
-    const nextVisible = !session.sidebarVisible
-    patchSession(set, tabId, { sidebarVisible: nextVisible })
-    if (!nextVisible || session.connected || session.connecting) return
-
-    patchSession(set, tabId, { connecting: true, connectError: null, config })
-    try {
-      await sftpConnect(
-        tabId,
-        config.host,
-        config.port,
-        config.username,
-        config.password,
-        config.privateKeyPath,
-        config.passphrase,
-      )
-      patchSession(set, tabId, { connected: true, connecting: false })
-      await get().toggleNode(tabId, ROOT_PATH)
-    } catch (err) {
-      patchSession(set, tabId, { connecting: false, connectError: String(err) })
-    }
+    if (session.connected || session.connecting) return
+    patchSession(set, tabId, { connected: true, config })
+    void get().toggleNode(tabId, ROOT_PATH)
   },
 
-  /** Manual recovery for a session that's gone stale (e.g. the SSH
-   * connection silently dropped after a network blip) — `sftp_connect`
+  toggleSidebar: (tabId) => {
+    const session = get().ensureSession(tabId)
+    patchSession(set, tabId, { sidebarVisible: !session.sidebarVisible })
+  },
+
+  /** Manual recovery for a session that's gone stale (e.g. the FTP control
+   * connection silently dropped after a network blip) — `ftp_connect`
    * overwrites any existing session for this id server-side, so there's no
    * need to explicitly disconnect the dead one first. */
   reconnect: async (tabId) => {
@@ -281,15 +256,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     const { config } = session
     patchSession(set, tabId, { connecting: true, connectError: null })
     try {
-      await sftpConnect(
-        tabId,
-        config.host,
-        config.port,
-        config.username,
-        config.password,
-        config.privateKeyPath,
-        config.passphrase,
-      )
+      await ftpConnect(tabId, config.host, config.port, config.username, config.password)
       patchSession(set, tabId, {
         connected: true,
         connecting: false,
@@ -326,14 +293,14 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       },
     }))
     try {
-      const entries = await sftpList(tabId, path)
+      const entries = await ftpList(tabId, path)
       patchSession(set, tabId, (s) => ({
         nodes: { ...s.nodes, [path]: { entries, loading: false, error: null } },
       }))
     } catch (err) {
       // A failure listing the *root* specifically (not some subfolder,
       // which could just be a permissions error) is the strongest signal
-      // available that the whole SFTP session died rather than one
+      // available that the whole FTP session died rather than one
       // operation — surface it as a disconnect so the sidebar shows a
       // Reconnect affordance instead of a dead, silently-stale tree. If
       // there's unsaved editor content sitting on top of that dead
@@ -344,7 +311,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
           (f) => f.content !== f.originalContent,
         )
         if (hasUnsavedEdits) {
-          useToastStore.getState().addToast('error', i18n.t('ssh.sftp.connectionLostWhileEditing'))
+          useToastStore.getState().addToast('error', i18n.t('ftp.tree.connectionLostWhileEditing'))
         }
       }
       patchSession(set, tabId, (s) => ({
@@ -381,12 +348,12 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     if (
       entry.size > LARGE_FILE_WARN_BYTES &&
       !window.confirm(
-        i18n.t('ssh.sftp.largeFileConfirm', { size: formatBytes(entry.size), name: entry.name }),
+        i18n.t('ftp.tree.largeFileConfirm', { size: formatBytes(entry.size), name: entry.name }),
       )
     ) {
       return
     }
-    const placeholder: OpenSftpFile = {
+    const placeholder: OpenFtpFile = {
       path: entry.path,
       name: entry.name,
       content: '',
@@ -406,7 +373,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       activeGroupId: targetGroupId,
     }))
     try {
-      const bytes = await sftpReadFile(tabId, entry.path)
+      const bytes = await ftpReadFile(tabId, entry.path)
       if (isBinaryContent(bytes)) {
         patchSession(set, tabId, (s) => ({
           openFiles: s.openFiles.map((f) =>
@@ -472,21 +439,15 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     patchSession(set, tabId, { activeGroupId: groupId })
   },
 
-  /** VSCode-style "Split Right": opens `path` in a second editor group to
-   * the right, capped at two groups for v1 (not arbitrary N-way nesting).
-   * Both groups reference the same path, so they share the same buffer. */
   splitGroupRight: (tabId, path) => {
     patchSession(set, tabId, (s) => {
       const [first, second] = s.groups
-      // Splitting *moves* the file into the new/second group — it must not
-      // stay referenced in `first` too, or the same file ends up shown as
-      // a tab in both groups at once.
       const firstFilePaths = first.filePaths.filter((p) => p !== path)
       const firstActiveFilePath =
         first.activeFilePath === path
           ? (firstFilePaths[firstFilePaths.length - 1] ?? null)
           : first.activeFilePath
-      const updatedFirst: SftpEditorGroup = {
+      const updatedFirst: FtpEditorGroup = {
         ...first,
         filePaths: firstFilePaths,
         activeFilePath: firstActiveFilePath,
@@ -504,7 +465,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
         ]
         return { groups, activeGroupId: second.id }
       }
-      const newGroup: SftpEditorGroup = {
+      const newGroup: FtpEditorGroup = {
         id: `group-${Date.now()}`,
         filePaths: [path],
         activeFilePath: path,
@@ -513,10 +474,6 @@ export const useSftpStore = create<SftpState>((set, get) => ({
     })
   },
 
-  /** Drag-a-tab-onto-the-other-group move (VSCode-style) — distinct from
-   * `splitGroupRight`, which creates the second group in the first place.
-   * A no-op if the file is already in the target group or the two ids are
-   * the same, so a drag that ends where it started doesn't touch state. */
   moveFileToGroup: (tabId, path, fromGroupId, toGroupId) => {
     if (fromGroupId === toGroupId) return
     patchSession(set, tabId, (s) => {
@@ -564,7 +521,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
       ),
     }))
     try {
-      await sftpWriteFile(tabId, path, textToBytes(file.content))
+      await ftpWriteFile(tabId, path, textToBytes(file.content))
       patchSession(set, tabId, (s) => ({
         openFiles: s.openFiles.map((f) =>
           f.path === path ? { ...f, saving: false, originalContent: f.content } : f,
@@ -586,21 +543,21 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   },
 
   mkdir: async (tabId, parentPath, name) => {
-    await sftpMkdir(tabId, joinPath(parentPath, name)).catch((err) =>
+    await ftpMkdir(tabId, joinPath(parentPath, name)).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
   },
 
   rmdir: async (tabId, parentPath, entry) => {
-    await sftpRmdir(tabId, entry.path).catch((err) =>
+    await ftpRmdir(tabId, entry.path).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
   },
 
   deleteEntry: async (tabId, parentPath, entry) => {
-    const remove = entry.isDir ? sftpRmdir : sftpDelete
+    const remove = entry.isDir ? ftpRmdir : ftpDelete
     await remove(tabId, entry.path).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
@@ -609,7 +566,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   },
 
   rename: async (tabId, parentPath, from, to) => {
-    await sftpRename(tabId, from, to).catch((err) =>
+    await ftpRename(tabId, from, to).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
@@ -626,7 +583,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
 
   uploadBytes: async (tabId, parentPath, fileName, bytes) => {
     const remotePath = joinPath(parentPath, fileName)
-    await sftpWriteFile(tabId, remotePath, bytes).catch((err) =>
+    await ftpWriteFile(tabId, remotePath, bytes).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
@@ -635,20 +592,25 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   uploadLocalFile: async (tabId, parentPath, localPath) => {
     const fileName = localPath.split(/[\\/]/).pop() ?? localPath
     const remotePath = joinPath(parentPath, fileName)
-    await sftpUpload(tabId, localPath, remotePath).catch((err) =>
+    await ftpUpload(tabId, localPath, remotePath).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
     await get().refreshNode(tabId, parentPath)
   },
 
   downloadFile: async (tabId, entry, localPath) => {
-    await sftpDownload(tabId, entry.path, localPath).catch((err) =>
+    await ftpDownload(tabId, entry.path, localPath).catch((err) =>
       patchSession(set, tabId, { connectError: String(err) }),
     )
   },
 
-  disconnectSession: async (tabId) => {
-    await sftpDisconnect(tabId).catch(() => {})
+  // Unlike SFTP-over-SSH's `disconnectSession`, this doesn't call
+  // `ftpDisconnect` itself — an FTP tab has exactly one connection, and
+  // `tabsStore.disconnectTab` already closes it (the same way it closes a
+  // serial/TCP/etc. tab's own stream). This only resets local tree/editor
+  // state so the sidebar shows a Reconnect affordance instead of a
+  // dead, silently-stale tree.
+  disconnectSession: (tabId) => {
     patchSession(set, tabId, {
       connected: false,
       connecting: false,

@@ -5,7 +5,7 @@ import { useLayoutStore } from '../state/layoutStore'
 import { useTabsStore, type ConnectionKind } from '../state/tabsStore'
 import { connectionConfigToOpenRequest } from '../lib/projectProfile'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
-import { ChipIcon, CodeIcon, GlobeIcon, MessageIcon, UsbIcon } from './icons'
+import { ChipIcon, CodeIcon, GlobeIcon, MessageIcon, ServerIcon, UsbIcon } from './icons'
 
 // Module-scoped so the `Date.now()` call isn't in a component's render scope
 // (the react-hooks purity rule flags impure calls there) — same reason
@@ -34,6 +34,8 @@ function TabTypeIcon({ kind, status }: { kind: ConnectionKind; status: string })
       return <MessageIcon className={className} />
     case 'ssh':
       return <CodeIcon className={className} />
+    case 'ftp':
+      return <ServerIcon className={className} />
     case 'rtt':
       return <ChipIcon className={className} />
     default:
@@ -84,10 +86,12 @@ export function TabStrip({
 
   const handleDuplicate = async (tab: (typeof tabs)[number]) => {
     const newId = freshTabId(tab.connectionKind)
-    const sshPassword =
-      tab.connectionConfig.kind === 'ssh' ? tab.connectionConfig.password : undefined
+    const passwordOverride =
+      tab.connectionConfig.kind === 'ssh' || tab.connectionConfig.kind === 'ftp'
+        ? tab.connectionConfig.password
+        : undefined
     try {
-      await openTab(connectionConfigToOpenRequest(tab.connectionConfig, newId, sshPassword))
+      await openTab(connectionConfigToOpenRequest(tab.connectionConfig, newId, passwordOverride))
       focusPane(pane.id)
       openTabInFocusedPane(newId)
       if (tab.customLabel) renameTab(newId, `${tab.customLabel} (copy)`)

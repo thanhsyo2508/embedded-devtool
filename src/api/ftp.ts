@@ -3,6 +3,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 
 export interface FtpEntry {
   name: string
+  /** Full path, joined server-side (backend-side) from the listed directory
+   * + name — see `FtpEntry::path`'s doc comment in `ftp/client.rs`. */
+  path: string
   isDir: boolean
   size: number
   modifiedMs: number
@@ -26,14 +29,6 @@ export function ftpList(id: string, path: string): Promise<FtpEntry[]> {
   return invoke('ftp_list', { id, path })
 }
 
-export function ftpPwd(id: string): Promise<string> {
-  return invoke('ftp_pwd', { id })
-}
-
-export function ftpCwd(id: string, path: string): Promise<void> {
-  return invoke('ftp_cwd', { id, path })
-}
-
 export function ftpMkdir(id: string, path: string): Promise<void> {
   return invoke('ftp_mkdir', { id, path })
 }
@@ -48,6 +43,14 @@ export function ftpDelete(id: string, path: string): Promise<void> {
 
 export function ftpRename(id: string, from: string, to: string): Promise<void> {
   return invoke('ftp_rename', { id, from, to })
+}
+
+export function ftpReadFile(id: string, path: string): Promise<number[]> {
+  return invoke('ftp_read_file', { id, path })
+}
+
+export function ftpWriteFile(id: string, path: string, content: number[]): Promise<void> {
+  return invoke('ftp_write_file', { id, path, content })
 }
 
 /** Runs on the backend's own thread; success/failure arrives via
@@ -72,6 +75,19 @@ export interface FtpTransferDoneEvent {
 
 export function onFtpTransferDone(cb: (event: FtpTransferDoneEvent) => void): Promise<UnlistenFn> {
   return listen<FtpTransferDoneEvent>('ftp://transferDone', (event) => cb(event.payload))
+}
+
+export interface FtpTransferProgressEvent {
+  id: string
+  operation: FtpTransferOperation
+  transferred: number
+  total: number
+}
+
+export function onFtpTransferProgress(
+  cb: (event: FtpTransferProgressEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<FtpTransferProgressEvent>('ftp://transferProgress', (event) => cb(event.payload))
 }
 
 export function ftpServerStart(

@@ -39,9 +39,16 @@ use super::ring_buffer::RingBuffer;
 use super::stream_pump::spawn_pump_thread;
 
 const RING_BUFFER_CAPACITY: usize = 1 << 20;
-/// How often the poll thread reads RTT + watched variables, and how long
-/// `open()` blocks if the very first probe/session attach is slow.
+/// How often the poll thread reads RTT + watched variables.
 const POLL_INTERVAL: Duration = Duration::from_millis(150);
+/// Bounds how long `open()` waits for the probe open + session attach —
+/// both are synchronous `probe-rs` calls with no timeout of their own, so a
+/// wedged/unresponsive probe or an unresponsive target during the attach
+/// handshake used to hang `open()` forever. `probe-rs` gives no way to
+/// cancel an in-progress attach, so on timeout the attach thread is simply
+/// abandoned (detached, not killed) rather than joined — same tradeoff
+/// `RttStream::close()`'s doc would otherwise have to explain twice.
+const ATTACH_TIMEOUT: Duration = Duration::from_secs(10);
 /// Watched-variable reads are capped to this many bytes — enough for any
 /// primitive `swd::variables::list_variables` reports, refuses anything
 /// larger rather than reading an unbounded amount over SWD per tick.
@@ -160,25 +167,51 @@ impl DataStream for RttStream {
         }
         .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "no debug probe found"))?;
 
-        let probe = probe_info
-            .open()
-            .map_err(|e| io::Error::other(format!("failed to open probe: {e}")))?;
-        let session = probe
-            .attach(self.config.chip.as_str(), Permissions::default())
-            .map_err(|e| {
-                io::Error::other(format!("failed to attach to {}: {e}", self.config.chip))
-            })?;
-
         let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = unbounded();
+        let (ready_tx, ready_rx) = unbounded::<Result<(), String>>();
         self.stop_flag.store(false, Ordering::SeqCst);
         let stop_flag = self.stop_flag.clone();
         let watch = self.watch.clone();
         let stream_id = self.stream_id.clone();
         let event_bus = self.event_bus.clone();
+        let chip = self.config.chip.clone();
 
-        self.poll_thread = Some(thread::spawn(move || {
+        let handle = thread::spawn(move || {
+            let probe = match probe_info.open() {
+                Ok(p) => p,
+                Err(e) => {
+                    let _ = ready_tx.send(Err(format!("failed to open probe: {e}")));
+                    return;
+                }
+            };
+            let session = match probe.attach(chip.as_str(), Permissions::default()) {
+                Ok(s) => s,
+                Err(e) => {
+                    let _ = ready_tx.send(Err(format!("failed to attach to {chip}: {e}")));
+                    return;
+                }
+            };
+            let _ = ready_tx.send(Ok(()));
             run_poll_loop(session, stop_flag, watch, tx, stream_id, event_bus);
-        }));
+        });
+
+        match ready_rx.recv_timeout(ATTACH_TIMEOUT) {
+            Ok(Ok(())) => {
+                self.poll_thread = Some(handle);
+            }
+            Ok(Err(message)) => {
+                let _ = handle.join();
+                return Err(io::Error::other(message));
+            }
+            Err(_) => {
+                drop(handle);
+                return Err(io::Error::new(
+                    io::ErrorKind::TimedOut,
+                    "timed out attaching to the debug probe",
+                ));
+            }
+        }
+
         self.pump_thread = Some(spawn_pump_thread(
             rx,
             self.buffer.clone(),

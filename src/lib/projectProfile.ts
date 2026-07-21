@@ -56,12 +56,12 @@ export interface ProjectProfileFile {
 }
 
 /** Strips whatever a `ConnectionConfig` carries that shouldn't be written
- * to disk — currently just the SSH password, which the app deliberately
+ * to disk — currently the SSH and FTP passwords, which the app deliberately
  * never persists anywhere (see ConnectPanel's currentConfigData); the user
  * re-enters it when the profile is reopened. MQTT's password is left as-is
  * to match how connection profiles already save it today. */
 function sanitizeConnectionConfig(config: ConnectionConfig): ConnectionConfig {
-  if (config.kind !== 'ssh') return config
+  if (config.kind !== 'ssh' && config.kind !== 'ftp') return config
   return { ...config, password: '' }
 }
 
@@ -95,12 +95,13 @@ export function buildProjectProfile(
 
 /** The reverse of what `openTab` does to build a `ConnectionConfig` from a
  * request — flattens a saved config back into a request `openTab` accepts,
- * under a freshly assigned `id`. `password` is only meaningful for SSH,
- * where it's re-prompted at load time rather than read from the file. */
+ * under a freshly assigned `id`. `passwordOverride` is only meaningful for
+ * SSH/FTP, where it's re-prompted at load time rather than read from the
+ * file (see `sanitizeConnectionConfig`). */
 export function connectionConfigToOpenRequest(
   config: ConnectionConfig,
   id: string,
-  sshPassword?: string,
+  passwordOverride?: string,
 ): OpenTabRequest {
   switch (config.kind) {
     case 'serial':
@@ -124,7 +125,9 @@ export function connectionConfigToOpenRequest(
     case 'mqtt':
       return { ...config, id }
     case 'ssh':
-      return { ...config, id, password: sshPassword ?? '' }
+      return { ...config, id, password: passwordOverride ?? '' }
+    case 'ftp':
+      return { ...config, id, password: passwordOverride ?? '' }
     case 'rtt':
       return { ...config, id }
   }

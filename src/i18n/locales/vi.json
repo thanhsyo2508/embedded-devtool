@@ -230,6 +230,7 @@
     "openProjectError": "Không thể đọc file dự án: {{error}}",
     "confirmCloseAllTabs": "Mở dự án sẽ đóng toàn bộ tab đang mở. Tiếp tục?",
     "sshPasswordPrompt": "Mật khẩu SSH cho {{username}}@{{host}}:{{port}}",
+    "ftpPasswordPrompt": "Mật khẩu FTP cho {{username}}@{{host}}:{{port}}",
     "partialRestoreWarning": "{{failed}}/{{total}} kết nối không thể mở lại được."
   },
   "layout": {
@@ -292,7 +293,13 @@
       "uploading": "Đang tải lên",
       "downloading": "Đang tải xuống",
       "largeFileConfirm": "\"{{name}}\" nặng {{size}} — mở có thể chậm. Vẫn mở?",
-      "closeTabUnsavedConfirm": "Tab SSH này có file chưa lưu. Vẫn đóng và bỏ các thay đổi?"
+      "closeTabUnsavedConfirm": "Tab SSH này có file chưa lưu. Vẫn đóng và bỏ các thay đổi?",
+      "cursorPos": "Dòng {{line}}, Cột {{col}}",
+      "findInFile": "Tìm trong file (Ctrl+F)",
+      "wordWrap": "Tự xuống dòng",
+      "wordWrapShort": "Wrap",
+      "saveAll": "Lưu tất cả ({{count}})",
+      "connectionLostWhileEditing": "Mất kết nối SFTP — các thay đổi chưa lưu sẽ không lưu được cho tới khi kết nối lại."
     }
   },
   "library": {
@@ -311,6 +318,7 @@
       "ws": "WebSocket",
       "mqtt": "MQTT",
       "ssh": "SSH",
+      "ftp": "FTP",
       "rtt": "SWD"
     },
     "role": {
@@ -406,6 +414,7 @@
     "modbusSlaveListening": "Modbus Slave (đang lắng nghe)",
     "logToFile": "Ghi log ra file",
     "loggingTo": "Đang ghi log vào {{dir}}",
+    "openLogFolder": "Mở thư mục chứa log ({{dir}})",
     "contextMenu": {
       "copy": "Sao chép",
       "searchForThis": "Tìm trong buffer",
@@ -591,27 +600,48 @@
     "empty": "Chưa có thiết bị nào được nạp."
   },
   "ftp": {
-    "title": "FTP Client/Server",
-    "clientTab": "Client",
-    "serverTab": "Server",
-    "connect": "Kết nối",
-    "disconnect": "Ngắt kết nối",
-    "newFolder": "Thư mục mới",
-    "newFolderPrompt": "Tên thư mục mới:",
-    "upload": "Tải lên file",
-    "download": "Tải xuống",
-    "deleteConfirm": "Xóa \"{{name}}\"? Hành động này không thể hoàn tác.",
-    "name": "Tên",
-    "size": "Kích thước",
-    "modified": "Sửa đổi",
-    "emptyDir": "Thư mục này trống.",
-    "serverHint": "Chạy một FTP server (không mã hóa) trên máy này để thiết bị đọc/ghi file — để trống username để cho phép truy cập ẩn danh (anonymous).",
+    "title": "FTP Server",
+    "serverHint": "Chạy một FTP server (không mã hóa) trên máy này để bất kỳ thiết bị nào trong mạng LAN đọc/ghi file — để trống username để cho phép truy cập ẩn danh (anonymous). Nếu thiết bị khác không kết nối được, kiểm tra tường lửa (firewall) đã cho phép app này chưa (Windows có thể hỏi ngay lần chạy đầu).",
     "rootDir": "Thư mục gốc",
     "selectRootDir": "Chọn thư mục để chia sẻ…",
     "serverUsername": "Username (tùy chọn)",
     "startServer": "Khởi động server",
     "stopServer": "Dừng server",
-    "serverRunningHint": "Đang phục vụ trên cổng {{port}}. Dừng server trước khi đổi cấu hình."
+    "serverRunningHint": "Đang phục vụ trên cổng {{port}}. Dừng server trước khi đổi cấu hình.",
+    "tree": {
+      "explorer": "Explorer",
+      "noFileOpen": "Chưa mở file nào. Duyệt cây thư mục bên cạnh và bấm vào file để chỉnh sửa.",
+      "connecting": "Đang kết nối…",
+      "reconnect": "Kết nối lại",
+      "newFile": "File mới…",
+      "newFilePrompt": "Tên file mới?",
+      "newFolder": "Thư mục mới…",
+      "newFolderPrompt": "Tên thư mục mới?",
+      "rename": "Đổi tên…",
+      "renamePrompt": "Tên mới?",
+      "delete": "Xoá",
+      "deleteConfirm": "Xoá \"{{name}}\"?",
+      "closeUnsavedConfirm": "\"{{name}}\" còn thay đổi chưa lưu. Vẫn đóng?",
+      "upload": "Tải lên file local…",
+      "refresh": "Làm mới",
+      "save": "Lưu",
+      "splitRight": "Chia bên phải",
+      "closeGroup": "Đóng nhóm",
+      "binaryFile": "File này có vẻ là file nhị phân, không thể chỉnh sửa ở đây.",
+      "searchPlaceholder": "Tìm file…",
+      "copyPath": "Sao chép đường dẫn",
+      "download": "Tải xuống…",
+      "uploading": "Đang tải lên",
+      "downloading": "Đang tải xuống",
+      "largeFileConfirm": "\"{{name}}\" nặng {{size}} — mở có thể chậm. Vẫn mở?",
+      "closeTabUnsavedConfirm": "Tab FTP này có file chưa lưu. Vẫn đóng và bỏ các thay đổi?",
+      "cursorPos": "Dòng {{line}}, Cột {{col}}",
+      "findInFile": "Tìm trong file (Ctrl+F)",
+      "wordWrap": "Tự xuống dòng",
+      "wordWrapShort": "Wrap",
+      "saveAll": "Lưu tất cả ({{count}})",
+      "connectionLostWhileEditing": "Mất kết nối FTP — các thay đổi chưa lưu sẽ không lưu được cho tới khi kết nối lại."
+    }
   },
   "flash": {
     "title": "Nạp firmware",

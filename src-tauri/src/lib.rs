@@ -252,21 +252,37 @@ fn mdns_scan(service_type: String, timeout_ms: u64) -> Result<Vec<MdnsServiceDto
     Ok(services)
 }
 
-/// Prefills the scan UI's CIDR field: opens a UDP socket "connected" to a
-/// public address (no packet actually sent — `connect()` on a UDP socket
-/// just picks the outbound route) purely to read back which local IPv4
-/// interface/subnet the OS would use.
-#[tauri::command]
-fn detect_local_subnet() -> Result<String, String> {
+/// Opens a UDP socket "connected" to a public address (no packet actually
+/// sent — `connect()` on a UDP socket just picks the outbound route) purely
+/// to read back which local IPv4 interface/address the OS would use to
+/// reach the LAN/internet. On a multi-NIC machine this is only ever *one*
+/// interface's address (whichever the OS's default route picks), same
+/// documented limitation `detect_local_subnet`/`local_ip_address` already
+/// carry — good enough for "what should another device on my LAN type in",
+/// not a full interface enumeration.
+fn local_ipv4() -> Result<std::net::Ipv4Addr, String> {
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").map_err(|e| e.to_string())?;
     socket.connect("8.8.8.8:80").map_err(|e| e.to_string())?;
     match socket.local_addr().map_err(|e| e.to_string())?.ip() {
-        std::net::IpAddr::V4(ip) => {
-            let o = ip.octets();
-            Ok(format!("{}.{}.{}.0/24", o[0], o[1], o[2]))
-        }
+        std::net::IpAddr::V4(ip) => Ok(ip),
         std::net::IpAddr::V6(_) => Err("no local IPv4 address found".to_string()),
     }
+}
+
+/// Prefills the scan UI's CIDR field.
+#[tauri::command]
+fn detect_local_subnet() -> Result<String, String> {
+    let o = local_ipv4()?.octets();
+    Ok(format!("{}.{}.{}.0/24", o[0], o[1], o[2]))
+}
+
+/// This machine's own LAN-facing address — shown next to "Start server" for
+/// the local FTP server (and anything else that's a same-LAN service other
+/// devices need to be told an address for) so the user doesn't have to go
+/// find it via `ipconfig`/`ifconfig` themselves.
+#[tauri::command]
+fn local_ip_address() -> Result<String, String> {
+    Ok(local_ipv4()?.to_string())
 }
 
 #[tauri::command]
@@ -310,11 +326,17 @@ struct NetScanHostEvent {
 /// as an immediate `Err`; the scan itself runs on a background thread since
 /// a full /24 can take a few seconds even with concurrent connects.
 ///
-/// Once the port sweep finishes, every host that had at least one open port
-/// gets a single "netscan://host" event with its MAC (from the ARP table)
-/// and hostname (reverse DNS) — done as a second pass over just the live
-/// hosts rather than per-port, since ARP/DNS lookups are far slower than a
-/// TCP connect attempt and would otherwise dominate the scan time.
+/// Once the port sweep finishes, every host that either had an open port or
+/// merely shows up in the OS's ARP cache gets a single "netscan://host"
+/// event with its MAC and hostname (reverse DNS) — done as a second pass
+/// over just the live hosts rather than per-port, since ARP/DNS lookups are
+/// far slower than a TCP connect attempt and would otherwise dominate the
+/// scan time. The ARP fallback matters because attempting a TCP connect
+/// resolves the target's MAC at the OS level regardless of whether the port
+/// itself is open or closed — a host with nothing listening on any of
+/// `COMMON_PORTS` (or a custom port list that missed it) still shows up in
+/// `arp` and must not be silently dropped from the results just because it
+/// had zero port hits.
 #[tauri::command]
 fn start_network_scan(
     app: AppHandle,
@@ -351,14 +373,18 @@ fn start_network_scan(
         });
 
         let arp = net::scanner::arp_table();
-        for ip in live_ips.lock().unwrap().iter() {
-            let mac = arp.get(ip).cloned();
+        let scanned: std::collections::HashSet<String> =
+            ips.iter().map(|ip| ip.to_string()).collect();
+        let mut live = live_ips.lock().unwrap().clone();
+        live.extend(arp.keys().filter(|ip| scanned.contains(*ip)).cloned());
+        for ip in live {
+            let mac = arp.get(&ip).cloned();
             let name = ip.parse().ok().and_then(net::scanner::reverse_dns);
             let _ = app.emit(
                 "netscan://host",
                 NetScanHostEvent {
                     id: id.clone(),
-                    ip: ip.clone(),
+                    ip,
                     mac,
                     name,
                 },
@@ -1871,20 +1897,6 @@ fn ftp_list(
 }
 
 #[tauri::command]
-fn ftp_pwd(manager: tauri::State<Arc<ftp::FtpManager>>, id: String) -> Result<String, String> {
-    manager.pwd(&id)
-}
-
-#[tauri::command]
-fn ftp_cwd(
-    manager: tauri::State<Arc<ftp::FtpManager>>,
-    id: String,
-    path: String,
-) -> Result<(), String> {
-    manager.cwd(&id, &path)
-}
-
-#[tauri::command]
 fn ftp_mkdir(
     manager: tauri::State<Arc<ftp::FtpManager>>,
     id: String,
@@ -1921,6 +1933,25 @@ fn ftp_rename(
     manager.rename(&id, &from, &to)
 }
 
+#[tauri::command]
+fn ftp_read_file(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+) -> Result<Vec<u8>, String> {
+    manager.read_file(&id, &path)
+}
+
+#[tauri::command]
+fn ftp_write_file(
+    manager: tauri::State<Arc<ftp::FtpManager>>,
+    id: String,
+    path: String,
+    content: Vec<u8>,
+) -> Result<(), String> {
+    manager.write_file(&id, &path, &content)
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct FtpTransferDoneEvent {
@@ -1930,7 +1961,17 @@ struct FtpTransferDoneEvent {
     message: String,
 }
 
-/// Downloads/uploads run on their own thread and report completion over
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+struct FtpTransferProgressEvent {
+    id: String,
+    operation: &'static str,
+    transferred: u64,
+    total: u64,
+}
+
+/// Downloads/uploads run on their own thread, report progress over
+/// "ftp://transferProgress" as they run, and report completion over
 /// "ftp://transferDone" — same reasoning as flash/OTA's done events, since
 /// a large file can take a while and the command shouldn't block the
 /// frontend's ability to do anything else meanwhile.
@@ -1944,10 +1985,23 @@ fn ftp_download(
 ) {
     let manager = manager.inner().clone();
     thread::spawn(move || {
-        let (success, message) = match manager.download(&id, &remote_path, &local_path) {
-            Ok(()) => (true, "Download complete".to_string()),
-            Err(e) => (false, e),
-        };
+        let progress_app = app.clone();
+        let progress_id = id.clone();
+        let (success, message) =
+            match manager.download(&id, &remote_path, &local_path, move |transferred, total| {
+                let _ = progress_app.emit(
+                    "ftp://transferProgress",
+                    FtpTransferProgressEvent {
+                        id: progress_id.clone(),
+                        operation: "download",
+                        transferred,
+                        total,
+                    },
+                );
+            }) {
+                Ok(()) => (true, "Download complete".to_string()),
+                Err(e) => (false, e),
+            };
         let _ = app.emit(
             "ftp://transferDone",
             FtpTransferDoneEvent {
@@ -1970,10 +2024,23 @@ fn ftp_upload(
 ) {
     let manager = manager.inner().clone();
     thread::spawn(move || {
-        let (success, message) = match manager.upload(&id, &local_path, &remote_path) {
-            Ok(()) => (true, "Upload complete".to_string()),
-            Err(e) => (false, e),
-        };
+        let progress_app = app.clone();
+        let progress_id = id.clone();
+        let (success, message) =
+            match manager.upload(&id, &local_path, &remote_path, move |transferred, total| {
+                let _ = progress_app.emit(
+                    "ftp://transferProgress",
+                    FtpTransferProgressEvent {
+                        id: progress_id.clone(),
+                        operation: "upload",
+                        transferred,
+                        total,
+                    },
+                );
+            }) {
+                Ok(()) => (true, "Upload complete".to_string()),
+                Err(e) => (false, e),
+            };
         let _ = app.emit(
             "ftp://transferDone",
             FtpTransferDoneEvent {
@@ -2307,6 +2374,7 @@ pub fn run() {
             keychain_delete_password,
             mdns_scan,
             detect_local_subnet,
+            local_ip_address,
             common_scan_ports,
             start_network_scan,
             start_deep_scan,
@@ -2372,12 +2440,12 @@ pub fn run() {
             ftp_connect,
             ftp_disconnect,
             ftp_list,
-            ftp_pwd,
-            ftp_cwd,
             ftp_mkdir,
             ftp_rmdir,
             ftp_delete,
             ftp_rename,
+            ftp_read_file,
+            ftp_write_file,
             ftp_download,
             ftp_upload,
             ftp_server_start,
