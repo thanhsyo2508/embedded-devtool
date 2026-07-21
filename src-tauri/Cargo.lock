@@ -1830,7 +1830,7 @@ dependencies = [
 
 [[package]]
 name = "edt"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "addr2line",
  "async-trait",

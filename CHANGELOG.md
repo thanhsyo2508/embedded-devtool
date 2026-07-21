@@ -1,5 +1,54 @@
 # Changelog
 
+## v0.1.10 — 2026-07-21
+
+- **FTP now works as a tab, the same way SSH's SFTP sidebar does.** Connect
+  to an FTP server from the main Connect screen (new "FTP" option) to get a
+  file-tree sidebar and a built-in code editor — browse, upload
+  (drag-and-drop or picked from disk), rename, and delete files, and open
+  several at once with syntax highlighting, dirty-change tracking, and
+  Ctrl+S to save, splittable into two side-by-side editor groups just like
+  SSH's. Multiple FTP tabs can be open at the same time now, each its own
+  connection. Uploads/downloads show a live progress percentage. The old
+  FTP window (topbar button) is now server-only — hosting a local FTP
+  server for a device to read/write files on this computer — since
+  browsing a remote server has moved to the tab.
+- **Fix: FTP folder tree showing the same handful of entries endlessly
+  repeated, however deep you expanded.** Some embedded FTP servers (common
+  on ESP32 boards) silently ignore the path argument on `LIST` and always
+  return the root folder's contents — every subfolder now gets a real
+  directory change before listing instead of trusting that argument.
+- **Fix: FTP directory listing coming back completely empty against some
+  ESP32 FTP servers.** Certain minimal server implementations format
+  listings with tabs instead of spaces and only one owner column instead of
+  the user+group pair a standard Unix listing has — both are now handled.
+- **Fix: connecting could hang forever with no way to back out.** TCP
+  client connections, the SSH file-browser's own connection, FTP, and SWD
+  debug-probe attach could all wait indefinitely against an unresponsive
+  target with no timeout at all; every one of them now gives up and reports
+  an error after a bounded wait. The Connect screen also gained an actual
+  Cancel button while a connection attempt is in progress, so a slow/stuck
+  attempt no longer has to be waited out to try again.
+- **The local FTP server can now be used as a real LAN file-transfer
+  service:** starting it shows the address (`ftp://<lan-ip>:<port>`) other
+  devices on the network should connect to, with a one-click copy button,
+  plus a hint to check the firewall if nothing can reach it.
+- **Code editor upgrades** (SSH's SFTP editor and the new FTP editor both):
+  line numbers, find-in-file (Ctrl+F) with every match highlighted and the
+  selected one visibly distinct from the rest, a word-wrap toggle, a
+  line/column readout, a "Save All" button for multiple dirty files at
+  once, a warning if the connection drops while there are unsaved changes,
+  and a richer, more distinct syntax color palette (comments, strings,
+  numbers, keywords, properties, and functions each get their own color
+  instead of several sharing one). Also added highlighting support for
+  TOML, XML/HTML, CSS, JavaScript, TypeScript, Rust, and C++.
+- **Monitor:** a button next to "Log to file" now opens the log folder
+  directly in the file explorer instead of having to go find it manually.
+- **Network scan now finds every device on the LAN**, not just ones with a
+  port open from the common-ports list — a device that responded to the
+  scan's connection attempts but has none of those ports open used to be
+  silently dropped from the results.
+
 ## v0.1.9 — 2026-07-18
 
 - **SSH workspace:** an SSH tab is no longer just a terminal — a new
