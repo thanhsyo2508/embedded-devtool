@@ -399,6 +399,14 @@ function App() {
   // setShowX state/handlers; recomputed whenever what a command should do
   // or whether it applies (e.g. "Close tab" needs a focused tab) changes.
   const paletteCommands: PaletteCommand[] = useMemo(() => {
+    // Only actually built while the palette is open. `tabs` is a dependency
+    // (the command list reflects open tabs and their browsed remote files),
+    // and `tabs` gets a fresh identity on every ~60fps data batch — so
+    // without this guard the whole list, including the nested walk over
+    // every SFTP/FTP tree node, would be rebuilt 60 times a second even
+    // though the palette is closed almost always. CommandPalette isn't
+    // mounted while closed, so returning an empty list here costs nothing.
+    if (!showPalette) return []
     const navigate = t('commandPalette.category.navigate')
     const project = t('commandPalette.category.project')
     const tabCategory = t('commandPalette.category.tab')
@@ -609,6 +617,7 @@ function App() {
     return commands
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    showPalette,
     t,
     hasAnyTabs,
     focusedTab,

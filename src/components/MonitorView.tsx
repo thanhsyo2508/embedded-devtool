@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
-import { applyFilters, compileFilter } from '../lib/filterLines'
+import { applyCompiledFilters, compileFilters } from '../lib/filterLines'
 import { renderLine } from '../lib/ansiRender'
 import { parseHex, formatHex } from '../lib/hex'
 import { DataInspector } from './DataInspector'
@@ -118,19 +118,18 @@ export function MonitorView({ tab }: { tab: TabState }) {
   )
   const pendingCount = tab.lines.length - displayedLines.length
 
+  // Compile the filter rules once per edit — not once per render — so the
+  // per-line filtering below (which re-runs on every data batch as new log
+  // lines arrive) reuses the same RegExp objects instead of rebuilding them
+  // ~60 times a second.
+  const compiledFilters = useMemo(() => compileFilters(tab.filters), [tab.filters])
+
   const filteredLines = useMemo(
-    () => applyFilters(displayedLines, tab.filters),
-    [displayedLines, tab.filters],
+    () => applyCompiledFilters(displayedLines, compiledFilters),
+    [displayedLines, compiledFilters],
   )
 
-  const includeHighlights = useMemo(
-    () =>
-      tab.filters
-        .filter((f) => f.mode === 'include')
-        .map(compileFilter)
-        .filter((re): re is RegExp => re !== null),
-    [tab.filters],
-  )
+  const includeHighlights = compiledFilters.includes
 
   const searchRegex = useMemo(() => {
     if (!searchOpen || searchQuery.length === 0) return null
