@@ -254,6 +254,14 @@ export function CopyIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function CheckIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 12l6 6L20 6" />
+    </Icon>
+  )
+}
+
 export function ServerIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -332,6 +340,14 @@ export function SplitIcon(props: SVGProps<SVGSVGElement>) {
     <Icon {...props}>
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <path d="M12 4v16" />
+    </Icon>
+  )
+}
+
+export function RowsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
     </Icon>
   )
 }

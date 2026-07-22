@@ -418,6 +418,7 @@
     "logToFile": "Log to file",
     "loggingTo": "Logging to {{dir}}",
     "openLogFolder": "Open log folder ({{dir}})",
+    "openLogFolderError": "Could not open the log folder: {{message}}",
     "contextMenu": {
       "copy": "Copy",
       "searchForThis": "Search buffer for this",
@@ -593,6 +594,7 @@
     "last7d": "Last 7 days",
     "breakdown": "{{success}} succeeded, {{failed}} failed",
     "exportCsv": "Export CSV",
+    "exportCsvError": "Could not export CSV: {{message}}",
     "clearHistory": "Clear history",
     "clearConfirm": "Clear the whole production history? This cannot be undone.",
     "time": "Time",
@@ -702,6 +704,9 @@
     "messagePayload": "Message payload",
     "publishing": "Publishing…",
     "publish": "Publish",
+    "publishError": "Publish failed: {{message}}",
+    "subscribeError": "Subscribe failed: {{message}}",
+    "unsubscribeError": "Unsubscribe failed: {{message}}",
     "noMessagesYet": "No messages received yet."
   },
   "plot": {
@@ -738,6 +743,8 @@
     "channelColorTitle": "Change this channel's colour",
     "csvTitle": "Export the whole buffer (including math channels) as CSV",
     "pngTitle": "Export the chart as a PNG image (legend not included)",
+    "exportCsvError": "Could not export CSV: {{message}}",
+    "exportPngError": "Could not export PNG: {{message}}",
     "pointCount": "{{count}} pts",
     "closePlotter": "Close plotter",
     "extractorPatternPlaceholder": "regex with one capture group, e.g. temp=(\\d+\\.\\d+)",
@@ -756,7 +763,14 @@
     "removeThreshold": "Remove threshold",
     "addLevel": "Add level",
     "statLine": "min {{min}} · max {{max}} · avg {{avg}} · p-p {{pp}} · {{freq}}",
-    "noData": "no data"
+    "noData": "no data",
+    "mqttFields": "MQTT Fields",
+    "mqttFieldsTitle": "JSON fields picked from MQTT payloads to plot — add one from a topic's payload view",
+    "mqttFieldsEmpty": "No fields picked yet — open an MQTT tab's topic payload and click the chart icon on a numeric field.",
+    "removeMqttField": "Remove field",
+    "addMqttFieldTitle": "Add this field to the plot",
+    "removeMqttFieldTitle": "Remove this field from the plot",
+    "channelLimitReached": "Plot already has the max {{max}} channels — stop whatever's producing the ones you don't need (e.g. a running plugin) and clear the chart before adding another."
   },
   "macro": {
     "clearConfirm": "Clear all {{count}} recorded step(s)?",
@@ -950,6 +964,7 @@
       "flashNext": "Flash & Provision",
       "summary": "{{total}} device(s) — {{success}} succeeded, {{failed}} failed",
       "exportCsv": "Export CSV",
+      "exportCsvError": "Could not export CSV: {{message}}",
       "value": "Value",
       "status": "Status"
     }
@@ -985,12 +1000,15 @@
     "invalidJson": "Invalid JSON",
     "jsonPlaceholder": "{ \"cmd\": \"...\" }",
     "lineEndingTitle": "Line ending for this command (overrides the tab's setting)",
-    "lineEndingInherit": "Line ending: tab default"
+    "lineEndingInherit": "Line ending: tab default",
+    "wrapRowsTitle": "Show all quick commands as wrapped rows instead of one scrolling line"
   },
   "signalBar": {
     "dtrTitle": "Data Terminal Ready (writable — click to toggle)",
+    "dtrError": "Could not set DTR: {{message}}",
     "rtsAutoTitle": "Controlled automatically by RS485 half-duplex mode",
     "rtsManualTitle": "Request To Send (writable — click to toggle)",
+    "rtsError": "Could not set RTS: {{message}}",
     "ctsTitle": "Clear To Send",
     "dsrTitle": "Data Set Ready",
     "riTitle": "Ring Indicator",
@@ -1043,6 +1061,7 @@
     "refresh": "Refresh",
     "dismiss": "Dismiss",
     "copy": "Copy",
+    "copied": "Copied!",
     "typeToConfirm": "Type {{keyword}} to confirm — this cannot be undone."
   },
   "security": {

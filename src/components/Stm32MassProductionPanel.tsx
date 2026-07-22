@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { useStm32MassProductionStore } from '../state/stm32MassProductionStore'
 import { useStm32Store } from '../state/stm32Store'
+import { useToastStore } from '../state/toastStore'
 import { authorizeFlash } from '../lib/flashLock'
 import type { ProvisionValueFormat } from '../api/flash'
 import { DiskIcon, FolderIcon, PlayIcon, RefreshIcon } from './icons'
@@ -39,6 +40,7 @@ export function Stm32MassProductionPanel() {
     resetCounter,
     flashNext,
   } = useStm32MassProductionStore()
+  const addToast = useToastStore((s) => s.addToast)
 
   useEffect(() => {
     wireEventsOnce()
@@ -67,7 +69,11 @@ export function Stm32MassProductionPanel() {
           `${e.counter},${e.value},${e.success},"${e.message.replace(/"/g, '""')}",${new Date(e.atMs).toISOString()}`,
       )
       .join('\n')
-    await invoke('write_text_file', { path, contents: header + rows })
+    try {
+      await invoke('write_text_file', { path, contents: header + rows })
+    } catch (err) {
+      addToast('error', t('stm32.massProduction.exportCsvError', { message: String(err) }))
+    }
   }
 
   const successCount = entries.filter((e) => e.success).length

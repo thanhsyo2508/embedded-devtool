@@ -3,7 +3,8 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import { useTranslation } from 'react-i18next'
 import { useFtpStore } from '../state/ftpStore'
-import { CopyIcon, FolderIcon, ServerIcon, StopIcon, XIcon } from './icons'
+import { CopyButton } from './CopyButton'
+import { FolderIcon, ServerIcon, StopIcon, XIcon } from './icons'
 
 /** Local FTP server config — hosts a plain-FTP server on this computer so a
  * device can read/write files here. File *browsing* of a remote FTP server
@@ -137,14 +138,10 @@ export function FtpPanel({ onClose }: { onClose: () => void }) {
             {serverAddress && (
               <div className="field-row">
                 <span className="mono">{`ftp://${serverAddress}:${serverPort}`}</span>
-                <button
-                  type="button"
-                  className="icon-button"
-                  title={t('common.copy')}
-                  onClick={() => void writeText(`ftp://${serverAddress}:${serverPort}`)}
-                >
-                  <CopyIcon />
-                </button>
+                <CopyButton
+                  getText={() => `ftp://${serverAddress}:${serverPort}`}
+                  writeText={writeText}
+                />
               </div>
             )}
           </>

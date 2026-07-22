@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { readSerialSignals, setSerialDtr, setSerialRts, type SignalState } from '../api/serial'
 import { useTabsStore, type TabState } from '../state/tabsStore'
+import { useToastStore } from '../state/toastStore'
 
 // DTR/RTS are outputs this side drives — there is no way to read back their
 // actual line state from the OS, so this toggle reflects what we last set,
@@ -11,6 +12,7 @@ export function SignalBar({ tab }: { tab: TabState }) {
   const { t } = useTranslation()
   const disconnectTab = useTabsStore((s) => s.disconnectTab)
   const reconnectTab = useTabsStore((s) => s.reconnectTab)
+  const addToast = useToastStore((s) => s.addToast)
   const [dtr, setDtr] = useState(false)
   const [rts, setRts] = useState(false)
   const [reconnecting, setReconnecting] = useState(false)
@@ -37,13 +39,19 @@ export function SignalBar({ tab }: { tab: TabState }) {
   const toggleDtr = () => {
     const next = !dtr
     setDtr(next)
-    void setSerialDtr(tab.id, next)
+    setSerialDtr(tab.id, next).catch((err: unknown) => {
+      setDtr(!next)
+      addToast('error', t('signalBar.dtrError', { message: String(err) }))
+    })
   }
 
   const toggleRts = () => {
     const next = !rts
     setRts(next)
-    void setSerialRts(tab.id, next)
+    setSerialRts(tab.id, next).catch((err: unknown) => {
+      setRts(!next)
+      addToast('error', t('signalBar.rtsError', { message: String(err) }))
+    })
   }
 
   const handleReconnect = () => {

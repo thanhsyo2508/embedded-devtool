@@ -439,6 +439,10 @@ body,
   background: color-mix(in srgb, var(--text) 8%, transparent);
 }
 
+.copy-button.copied {
+  color: var(--ok);
+}
+
 .port-details {
   display: flex;
   align-items: baseline;
@@ -948,9 +952,21 @@ body,
 .logline .hex {
   flex: none;
   color: var(--text-muted);
-  max-width: 40%;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* In mixed view the hex column shares the row with .msg, so it's capped;
+   in hex-only view there's nothing else on the row, so let it use the
+   full width instead of staying clipped to the same 40%. */
+.logline.view-mixed .hex {
+  max-width: 40%;
+}
+
+.logline.view-hex .hex {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
 }
 
 .logline .dir-arrow {
@@ -1308,9 +1324,23 @@ body,
   overflow-x: auto;
 }
 
+/* Lets the chip strip wrap onto multiple rows instead of scrolling
+   horizontally, for profiles with enough commands that a single row makes
+   older ones hard to reach — see QuickCommandsBar's `wrapped` toggle. */
+.quick-commands-bar.wrapped {
+  align-items: flex-start;
+  overflow-x: hidden;
+  flex-wrap: wrap;
+}
+
 .quick-command-profile-select {
   flex: none;
   max-width: 140px;
+}
+
+.quick-commands-bar .icon-button.on {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .quick-command-chips {
@@ -1318,6 +1348,16 @@ body,
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+
+/* Row mode: the chip strip drops onto its own full-width line below the
+   profile controls (forced by flex-basis 100% inside the wrapping bar
+   above) and lays out one command per row instead of side-by-side pills. */
+.quick-command-chips.wrapped {
+  flex: 0 0 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
 }
 
 .quick-command-chip {
@@ -1347,6 +1387,43 @@ body,
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.quick-command-chips.wrapped .quick-command-chip {
+  width: 100%;
+}
+
+.quick-command-chips.wrapped .quick-command-label {
+  max-width: none;
+  flex: none;
+  font-weight: 600;
+}
+
+.quick-command-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.quick-command-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 11px;
+}
+
+.quick-command-badge {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+  font-size: 10px;
 }
 
 .quick-command-edit,
@@ -2212,6 +2289,20 @@ input[type='checkbox']:disabled {
   border-bottom: 1px dashed var(--border);
 }
 
+.mqtt-field-topic {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.plot-mqtt-fields-empty {
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .plot-stats {
   display: flex;
   flex-wrap: wrap;
@@ -2665,6 +2756,35 @@ input[type='checkbox']:disabled {
 .json-null {
   color: var(--text-muted);
   font-style: italic;
+}
+
+/* MQTT payload field-picker — the "add to plot" icon on a numeric leaf's
+   line (see MqttJsonFieldView). Sits at the start of the line, before the
+   key, so it lands at the same x position on every row regardless of how
+   long that row's value happens to be — putting it after the value made it
+   jump around and hard to click reliably. */
+.mqtt-field-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.mqtt-field-add:hover {
+  color: var(--accent);
+}
+
+.mqtt-field-add.on {
+  color: var(--ok);
 }
 
 /* -- publish form -- */
@@ -3887,6 +4007,21 @@ kbd {
 }
 
 .modbus-log-entry.modbus-log-error {
+  color: var(--err);
+}
+
+.modbus-poll-result {
+  flex: none;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.modbus-poll-result.ok {
+  color: var(--ok);
+}
+
+.modbus-poll-result.err {
   color: var(--err);
 }
 

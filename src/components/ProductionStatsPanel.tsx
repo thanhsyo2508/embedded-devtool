@@ -3,6 +3,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { useProductionHistoryStore } from '../state/productionHistoryStore'
+import { useToastStore } from '../state/toastStore'
 import { TrashIcon } from './icons'
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -23,6 +24,7 @@ export function ProductionStatsPanel() {
   const { t } = useTranslation()
   const entries = useProductionHistoryStore((s) => s.entries)
   const clear = useProductionHistoryStore((s) => s.clear)
+  const addToast = useToastStore((s) => s.addToast)
 
   // Date.now() is impure, so it can't be read directly during render (see
   // React's purity rules) — this effect syncs the component with the
@@ -64,7 +66,11 @@ export function ProductionStatsPanel() {
         ].join(','),
       )
       .join('\n')
-    await invoke('write_text_file', { path, contents: header + rows })
+    try {
+      await invoke('write_text_file', { path, contents: header + rows })
+    } catch (err) {
+      addToast('error', t('productionStats.exportCsvError', { message: String(err) }))
+    }
   }
 
   const handleClear = () => {

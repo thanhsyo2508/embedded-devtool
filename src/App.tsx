@@ -118,6 +118,7 @@ function App() {
   const plotExtractors = usePlotStore((s) => s.extractors)
   const plotMathChannels = usePlotStore((s) => s.mathChannels)
   const plotThresholds = usePlotStore((s) => s.thresholds)
+  const plotMqttFields = usePlotStore((s) => s.mqttFields)
   const plotChartType = usePlotStore((s) => s.chartType)
   const plotChannelColors = usePlotStore((s) => s.channelColors)
   const plotLoadConfig = usePlotStore((s) => s.loadConfig)
@@ -237,7 +238,8 @@ function App() {
       plotSourceTabId !== null ||
       plotExtractors.length > 0 ||
       plotMathChannels.length > 0 ||
-      plotThresholds.length > 0
+      plotThresholds.length > 0 ||
+      plotMqttFields.length > 0
     const sourceIndex = plotSourceTabId ? tabs.findIndex((tab) => tab.id === plotSourceTabId) : -1
     const profile = buildProjectProfile(
       tabs,
@@ -250,6 +252,7 @@ function App() {
             thresholds: plotThresholds,
             chartType: plotChartType,
             channelColors: plotChannelColors,
+            mqttFields: plotMqttFields,
           }
         : null,
     )

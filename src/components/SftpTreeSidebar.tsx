@@ -4,6 +4,7 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { TabState } from '../state/tabsStore'
 import { DEFAULT_SFTP_SESSION, formatBytes, useSftpStore } from '../state/sftpStore'
+import { useToastStore } from '../state/toastStore'
 import { openSshPathInVscode, type SftpEntry } from '../api/sftp'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { ChevronDownIcon, CodeIcon, FolderIcon, RefreshIcon } from './icons'
@@ -144,6 +145,7 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
   const uploadLocalFile = useSftpStore((s) => s.uploadLocalFile)
   const uploadBytes = useSftpStore((s) => s.uploadBytes)
   const downloadFile = useSftpStore((s) => s.downloadFile)
+  const addToast = useToastStore((s) => s.addToast)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [query, setQuery] = useState('')
@@ -206,7 +208,11 @@ export function SftpTreeSidebar({ tab }: { tab: TabState }) {
         },
         {
           label: t('ssh.sftp.copyPath'),
-          onClick: () => void writeText(menu.entry!.path),
+          onClick: () => {
+            writeText(menu.entry!.path)
+              .then(() => addToast('success', t('common.copied')))
+              .catch(() => {})
+          },
         },
       )
       if (!menu.entry.isDir) {

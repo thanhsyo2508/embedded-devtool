@@ -3,6 +3,8 @@ import type { TabState } from './tabsStore'
 import type { FftWindow } from '../lib/fft'
 import type { MathChannelDef } from '../lib/plotMath'
 import { useSettingsStore } from './settingsStore'
+import { useToastStore } from './toastStore'
+import i18n from '../i18n'
 
 const MAX_CHANNELS = 8
 
@@ -55,6 +57,19 @@ export interface ThresholdLine {
   value: number
 }
 
+/** A single JSON field, picked from one MQTT topic's payload, watched for
+ * plotting. Matching is by exact topic string only (never a subscription
+ * wildcard), and `channel` is always topic-qualified — see `addMqttField` —
+ * so two topics that happen to publish a same-named field (e.g. both have
+ * "temp") can never land on the same chart channel. */
+export interface MqttFieldWatch {
+  id: string
+  topic: string
+  path: string
+  channel: string
+  enabled: boolean
+}
+
 function applyExtractors(text: string, extractors: Extractor[]): Record<string, number> {
   const result: Record<string, number> = {}
   for (const extractor of extractors) {
@@ -80,6 +95,10 @@ interface PlotState {
   channelData: Record<string, (number | null)[]>
   timestamps: number[]
   lastProcessedLineSeq: number
+  /** Set once a new channel gets silently dropped for hitting MAX_CHANNELS,
+   * so the one-time toast (see `warnChannelLimit`) doesn't refire on every
+   * following data tick — cleared whenever the chart itself is cleared. */
+  channelLimitWarned: boolean
   dockHeight: number
   hiddenChannels: string[]
   /** Per-channel colour overrides, keyed by channel name. A channel not
@@ -91,6 +110,7 @@ interface PlotState {
   extractors: Extractor[]
   mathChannels: MathChannelDef[]
   thresholds: ThresholdLine[]
+  mqttFields: MqttFieldWatch[]
   fftMode: boolean
   fftWindow: FftWindow
   showStats: boolean
@@ -116,6 +136,7 @@ interface PlotState {
     thresholds: ThresholdLine[]
     chartType: ChartType
     channelColors?: Record<string, string>
+    mqttFields?: MqttFieldWatch[]
   }) => void
   ingest: (tab: TabState) => void
   ingestScriptPoint: (streamId: string, channel: string, value: number) => void
@@ -131,9 +152,28 @@ interface PlotState {
   removeThreshold: (id: string) => void
   updateThreshold: (id: string, patch: Partial<Omit<ThresholdLine, 'id'>>) => void
   toggleThresholdEnabled: (id: string) => void
+  /** No-op if this exact topic+path is already watched — lets the "add to
+   * plot" button in the MQTT payload view be called unconditionally. */
+  addMqttField: (topic: string, path: string) => void
+  removeMqttField: (id: string) => void
+  toggleMqttFieldEnabled: (id: string) => void
 }
 
-const emptyData = { channelOrder: [], channelData: {}, timestamps: [], lastProcessedLineSeq: -1 }
+// `lastProcessedLineSeq` is deliberately NOT part of this — it only marks
+// how far into the source tab's own (unrelated, never-cleared-by-Plot) line
+// buffer `ingest` has already consumed. Rewinding it to -1 makes `ingest`
+// treat every line still sitting in that buffer as new again, so a source
+// switch (which really does need a from-scratch replay) uses `emptyData`
+// below, while the user-facing "Clear" button uses this bare shape instead
+// — clearing the chart shouldn't also replay everything the source tab
+// happens to still have buffered from before the clear.
+const emptyChartData = {
+  channelOrder: [],
+  channelData: {},
+  timestamps: [],
+  channelLimitWarned: false,
+}
+const emptyData = { ...emptyChartData, lastProcessedLineSeq: -1 }
 
 export const usePlotStore = create<PlotState>((set, get) => ({
   visible: false,
@@ -146,6 +186,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   extractors: [],
   mathChannels: [],
   thresholds: [],
+  mqttFields: [],
   fftMode: false,
   fftWindow: 'hann',
   showStats: false,
@@ -167,9 +208,17 @@ export const usePlotStore = create<PlotState>((set, get) => ({
   setFftMode: (fftMode) => set({ fftMode }),
   setFftWindow: (fftWindow) => set({ fftWindow }),
   setShowStats: (showStats) => set({ showStats }),
-  reset: () => set({ ...emptyData }),
+  reset: () => set({ ...emptyChartData }),
 
-  loadConfig: ({ sourceTabId, extractors, mathChannels, thresholds, chartType, channelColors }) =>
+  loadConfig: ({
+    sourceTabId,
+    extractors,
+    mathChannels,
+    thresholds,
+    chartType,
+    channelColors,
+    mqttFields,
+  }) =>
     set({
       sourceTabId,
       extractors,
@@ -177,6 +226,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       thresholds,
       chartType,
       channelColors: channelColors ?? {},
+      mqttFields: mqttFields ?? [],
       hiddenChannels: [],
       ...emptyData,
     }),
@@ -263,9 +313,42 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       thresholds: state.thresholds.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)),
     })),
 
+  addMqttField: (topic, path) =>
+    set((state) => {
+      if (state.mqttFields.some((f) => f.topic === topic && f.path === path)) return state
+      return {
+        mqttFields: [
+          ...state.mqttFields,
+          {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            topic,
+            path,
+            channel: `${topic}:${path}`,
+            enabled: true,
+          },
+        ],
+      }
+    }),
+
+  removeMqttField: (id) =>
+    set((state) => ({ mqttFields: state.mqttFields.filter((f) => f.id !== id) })),
+
+  toggleMqttFieldEnabled: (id) =>
+    set((state) => ({
+      mqttFields: state.mqttFields.map((f) => (f.id === id ? { ...f, enabled: !f.enabled } : f)),
+    })),
+
   ingest: (tab) => {
     const state = get()
     if (state.frozen || state.sourceTabId !== tab.id) return
+    // MQTT tabs also get a raw "topic: payload" line per message (for the
+    // Raw log view), which this generic key:number regex would otherwise
+    // auto-parse into noisy, uncontrolled channels — exactly the "which
+    // line is which parameter" problem the MQTT field picker (mqttFields,
+    // fed via ingestScriptPoint from mqttStore) exists to solve properly.
+    // Once that picker exists, MQTT data should only ever reach the chart
+    // through it, never through this generic fallback.
+    if (tab.connectionKind === 'mqtt') return
     const newLines = tab.lines.filter((l) => l.seq > state.lastProcessedLineSeq)
     if (newLines.length === 0) return
 
@@ -278,6 +361,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       const arr = channelData[ch]
       lastValues[ch] = arr.length > 0 ? arr[arr.length - 1] : null
     }
+    let channelLimitWarned = state.channelLimitWarned
 
     for (const line of newLines) {
       const autoParsed = parseLine(line.text)
@@ -288,7 +372,15 @@ export const usePlotStore = create<PlotState>((set, get) => ({
 
       for (const key of Object.keys(parsed)) {
         if (!channelOrder.includes(key)) {
-          if (channelOrder.length >= MAX_CHANNELS) continue
+          if (channelOrder.length >= MAX_CHANNELS) {
+            if (!channelLimitWarned) {
+              channelLimitWarned = true
+              useToastStore
+                .getState()
+                .addToast('error', i18n.t('plot.channelLimitReached', { max: MAX_CHANNELS }))
+            }
+            continue
+          }
           channelOrder.push(key)
           channelData[key] = new Array(timestamps.length).fill(null)
           lastValues[key] = null
@@ -316,6 +408,7 @@ export const usePlotStore = create<PlotState>((set, get) => ({
       channelData: trimmedChannelData,
       timestamps: trimmedTimestamps,
       lastProcessedLineSeq: newLines[newLines.length - 1].seq,
+      channelLimitWarned,
     })
   },
 
@@ -329,7 +422,15 @@ export const usePlotStore = create<PlotState>((set, get) => ({
 
     const channelOrder = [...state.channelOrder]
     if (!channelOrder.includes(channel)) {
-      if (channelOrder.length >= MAX_CHANNELS) return
+      if (channelOrder.length >= MAX_CHANNELS) {
+        if (!state.channelLimitWarned) {
+          set({ channelLimitWarned: true })
+          useToastStore
+            .getState()
+            .addToast('error', i18n.t('plot.channelLimitReached', { max: MAX_CHANNELS }))
+        }
+        return
+      }
       channelOrder.push(channel)
     }
 

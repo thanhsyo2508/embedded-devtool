@@ -4,6 +4,7 @@ import { open, save } from '@tauri-apps/plugin-dialog'
 import { writeText } from '@tauri-apps/plugin-clipboard-manager'
 import type { TabState } from '../state/tabsStore'
 import { DEFAULT_FTP_SESSION, formatBytes, useFtpTreeStore } from '../state/ftpTreeStore'
+import { useToastStore } from '../state/toastStore'
 import type { FtpEntry } from '../api/ftp'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { ChevronDownIcon, CodeIcon, FolderIcon, RefreshIcon } from './icons'
@@ -141,6 +142,7 @@ export function FtpTreeSidebar({ tab }: { tab: TabState }) {
   const uploadLocalFile = useFtpTreeStore((s) => s.uploadLocalFile)
   const uploadBytes = useFtpTreeStore((s) => s.uploadBytes)
   const downloadFile = useFtpTreeStore((s) => s.downloadFile)
+  const addToast = useToastStore((s) => s.addToast)
   const [menu, setMenu] = useState<MenuState | null>(null)
   const [dragOver, setDragOver] = useState(false)
   const [query, setQuery] = useState('')
@@ -203,7 +205,11 @@ export function FtpTreeSidebar({ tab }: { tab: TabState }) {
         },
         {
           label: t('ftp.tree.copyPath'),
-          onClick: () => void writeText(menu.entry!.path),
+          onClick: () => {
+            writeText(menu.entry!.path)
+              .then(() => addToast('success', t('common.copied')))
+              .catch(() => {})
+          },
         },
       )
       if (!menu.entry.isDir) {

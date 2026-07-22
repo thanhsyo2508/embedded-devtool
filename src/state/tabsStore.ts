@@ -168,6 +168,9 @@ export interface ModbusPollRule {
   startAddr: number
   quantity: number
   intervalMs: number
+  /** Set after each tick so the poll row can show its own outcome inline,
+   * without the operator having to scan the shared request/response log. */
+  lastResult?: { atMs: number; ok: boolean; text: string }
 }
 
 export type ViewMode = 'mixed' | 'hex' | 'ascii'
@@ -1796,7 +1799,26 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
           1000,
         )
         .then((result) => {
-          if (result && !result.isException && result.values.length > 0) {
+          if (result === null) {
+            get().updateModbusPoll(tab.id, due.id, {
+              lastResult: { atMs: Date.now(), ok: false, text: 'Timed out' },
+            })
+            return
+          }
+          if (result.isException) {
+            get().updateModbusPoll(tab.id, due.id, {
+              lastResult: {
+                atMs: Date.now(),
+                ok: false,
+                text: `Exception 0x${result.exceptionCode.toString(16).padStart(2, '0')}`,
+              },
+            })
+            return
+          }
+          get().updateModbusPoll(tab.id, due.id, {
+            lastResult: { atMs: Date.now(), ok: true, text: result.values.join(', ') },
+          })
+          if (result.values.length > 0) {
             usePlotStore.getState().ingestScriptPoint(tab.id, due.label, result.values[0])
           }
         })

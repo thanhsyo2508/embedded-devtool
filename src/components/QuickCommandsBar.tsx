@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useTabsStore, type LineEnding, type TabState } from '../state/tabsStore'
 import { useQuickCommandProfilesStore, type QuickCommand } from '../state/quickCommandProfilesStore'
 import { parseHex } from '../lib/hex'
-import { PlusIcon, TrashIcon } from './icons'
+import { PlusIcon, RowsIcon, TrashIcon } from './icons'
 
 const INDENT = '  '
 const AUTO_PAIRS: Record<string, string> = { '{': '}', '[': ']' }
@@ -80,6 +80,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
   const [formJson, setFormJson] = useState(false)
   const [formLineEnding, setFormLineEnding] = useState<LineEnding | ''>('')
   const [dragId, setDragId] = useState<string | null>(null)
+  const [wrapped, setWrapped] = useState(false)
 
   const profile = profiles.find((p) => p.id === tab.quickCommandProfileId) ?? null
   const formHexInvalid = formHex && parseHex(formText) === null
@@ -252,7 +253,7 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
 
   return (
     <>
-      <div className="quick-commands-bar">
+      <div className={`quick-commands-bar ${wrapped ? 'wrapped' : ''}`}>
         <select
           className="quick-command-profile-select"
           value={profile?.id ?? ''}
@@ -286,7 +287,19 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
           </button>
         )}
         {profile && (
-          <div className="quick-command-chips">
+          <button
+            type="button"
+            className={`icon-button ${wrapped ? 'on' : ''}`}
+            aria-label={t('quickCommands.wrapRowsTitle')}
+            aria-pressed={wrapped}
+            title={t('quickCommands.wrapRowsTitle')}
+            onClick={() => setWrapped((w) => !w)}
+          >
+            <RowsIcon />
+          </button>
+        )}
+        {profile && (
+          <div className={`quick-command-chips ${wrapped ? 'wrapped' : ''}`}>
             {profile.commands.map((cmd) => (
               <div
                 key={cmd.id}
@@ -299,6 +312,15 @@ export function QuickCommandsBar({ tab }: { tab: TabState }) {
                 title={cmd.text}
               >
                 <span className="quick-command-label">{cmd.label || cmd.text}</span>
+                {wrapped && (
+                  <span className="quick-command-detail">
+                    {cmd.label && <span className="quick-command-text">{cmd.text}</span>}
+                    {cmd.isHex && <span className="quick-command-badge">{t('send.hex')}</span>}
+                    {cmd.lineEnding && (
+                      <span className="quick-command-badge">{cmd.lineEnding.toUpperCase()}</span>
+                    )}
+                  </span>
+                )}
                 <button
                   type="button"
                   className="quick-command-edit"

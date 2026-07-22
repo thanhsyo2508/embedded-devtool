@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import type { TabState } from '../state/tabsStore'
 import { useMqttStore, type MqttSubscription, type MqttTopicEntry } from '../state/mqttStore'
 import { useMqttPresetsStore, type MqttPublishFormat } from '../state/mqttPresetsStore'
+import { useToastStore } from '../state/toastStore'
 import { buildMqttTree, filterMqttTree } from '../lib/mqttTree'
 import {
   decodeText,
@@ -11,12 +12,13 @@ import {
   toHexDump,
   tryPrettyJson,
 } from '../lib/payloadFormat'
-import { tokenizeJson } from '../lib/jsonHighlight'
 import { parseHex } from '../lib/hex'
 import { relativeTime } from '../lib/relativeTime'
 import { MqttTopicTree } from './MqttTopicTree'
+import { MqttJsonFieldView } from './MqttJsonFieldView'
 import { LibraryRow } from './LibraryRow'
-import { CopyIcon, MessageIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from './icons'
+import { CopyButton } from './CopyButton'
+import { MessageIcon, PlusIcon, SearchIcon, TrashIcon, XIcon } from './icons'
 
 // Stable references for the "nothing yet" case — a fresh `{}`/`[]` literal
 // inline in a Zustand selector fabricates a new object on every call, which
@@ -29,38 +31,30 @@ const EMPTY_SUBSCRIPTIONS: MqttSubscription[] = []
 
 const QOS_OPTIONS = [0, 1, 2] as const
 
-function copyToClipboard(text: string) {
-  void navigator.clipboard.writeText(text).catch(() => {})
-}
-
-function JsonText({ text }: { text: string }) {
-  const tokens = useMemo(() => tokenizeJson(text), [text])
-  return (
-    <>
-      {tokens.map((t, i) =>
-        t.kind ? (
-          <span key={i} className={`json-${t.kind}`}>
-            {t.text}
-          </span>
-        ) : (
-          <span key={i}>{t.text}</span>
-        ),
-      )}
-    </>
-  )
-}
-
-function PayloadView({ payload, view }: { payload: number[]; view: 'auto' | 'hex' }) {
+function PayloadView({
+  payload,
+  view,
+  topic,
+  tabId,
+}: {
+  payload: number[]
+  view: 'auto' | 'hex'
+  topic: string
+  tabId: string
+}) {
   const { t } = useTranslation()
   if (view === 'hex') {
     return <pre className="mqtt-payload-view mono">{toHexDump(payload) || t('mqtt.empty')}</pre>
   }
   const pretty = tryPrettyJson(payload)
   if (pretty !== null) {
+    // Already proven parseable by tryPrettyJson above — same bytes, no
+    // separate try/catch needed for this second parse.
+    const parsed: unknown = JSON.parse(decodeText(payload))
     return (
-      <pre className="mqtt-payload-view mono">
-        <JsonText text={pretty} />
-      </pre>
+      <div className="mqtt-payload-view mono">
+        <MqttJsonFieldView value={parsed} topic={topic} tabId={tabId} />
+      </div>
     )
   }
   const text = decodeText(payload)
@@ -76,6 +70,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
   const ensureInitialSubscription = useMqttStore((s) => s.ensureInitialSubscription)
   const addSubscription = useMqttStore((s) => s.addSubscription)
   const removeSubscription = useMqttStore((s) => s.removeSubscription)
+  const addToast = useToastStore((s) => s.addToast)
 
   const presets = useMqttPresetsStore((s) => s.items)
   const savePreset = useMqttPresetsStore((s) => s.save)
@@ -146,7 +141,11 @@ export function MqttPanel({ tab }: { tab: TabState }) {
     const bytes = encodePublishPayload()
     if (bytes === null) return
     setSending(true)
-    void publish(tab.id, publishTopic, bytes, qos, retain).finally(() => setSending(false))
+    publish(tab.id, publishTopic, bytes, qos, retain)
+      .catch((err: unknown) => {
+        addToast('error', t('mqtt.publishError', { message: String(err) }))
+      })
+      .finally(() => setSending(false))
   }
 
   const handleFormatJson = () => {
@@ -161,13 +160,27 @@ export function MqttPanel({ tab }: { tab: TabState }) {
   const handleClearRetained = () => {
     if (!selectedTopic) return
     setSending(true)
-    void publish(tab.id, selectedTopic, [], 0, true).finally(() => setSending(false))
+    publish(tab.id, selectedTopic, [], 0, true)
+      .catch((err: unknown) => {
+        addToast('error', t('mqtt.publishError', { message: String(err) }))
+      })
+      .finally(() => setSending(false))
   }
 
   const handleAddSubscription = () => {
     if (!newSubTopic) return
-    void addSubscription(tab.id, newSubTopic, newSubQos)
-    setNewSubTopic('')
+    const topic = newSubTopic
+    addSubscription(tab.id, topic, newSubQos)
+      .then(() => setNewSubTopic(''))
+      .catch((err: unknown) => {
+        addToast('error', t('mqtt.subscribeError', { message: String(err) }))
+      })
+  }
+
+  const handleRemoveSubscription = (topic: string) => {
+    removeSubscription(tab.id, topic).catch((err: unknown) => {
+      addToast('error', t('mqtt.unsubscribeError', { message: String(err) }))
+    })
   }
 
   return (
@@ -191,7 +204,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
             <button
               type="button"
               aria-label={t('mqtt.unsubscribe', { topic: sub.topic })}
-              onClick={() => void removeSubscription(tab.id, sub.topic)}
+              onClick={() => handleRemoveSubscription(sub.topic)}
             >
               <XIcon />
             </button>
@@ -260,14 +273,7 @@ export function MqttPanel({ tab }: { tab: TabState }) {
               <div className="mqtt-detail-header">
                 <span className="mono">{selectedEntry.topic}</span>
                 <div className="mqtt-detail-actions">
-                  <button
-                    type="button"
-                    className="icon-button"
-                    title={t('mqtt.copyTopic')}
-                    onClick={() => copyToClipboard(selectedEntry.topic)}
-                  >
-                    <CopyIcon />
-                  </button>
+                  <CopyButton getText={() => selectedEntry.topic} title={t('mqtt.copyTopic')} />
                   {selectedLatest?.retain && (
                     <button
                       type="button"
@@ -302,20 +308,19 @@ export function MqttPanel({ tab }: { tab: TabState }) {
                       <span>QoS {msg.qos}</span>
                       {msg.retain && <span className="mqtt-tree-badge">{t('mqtt.retained')}</span>}
                       <span>{t('mqtt.byteCount', { count: msg.payload.length })}</span>
-                      <button
-                        type="button"
-                        className="icon-button mqtt-copy-payload"
+                      <CopyButton
+                        getText={() => decodeText(msg.payload)}
                         title={t('mqtt.copyPayload')}
-                        onClick={() => copyToClipboard(decodeText(msg.payload))}
-                      >
-                        <CopyIcon />
-                      </button>
+                        className="mqtt-copy-payload"
+                      />
                     </div>
                     <PayloadView
                       payload={msg.payload}
                       view={
                         payloadView === 'auto' && looksBinary(msg.payload) ? 'hex' : payloadView
                       }
+                      topic={selectedEntry.topic}
+                      tabId={tab.id}
                     />
                   </div>
                 ))}

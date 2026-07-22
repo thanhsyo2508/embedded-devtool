@@ -12,7 +12,7 @@
 import type { ChecksumMode } from './crc'
 import { mapTabIds, type LayoutNode } from './layoutTree'
 import type { MathChannelDef } from './plotMath'
-import type { ChartType, Extractor, ThresholdLine } from '../state/plotStore'
+import type { ChartType, Extractor, MqttFieldWatch, ThresholdLine } from '../state/plotStore'
 import type {
   ConnectionConfig,
   FilterRule,
@@ -43,6 +43,7 @@ export interface ProjectProfilePlotter {
   thresholds: ThresholdLine[]
   chartType: ChartType
   channelColors?: Record<string, string>
+  mqttFields?: MqttFieldWatch[]
 }
 
 export interface ProjectProfileFile {

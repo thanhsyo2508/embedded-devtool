@@ -217,6 +217,14 @@ export function ModbusMasterPanel({ tab }: { tab: TabState }) {
           >
             <TrashIcon />
           </button>
+          {rule.lastResult && (
+            <span
+              className={`modbus-poll-result ${rule.lastResult.ok ? 'ok' : 'err'}`}
+              title={new Date(rule.lastResult.atMs).toLocaleTimeString()}
+            >
+              {rule.lastResult.text}
+            </span>
+          )}
         </div>
       ))}
       <div className="filter-actions">

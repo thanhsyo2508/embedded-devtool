@@ -38,6 +38,7 @@ import { PluginBar } from './PluginBar'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { useDebugHandoffStore } from '../state/debugHandoffStore'
 import { useSearchHandoffStore } from '../state/searchHandoffStore'
+import { useToastStore } from '../state/toastStore'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
@@ -77,6 +78,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const togglePause = useTabsStore((s) => s.togglePause)
   const toggleBookmark = useTabsStore((s) => s.toggleBookmark)
   const addFilterWithPattern = useTabsStore((s) => s.addFilterWithPattern)
+  const addToast = useToastStore((s) => s.addToast)
   const requestBacktraceDecode = useDebugHandoffStore((s) => s.requestBacktraceDecode)
   const clearPendingSearch = useSearchHandoffStore((s) => s.clearPendingSearch)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -168,7 +170,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
   }
 
   const handleOpenLogFolder = () => {
-    if (tab.logDir) void openPath(tab.logDir)
+    if (!tab.logDir) return
+    openPath(tab.logDir).catch((err: unknown) => {
+      addToast('error', t('monitor.openLogFolderError', { message: String(err) }))
+    })
   }
 
   const handleClear = () => {
@@ -209,7 +214,12 @@ export function MonitorView({ tab }: { tab: TabState }) {
     ? [
         {
           label: t('monitor.contextMenu.copy'),
-          onClick: () => void navigator.clipboard.writeText(contextMenu.text),
+          onClick: () => {
+            navigator.clipboard
+              .writeText(contextMenu.text)
+              .then(() => addToast('success', t('common.copied')))
+              .catch(() => {})
+          },
         },
         {
           label: t('monitor.contextMenu.searchForThis'),
@@ -424,7 +434,9 @@ export function MonitorView({ tab }: { tab: TabState }) {
                   <div
                     key={line.seq}
                     data-seq={line.seq}
-                    className={`logline level-${line.level ?? 'none'} dir-${line.direction}${isCurrentSearchMatch ? ' current-match' : ''}`}
+                    data-index={item.index}
+                    ref={virtualizer.measureElement}
+                    className={`logline level-${line.level ?? 'none'} dir-${line.direction} view-${tab.viewMode}${isCurrentSearchMatch ? ' current-match' : ''}`}
                     style={{
                       position: 'absolute',
                       top: 0,

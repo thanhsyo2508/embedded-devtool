@@ -415,6 +415,7 @@
     "logToFile": "Ghi log ra file",
     "loggingTo": "Đang ghi log vào {{dir}}",
     "openLogFolder": "Mở thư mục chứa log ({{dir}})",
+    "openLogFolderError": "Không thể mở thư mục log: {{message}}",
     "contextMenu": {
       "copy": "Sao chép",
       "searchForThis": "Tìm trong buffer",
@@ -590,6 +591,7 @@
     "last7d": "7 ngày qua",
     "breakdown": "{{success}} thành công, {{failed}} thất bại",
     "exportCsv": "Xuất CSV",
+    "exportCsvError": "Không thể xuất CSV: {{message}}",
     "clearHistory": "Xóa lịch sử",
     "clearConfirm": "Xóa toàn bộ lịch sử sản xuất? Không thể hoàn tác.",
     "time": "Thời gian",
@@ -697,6 +699,9 @@
     "messagePayload": "Nội dung tin nhắn",
     "publishing": "Đang gửi…",
     "publish": "Gửi",
+    "publishError": "Gửi thất bại: {{message}}",
+    "subscribeError": "Đăng ký thất bại: {{message}}",
+    "unsubscribeError": "Hủy đăng ký thất bại: {{message}}",
     "noMessagesYet": "Chưa nhận được tin nhắn nào."
   },
   "plot": {
@@ -733,6 +738,8 @@
     "channelColorTitle": "Đổi màu kênh này",
     "csvTitle": "Xuất toàn bộ bộ đệm (gồm cả kênh toán) ra CSV",
     "pngTitle": "Xuất biểu đồ ra ảnh PNG (không gồm chú giải)",
+    "exportCsvError": "Không thể xuất CSV: {{message}}",
+    "exportPngError": "Không thể xuất PNG: {{message}}",
     "pointCount": "{{count}} điểm",
     "closePlotter": "Đóng biểu đồ",
     "extractorPatternPlaceholder": "regex có 1 nhóm bắt, vd temp=(\\d+\\.\\d+)",
@@ -751,7 +758,14 @@
     "removeThreshold": "Xóa ngưỡng",
     "addLevel": "Thêm ngưỡng",
     "statLine": "min {{min}} · max {{max}} · tb {{avg}} · p-p {{pp}} · {{freq}}",
-    "noData": "chưa có dữ liệu"
+    "noData": "chưa có dữ liệu",
+    "mqttFields": "Field MQTT",
+    "mqttFieldsTitle": "Các field JSON đã chọn từ bản tin MQTT để vẽ — thêm từ khung xem payload của 1 topic",
+    "mqttFieldsEmpty": "Chưa chọn field nào — mở 1 tab MQTT, xem payload của topic rồi bấm icon biểu đồ trên field số.",
+    "removeMqttField": "Xóa field",
+    "addMqttFieldTitle": "Thêm field này vào biểu đồ",
+    "removeMqttFieldTitle": "Xóa field này khỏi biểu đồ",
+    "channelLimitReached": "Plot đã đạt tối đa {{max}} kênh — hãy dừng nguồn đang tạo ra các kênh không cần (vd. 1 plugin đang chạy) rồi Clear biểu đồ trước khi thêm kênh mới."
   },
   "macro": {
     "clearConfirm": "Xóa toàn bộ {{count}} bước đã ghi?",
@@ -943,6 +957,7 @@
       "flashNext": "Nạp & Cấu hình",
       "summary": "{{total}} thiết bị — {{success}} thành công, {{failed}} thất bại",
       "exportCsv": "Xuất CSV",
+      "exportCsvError": "Không thể xuất CSV: {{message}}",
       "value": "Giá trị",
       "status": "Trạng thái"
     }
@@ -978,12 +993,15 @@
     "invalidJson": "JSON không hợp lệ",
     "jsonPlaceholder": "{ \"cmd\": \"...\" }",
     "lineEndingTitle": "Ký tự xuống dòng cho riêng lệnh này (ghi đè lên thiết lập của tab)",
-    "lineEndingInherit": "Xuống dòng: theo tab"
+    "lineEndingInherit": "Xuống dòng: theo tab",
+    "wrapRowsTitle": "Hiển thị tất cả quick command thành nhiều hàng thay vì 1 hàng cuộn ngang"
   },
   "signalBar": {
     "dtrTitle": "Data Terminal Ready (có thể ghi — bấm để bật/tắt)",
+    "dtrError": "Không thể đặt DTR: {{message}}",
     "rtsAutoTitle": "Được điều khiển tự động bởi chế độ bán song công RS485",
     "rtsManualTitle": "Request To Send (có thể ghi — bấm để bật/tắt)",
+    "rtsError": "Không thể đặt RTS: {{message}}",
     "ctsTitle": "Clear To Send",
     "dsrTitle": "Data Set Ready",
     "riTitle": "Ring Indicator",
@@ -1036,6 +1054,7 @@
     "refresh": "Làm mới",
     "dismiss": "Bỏ qua",
     "copy": "Sao chép",
+    "copied": "Đã sao chép!",
     "typeToConfirm": "Gõ {{keyword}} để xác nhận — thao tác này không thể hoàn tác."
   },
   "security": {

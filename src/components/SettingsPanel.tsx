@@ -20,7 +20,8 @@ import {
 import { useUpdateStore } from '../state/updateStore'
 import { buildConfigBundle, importConfigBundle, type ConfigBundle } from '../lib/configBundle'
 import { SHORTCUTS } from '../lib/shortcuts'
-import { BookOpenIcon, CopyIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
+import { BookOpenIcon, GearIcon, MessageIcon, RefreshIcon, XIcon } from './icons'
+import { CopyButton } from './CopyButton'
 import { HelpGuide } from './HelpGuide'
 
 const REPO_URL = 'https://github.com/thanhsyo2508/embedded-devtool'
@@ -259,14 +260,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               <span>{t('settings.restApi.token')}</span>
               <div className="field-row">
                 <input className="mono rest-api-token" value={settings.restApiToken} readOnly />
-                <button
-                  type="button"
-                  className="icon-button"
+                <CopyButton
+                  getText={() => settings.restApiToken}
                   title={t('settings.restApi.copyToken')}
-                  onClick={() => void navigator.clipboard.writeText(settings.restApiToken)}
-                >
-                  <CopyIcon />
-                </button>
+                />
                 <button
                   type="button"
                   className="icon-button"

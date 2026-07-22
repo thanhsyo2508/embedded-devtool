@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useTranslation } from 'react-i18next'
 import { usePlotStore, type ChartType } from '../state/plotStore'
 import { useTabsStore } from '../state/tabsStore'
+import { useToastStore } from '../state/toastStore'
 import { computeSpectrum, type FftWindow } from '../lib/fft'
 import { computeMathChannel, MATH_OPS } from '../lib/plotMath'
 import { measure } from '../lib/plotMeasure'
@@ -74,8 +75,19 @@ function formatStat(v: number): string {
 // (live values render wider than the idle labels).
 const LEGEND_RESERVE_PX = 30
 
+// How often to pull new lines into the chart. The backend emits data
+// batches at ~60fps; ingesting (a full channel-array copy + a uPlot
+// setData redraw) on every one of those saturates the JS main thread and
+// makes unrelated UI — port scans, tab switches — visibly lag. ingest is
+// seq-based (only ever consumes lines newer than lastProcessedLineSeq), so
+// pulling on this slower fixed cadence coalesces many batches into one pass
+// with zero data loss, while a 100ms redraw cadence is still smooth to the
+// eye. Mirrors the MQTT-point throttle in mqttStore.
+const PLOT_INGEST_INTERVAL_MS = 100
+
 export function PlotDock() {
   const { t } = useTranslation()
+  const addToast = useToastStore((s) => s.addToast)
   const tabs = useTabsStore((s) => s.tabs)
   const {
     sourceTabId,
@@ -90,6 +102,7 @@ export function PlotDock() {
     extractors,
     mathChannels,
     thresholds,
+    mqttFields,
     fftMode,
     fftWindow,
     showStats,
@@ -116,9 +129,13 @@ export function PlotDock() {
     removeThreshold,
     updateThreshold,
     toggleThresholdEnabled,
+    removeMqttField,
+    toggleMqttFieldEnabled,
   } = usePlotStore()
   const sourceTab = tabs.find((tab) => tab.id === sourceTabId) ?? null
-  const [openPanel, setOpenPanel] = useState<'extractors' | 'math' | 'thresholds' | null>(null)
+  const [openPanel, setOpenPanel] = useState<
+    'extractors' | 'math' | 'thresholds' | 'mqttFields' | null
+  >(null)
 
   // Measurement cursors: click two points to read Δt / Δy / frequency
   // between them. Markers are stored as data indices — only meaningful
@@ -138,10 +155,20 @@ export function PlotDock() {
   const colorFor = (ch: string, i: number): string =>
     channelColors[ch] ?? PALETTE[i % PALETTE.length]
 
+  // Depends on sourceTabId (stable across data batches), NOT the sourceTab
+  // object (new identity every batch) — otherwise the interval would be
+  // torn down and recreated 60 times a second, defeating the throttle. The
+  // freshest tab is read from the store inside each tick instead.
   useEffect(() => {
-    if (!sourceTab) return
-    ingest(sourceTab)
-  }, [sourceTab, ingest])
+    if (!sourceTabId) return
+    const tick = () => {
+      const tab = useTabsStore.getState().tabs.find((t) => t.id === sourceTabId)
+      if (tab) ingest(tab)
+    }
+    tick() // first pass immediately so selecting a source feels responsive
+    const id = setInterval(tick, PLOT_INGEST_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [sourceTabId, ingest])
 
   // Real channels + enabled math channels, computed once per data tick —
   // everything downstream (series, chart data, stats, FFT, CSV export)
@@ -466,7 +493,7 @@ export function PlotDock() {
     plot.setScale('x', { min: 0, max: Math.max((lastAtMs - firstAtMs) / 1000, 1) })
   }
 
-  const togglePanel = (panel: 'extractors' | 'math' | 'thresholds') =>
+  const togglePanel = (panel: 'extractors' | 'math' | 'thresholds' | 'mqttFields') =>
     setOpenPanel((current) => (current === panel ? null : panel))
 
   const exportCsv = async () => {
@@ -490,7 +517,11 @@ export function PlotDock() {
       ]
       lines.push(cells.join(','))
     }
-    await invoke('write_text_file', { path, contents: lines.join('\n') + '\n' })
+    try {
+      await invoke('write_text_file', { path, contents: lines.join('\n') + '\n' })
+    } catch (err) {
+      addToast('error', t('plot.exportCsvError', { message: String(err) }))
+    }
   }
 
   const exportPng = async () => {
@@ -516,7 +547,11 @@ export function PlotDock() {
     const blob = await new Promise<Blob | null>((resolve) => composed.toBlob(resolve, 'image/png'))
     if (!blob) return
     const data = Array.from(new Uint8Array(await blob.arrayBuffer()))
-    await invoke('write_binary_file', { path, data })
+    try {
+      await invoke('write_binary_file', { path, data })
+    } catch (err) {
+      addToast('error', t('plot.exportPngError', { message: String(err) }))
+    }
   }
 
   return (
@@ -601,6 +636,17 @@ export function PlotDock() {
           {t('plot.levels')}
           {thresholds.length > 0 ? ` (${thresholds.length})` : ''}
         </button>
+        {sourceTab?.connectionKind === 'mqtt' && (
+          <button
+            type="button"
+            className={openPanel === 'mqttFields' || mqttFields.length > 0 ? 'on' : ''}
+            title={t('plot.mqttFieldsTitle')}
+            onClick={() => togglePanel('mqttFields')}
+          >
+            {t('plot.mqttFields')}
+            {mqttFields.length > 0 ? ` (${mqttFields.length})` : ''}
+          </button>
+        )}
         <button
           type="button"
           className={showStats ? 'on' : ''}
@@ -824,6 +870,37 @@ export function PlotDock() {
               <PlusIcon /> {t('plot.addLevel')}
             </button>
           </div>
+        </div>
+      )}
+
+      {openPanel === 'mqttFields' && (
+        <div className="filter-bar">
+          {mqttFields.length === 0 && (
+            <p className="plot-mqtt-fields-empty">{t('plot.mqttFieldsEmpty')}</p>
+          )}
+          {mqttFields.map((f) => (
+            <div className="filter-row" key={f.id}>
+              <label className="checkbox-field">
+                <input
+                  type="checkbox"
+                  checked={f.enabled}
+                  onChange={() => toggleMqttFieldEnabled(f.id)}
+                />
+              </label>
+              <span className="mono mqtt-field-topic" title={f.topic}>
+                {f.topic}
+              </span>
+              <span className="mono">{f.path}</span>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={t('plot.removeMqttField')}
+                onClick={() => removeMqttField(f.id)}
+              >
+                <TrashIcon />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
