@@ -956,6 +956,13 @@ body,
   text-overflow: ellipsis;
 }
 
+.logline .hex .hex-changed {
+  color: var(--accent);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-radius: 2px;
+}
+
 /* In mixed view the hex column shares the row with .msg, so it's capped;
    in hex-only view there's nothing else on the row, so let it use the
    full width instead of staying clipped to the same 40%. */
@@ -1148,6 +1155,18 @@ body,
   border-radius: var(--radius-sm);
   background: none;
   cursor: pointer;
+}
+
+.filter-row input.event-counter-label {
+  flex: 0 0 120px;
+}
+
+.event-counter-stat {
+  flex: none;
+  min-width: 88px;
+  text-align: right;
+  color: var(--accent);
+  font-size: 12px;
 }
 
 .trigger-row {

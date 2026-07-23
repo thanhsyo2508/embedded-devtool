@@ -79,6 +79,7 @@ function App() {
   const openTab = useTabsStore((s) => s.openTab)
   const setFilters = useTabsStore((s) => s.setFilters)
   const setColorRules = useTabsStore((s) => s.setColorRules)
+  const setEventCounters = useTabsStore((s) => s.setEventCounters)
   const setTriggers = useTabsStore((s) => s.setTriggers)
   const setScriptCode = useTabsStore((s) => s.setScriptCode)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
@@ -332,6 +333,7 @@ function App() {
       }
       setFilters(newId, tabConfig.filters)
       setColorRules(newId, tabConfig.colorRules ?? [])
+      setEventCounters(newId, tabConfig.eventCounters ?? [])
       setTriggers(newId, tabConfig.triggers)
       setScriptCode(newId, tabConfig.scriptCode)
       setLineEnding(newId, tabConfig.lineEnding)

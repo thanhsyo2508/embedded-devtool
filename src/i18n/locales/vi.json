@@ -393,6 +393,8 @@
     "previousBookmark": "Đánh dấu trước",
     "nextBookmark": "Đánh dấu tiếp theo",
     "bookmarkList": "Xem tất cả đánh dấu",
+    "diffHex": "So byte",
+    "diffHexTitle": "Tô sáng các byte hex thay đổi so với dòng trước",
     "lineCount": "{{count}} dòng",
     "disconnected": "Đã ngắt kết nối",
     "toggleBookmark": "Bật/tắt đánh dấu",
@@ -403,6 +405,7 @@
     "jumpToBottom": "về cuối",
     "filters": "Bộ lọc",
     "colors": "Luật tô màu",
+    "eventCounters": "Bộ đếm sự kiện",
     "triggers": "Trigger",
     "script": "Script",
     "scriptRunning": "Script (đang chạy)",
@@ -484,6 +487,13 @@
     "pickColor": "Chọn màu",
     "addRule": "Thêm luật tô màu",
     "removeRule": "Xóa luật tô màu"
+  },
+  "eventCounter": {
+    "hint": "Đếm số lần một mẫu xuất hiện trong buffer và tốc độ (số lần khớp trong 10 giây gần nhất).",
+    "labelPlaceholder": "nhãn",
+    "stat": "{{count}} · {{rate}}/s",
+    "addCounter": "Thêm bộ đếm",
+    "removeCounter": "Xóa bộ đếm"
   },
   "toast": {
     "dismiss": "Đóng",
@@ -1026,7 +1036,9 @@
     "bytesPerSec": "{{count}} B/s",
     "linesPerSec": "{{count}} dòng/s",
     "errors": "{{count}} lỗi",
-    "uptime": "đã chạy {{time}}"
+    "uptime": "đã chạy {{time}}",
+    "gap": "cách {{avg}}ms ({{min}}–{{max}})",
+    "gapTitle": "Thời gian giữa các dòng liên tiếp trong cửa sổ gần đây: trung bình (min–max)"
   },
   "triggerBar": {
     "logFileDialogTitle": "File log trigger",

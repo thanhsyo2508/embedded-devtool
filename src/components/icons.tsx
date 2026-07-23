@@ -352,6 +352,14 @@ export function RowsIcon(props: SVGProps<SVGSVGElement>) {
   )
 }
 
+export function HashIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M9 3 7 21M17 3l-2 18M4 8h16M3 16h16" />
+    </Icon>
+  )
+}
+
 export function PaletteIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>

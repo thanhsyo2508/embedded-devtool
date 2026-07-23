@@ -396,6 +396,8 @@
     "previousBookmark": "Previous bookmark",
     "nextBookmark": "Next bookmark",
     "bookmarkList": "Show all bookmarks",
+    "diffHex": "Diff",
+    "diffHexTitle": "Highlight hex bytes that changed from the previous line",
     "lineCount": "{{count}} lines",
     "disconnected": "Disconnected",
     "toggleBookmark": "Toggle bookmark",
@@ -406,6 +408,7 @@
     "jumpToBottom": "jump to bottom",
     "filters": "Filters",
     "colors": "Color rules",
+    "eventCounters": "Event counters",
     "triggers": "Triggers",
     "script": "Script",
     "scriptRunning": "Script (running)",
@@ -487,6 +490,13 @@
     "pickColor": "Pick colour",
     "addRule": "Add colour rule",
     "removeRule": "Remove colour rule"
+  },
+  "eventCounter": {
+    "hint": "Count how often a pattern appears in the buffer and how fast (matches in the last 10s).",
+    "labelPlaceholder": "label",
+    "stat": "{{count}} · {{rate}}/s",
+    "addCounter": "Add counter",
+    "removeCounter": "Remove counter"
   },
   "toast": {
     "dismiss": "Dismiss",
@@ -1033,7 +1043,9 @@
     "bytesPerSec": "{{count}} B/s",
     "linesPerSec": "{{count}} lines/s",
     "errors": "{{count}} errors",
-    "uptime": "up {{time}}"
+    "uptime": "up {{time}}",
+    "gap": "gap {{avg}}ms ({{min}}–{{max}})",
+    "gapTitle": "Time between consecutive lines over the recent window: average (min–max)"
   },
   "triggerBar": {
     "logFileDialogTitle": "Trigger log file",

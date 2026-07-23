@@ -16,6 +16,7 @@ import type { ChartType, Extractor, MqttFieldWatch, ThresholdLine } from '../sta
 import type {
   ColorRule,
   ConnectionConfig,
+  EventCounter,
   FilterRule,
   LineEnding,
   OpenTabRequest,
@@ -32,6 +33,7 @@ export interface ProjectProfileTab {
   tabEmoji?: string
   filters: FilterRule[]
   colorRules?: ColorRule[]
+  eventCounters?: EventCounter[]
   triggers: TriggerRule[]
   scriptCode: string
   lineEnding: LineEnding
@@ -87,6 +89,7 @@ export function buildProjectProfile(
       tabEmoji: tab.tabEmoji,
       filters: tab.filters,
       colorRules: tab.colorRules,
+      eventCounters: tab.eventCounters,
       triggers: tab.triggers,
       scriptCode: tab.scriptCode,
       lineEnding: tab.lineEnding,

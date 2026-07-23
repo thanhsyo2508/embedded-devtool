@@ -18,6 +18,7 @@ import {
   FilterIcon,
   FolderIcon,
   GaugeIcon,
+  HashIcon,
   PaletteIcon,
   PuzzleIcon,
   RepeatIcon,
@@ -30,6 +31,7 @@ import { SignalBar } from './SignalBar'
 import { StatsBar } from './StatsBar'
 import { FilterBar } from './FilterBar'
 import { ColorBar } from './ColorBar'
+import { EventCounterPanel } from './EventCounterPanel'
 import { TriggerBar } from './TriggerBar'
 import { ScriptPanel } from './ScriptPanel'
 import { MacroPanel } from './MacroPanel'
@@ -45,6 +47,26 @@ import { useToastStore } from '../state/toastStore'
 
 function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, '0')).join(' ')
+}
+
+/** Hex render that tints each byte differing from the previous line's byte
+ * at the same position (or extending past its length) — for spotting which
+ * fields change frame-to-frame in a binary protocol. The first line has no
+ * baseline, so nothing is tinted there. */
+function HexDiff({ bytes, prev }: { bytes: number[]; prev: number[] | null }) {
+  return (
+    <>
+      {bytes.map((b, i) => {
+        const changed = prev !== null && (i >= prev.length || prev[i] !== b)
+        return (
+          <span key={i} className={changed ? 'hex-changed' : undefined}>
+            {b.toString(16).padStart(2, '0')}
+            {i < bytes.length - 1 ? ' ' : ''}
+          </span>
+        )
+      })}
+    </>
+  )
 }
 
 // Turns whatever text was selected in the log into a hex string for the
@@ -90,6 +112,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [openPanel, setOpenPanel] = useState<
     | 'filters'
     | 'colors'
+    | 'events'
     | 'triggers'
     | 'script'
     | 'plugins'
@@ -108,6 +131,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [pendingJumpSeq, setPendingJumpSeq] = useState<number | null>(null)
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
   const [showBookmarkList, setShowBookmarkList] = useState(false)
+  const [diffHex, setDiffHex] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -194,6 +218,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
     panel:
       | 'filters'
       | 'colors'
+      | 'events'
       | 'triggers'
       | 'script'
       | 'plugins'
@@ -391,6 +416,16 @@ export function MonitorView({ tab }: { tab: TabState }) {
             </span>
           ))}
         </div>
+        {tab.viewMode !== 'ascii' && (
+          <button
+            type="button"
+            className={diffHex ? 'on' : ''}
+            title={t('monitor.diffHexTitle')}
+            onClick={() => setDiffHex((v) => !v)}
+          >
+            {t('monitor.diffHex')}
+          </button>
+        )}
         <button type="button" className={paused ? 'on' : ''} onClick={() => togglePause(tab.id)}>
           {paused
             ? pendingCount > 0
@@ -506,7 +541,16 @@ export function MonitorView({ tab }: { tab: TabState }) {
                     )}
                     <span className="dir-arrow">{line.direction === 'tx' ? '»' : '«'}</span>
                     {tab.viewMode !== 'ascii' && (
-                      <span className="hex">{bytesToHex(line.bytes)}</span>
+                      <span className="hex">
+                        {diffHex ? (
+                          <HexDiff
+                            bytes={line.bytes}
+                            prev={item.index > 0 ? filteredLines[item.index - 1].bytes : null}
+                          />
+                        ) : (
+                          bytesToHex(line.bytes)
+                        )}
+                      </span>
                     )}
                     {tab.viewMode !== 'hex' && (
                       <span className="msg" style={lineColor ? { color: lineColor } : undefined}>
@@ -568,6 +612,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
           {openPanel === 'colors' && (
             <div className="feature-flyout">
               <ColorBar tab={tab} />
+            </div>
+          )}
+          {openPanel === 'events' && (
+            <div className="feature-flyout feature-flyout-wide">
+              <EventCounterPanel tab={tab} />
             </div>
           )}
           {openPanel === 'triggers' && (
@@ -641,6 +690,18 @@ export function MonitorView({ tab }: { tab: TabState }) {
             <PaletteIcon />
             {tab.colorRules.length > 0 && (
               <span className="feature-rail-badge">{tab.colorRules.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={openPanel === 'events' || tab.eventCounters.length > 0 ? 'on' : ''}
+            title={t('monitor.eventCounters')}
+            aria-label={t('monitor.eventCounters')}
+            onClick={() => togglePanel('events')}
+          >
+            <HashIcon />
+            {tab.eventCounters.length > 0 && (
+              <span className="feature-rail-badge">{tab.eventCounters.length}</span>
             )}
           </button>
           <button

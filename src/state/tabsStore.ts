@@ -101,6 +101,16 @@ export interface ColorRule {
   enabled: boolean
 }
 
+/** A named regex whose live match count and rate the monitor tracks — for
+ * "how many resets / CRC errors / retries has this device logged, and how
+ * fast", without writing a script. */
+export interface EventCounter {
+  id: string
+  pattern: string
+  label: string
+  enabled: boolean
+}
+
 export type TriggerActionType = 'send' | 'sound' | 'file' | 'bookmark' | 'webhook'
 
 export interface TriggerAction {
@@ -303,6 +313,7 @@ export interface TabState {
   pausedAtSeq: number | null
   filters: FilterRule[]
   colorRules: ColorRule[]
+  eventCounters: EventCounter[]
   bookmarks: number[]
   /** Cumulative counters for the stats panel — unlike `lines`, these never
    * shrink when the buffer is trimmed to `maxLinesPerTab`. */
@@ -384,6 +395,15 @@ interface TabsStore {
   ) => void
   toggleColorRuleEnabled: (id: string, ruleId: string) => void
   setColorRules: (id: string, colorRules: ColorRule[]) => void
+  addEventCounter: (id: string) => void
+  removeEventCounter: (id: string, counterId: string) => void
+  updateEventCounter: (
+    id: string,
+    counterId: string,
+    patch: Partial<Pick<EventCounter, 'pattern' | 'label'>>,
+  ) => void
+  toggleEventCounterEnabled: (id: string, counterId: string) => void
+  setEventCounters: (id: string, eventCounters: EventCounter[]) => void
   toggleBookmark: (id: string, seq: number) => void
   addBookmark: (id: string, seq: number) => void
   addTrigger: (id: string) => void
@@ -1015,6 +1035,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       pausedAtSeq: null,
       filters: [],
       colorRules: [],
+      eventCounters: [],
       bookmarks: [],
       totalBytesReceived: 0,
       totalLinesReceived: 0,
@@ -1540,6 +1561,78 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
               ...tab,
               colorRules: colorRules.map((r) => ({
                 ...r,
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              })),
+            }
+          : tab,
+      ),
+    })),
+
+  addEventCounter: (id) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              eventCounters: [
+                ...tab.eventCounters,
+                {
+                  id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  pattern: '',
+                  label: '',
+                  enabled: true,
+                },
+              ],
+            }
+          : tab,
+      ),
+    })),
+
+  removeEventCounter: (id, counterId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? { ...tab, eventCounters: tab.eventCounters.filter((c) => c.id !== counterId) }
+          : tab,
+      ),
+    })),
+
+  updateEventCounter: (id, counterId, patch) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              eventCounters: tab.eventCounters.map((c) =>
+                c.id === counterId ? { ...c, ...patch } : c,
+              ),
+            }
+          : tab,
+      ),
+    })),
+
+  toggleEventCounterEnabled: (id, counterId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              eventCounters: tab.eventCounters.map((c) =>
+                c.id === counterId ? { ...c, enabled: !c.enabled } : c,
+              ),
+            }
+          : tab,
+      ),
+    })),
+
+  setEventCounters: (id, eventCounters) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              eventCounters: eventCounters.map((c) => ({
+                ...c,
                 id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
               })),
             }
