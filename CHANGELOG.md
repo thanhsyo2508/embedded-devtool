@@ -1,5 +1,46 @@
 # Changelog
 
+## v0.1.11 — 2026-07-23
+
+- **Chart MQTT payload fields with one click.** With an MQTT tab set as the
+  plotter's source, each numeric field in a topic's JSON payload now shows a
+  chart icon — click it to plot that field. Picks are matched by exact topic
+  + JSON path, so two topics that share a field name never mix on the chart,
+  and they're saved with the project profile. MQTT tabs no longer spray the
+  plotter with noisy auto-detected channels from their raw log lines.
+- **Colour rules for the serial monitor.** Define regex → colour rules
+  (from a new palette panel) to tint matching log lines however you like, on
+  top of the automatic error/warn colouring; rules save with the project
+  profile.
+- **Struct decoder in the Data Inspector.** A new "Struct" mode decodes a
+  selected byte run against a named C-struct-like layout you type in
+  (`uint16 id`, `float32 temp`, `char[8] name`, `bytes[4] raw`, `pad[2]`, …)
+  and shows every field by name — with saveable templates.
+- **Webhook triggers.** A trigger can now POST to a URL when a pattern
+  matches (with an optional JSON body using `{{line}}`/`{{pattern}}`
+  placeholders) — for pinging Slack/Discord/CI when a device logs something.
+- **Event counters.** Name a regex and the monitor tracks its live match
+  count in the buffer plus its rate (matches per second) — for watching how
+  often resets, CRC errors, or retries happen.
+- **More at-a-glance monitor tools:** a sparkline of each live-dashboard
+  field's recent trend; a bookmark list to jump straight to any bookmarked
+  line; an inter-line timing readout (avg / min–max gap) in the stats bar; a
+  hex-view "Diff" toggle that highlights bytes that changed from the previous
+  line (for binary-protocol reverse-engineering); and a "Collapse" toggle
+  that folds runs of identical lines into one row with an ×N count.
+- **Plotter XY mode.** Plot one channel against another (Y vs X scatter)
+  instead of against time — for I-V curves, correlations, and control-loop
+  trajectories.
+- **Smoothness fixes:** fast MQTT/serial data sources no longer stall the
+  UI (port scans, tab switches) — chart ingestion, the MQTT topic tree, the
+  command palette, and log filtering are no longer rebuilt on every incoming
+  data batch. Copy buttons across the app now confirm the copy (a check icon
+  or a toast). Several silent failures now surface an error toast (CSV/PNG
+  export, DTR/RTS toggles, MQTT publish/subscribe), the serial hex column
+  uses the full width in hex-only view, long/multi-line log entries no longer
+  overlap, the log-folder button opens reliably, and quick commands gained a
+  row-view toggle.
+
 ## v0.1.10 — 2026-07-21
 
 - **FTP now works as a tab, the same way SSH's SFTP sidebar does.** Connect
