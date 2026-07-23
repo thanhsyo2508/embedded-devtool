@@ -395,6 +395,7 @@
     "clear": "Clear",
     "previousBookmark": "Previous bookmark",
     "nextBookmark": "Next bookmark",
+    "bookmarkList": "Show all bookmarks",
     "lineCount": "{{count}} lines",
     "disconnected": "Disconnected",
     "toggleBookmark": "Toggle bookmark",
@@ -404,6 +405,7 @@
     "closeSearch": "Close search",
     "jumpToBottom": "jump to bottom",
     "filters": "Filters",
+    "colors": "Color rules",
     "triggers": "Triggers",
     "script": "Script",
     "scriptRunning": "Script (running)",
@@ -445,7 +447,11 @@
     "littleEndian": "Little-endian",
     "bigEndian": "Big-endian",
     "ascii": "ASCII",
-    "binary": "Binary"
+    "binary": "Binary",
+    "modeValues": "Values",
+    "modeStruct": "Struct",
+    "templateLabel": "Template",
+    "structTruncated": "Ran out of bytes before the last field — decoded what fit."
   },
   "frameBuilder": {
     "addField": "Add field",
@@ -475,6 +481,12 @@
     "include": "Include",
     "exclude": "Exclude",
     "lineCount": "{{visible}} / {{total}} lines"
+  },
+  "colorBar": {
+    "hint": "Tint log lines matching a pattern. The first matching rule wins, and overrides the automatic level colour.",
+    "pickColor": "Pick colour",
+    "addRule": "Add colour rule",
+    "removeRule": "Remove colour rule"
   },
   "toast": {
     "dismiss": "Dismiss",
@@ -1029,10 +1041,14 @@
       "bookmark": "Bookmark line",
       "send": "Send",
       "sound": "Play sound",
-      "file": "Write to file"
+      "file": "Write to file",
+      "webhook": "Call webhook"
     },
     "sendPlaceholder": "text/hex to send",
     "chooseFile": "Choose file",
+    "webhookUrlPlaceholder": "https://… (POST URL)",
+    "webhookBodyPlaceholder": "JSON body (optional)",
+    "webhookBodyTitle": "Optional JSON body. Use {{line}} and {{pattern}} as placeholders; leave empty to send { line, pattern }.",
     "removeTrigger": "Remove trigger",
     "addTrigger": "Add trigger"
   },

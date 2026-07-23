@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { openPath } from '@tauri-apps/plugin-opener'
 import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
 import { applyCompiledFilters, compileFilters } from '../lib/filterLines'
+import { compileColorRules, matchColor } from '../lib/colorRules'
 import { renderLine } from '../lib/ansiRender'
 import { parseHex, formatHex } from '../lib/hex'
 import { DataInspector } from './DataInspector'
@@ -17,6 +18,7 @@ import {
   FilterIcon,
   FolderIcon,
   GaugeIcon,
+  PaletteIcon,
   PuzzleIcon,
   RepeatIcon,
   SearchIcon,
@@ -27,6 +29,7 @@ import {
 import { SignalBar } from './SignalBar'
 import { StatsBar } from './StatsBar'
 import { FilterBar } from './FilterBar'
+import { ColorBar } from './ColorBar'
 import { TriggerBar } from './TriggerBar'
 import { ScriptPanel } from './ScriptPanel'
 import { MacroPanel } from './MacroPanel'
@@ -86,6 +89,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [logBusy, setLogBusy] = useState(false)
   const [openPanel, setOpenPanel] = useState<
     | 'filters'
+    | 'colors'
     | 'triggers'
     | 'script'
     | 'plugins'
@@ -103,6 +107,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [structuredText, setStructuredText] = useState<string | null>(null)
   const [pendingJumpSeq, setPendingJumpSeq] = useState<number | null>(null)
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
+  const [showBookmarkList, setShowBookmarkList] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -130,6 +135,10 @@ export function MonitorView({ tab }: { tab: TabState }) {
   )
 
   const includeHighlights = compiledFilters.includes
+
+  // Compiled once per rule edit (like the filters above), then consulted for
+  // each visible log row to tint lines matching a user colour rule.
+  const compiledColorRules = useMemo(() => compileColorRules(tab.colorRules), [tab.colorRules])
 
   const searchRegex = useMemo(() => {
     if (!searchOpen || searchQuery.length === 0) return null
@@ -184,6 +193,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const togglePanel = (
     panel:
       | 'filters'
+      | 'colors'
       | 'triggers'
       | 'script'
       | 'plugins'
@@ -306,6 +316,14 @@ export function MonitorView({ tab }: { tab: TabState }) {
     virtualizer.scrollToIndex(bookmarkedIndices[next], { align: 'center' })
   }
 
+  // Jump straight to one bookmark picked from the list, rather than stepping
+  // prev/next through them all.
+  const jumpToBookmark = (listIndex: number) => {
+    setBookmarkCursor(listIndex)
+    virtualizer.scrollToIndex(bookmarkedIndices[listIndex], { align: 'center' })
+    setShowBookmarkList(false)
+  }
+
   // M4-search: Ctrl+F opens the buffer search bar; scoped to this component
   // (rather than App.tsx's global shortcut handler) since jumping to a match
   // needs direct access to this tab's virtualizer. Excludes Shift so
@@ -392,9 +410,16 @@ export function MonitorView({ tab }: { tab: TabState }) {
             >
               <BookmarkIcon />‹
             </button>
-            <span className="mono">
-              {bookmarkCursor + 1}/{bookmarkedIndices.length}
-            </span>
+            <button
+              type="button"
+              className="bookmark-nav-count"
+              title={t('monitor.bookmarkList')}
+              onClick={() => setShowBookmarkList((v) => !v)}
+            >
+              <span className="mono">
+                {bookmarkCursor + 1}/{bookmarkedIndices.length}
+              </span>
+            </button>
             <button
               type="button"
               onClick={() => gotoBookmark(1)}
@@ -402,6 +427,28 @@ export function MonitorView({ tab }: { tab: TabState }) {
             >
               ›
             </button>
+            {showBookmarkList && (
+              <div className="bookmark-list">
+                {bookmarkedIndices.map((lineIdx, i) => {
+                  const bmLine = filteredLines[lineIdx]
+                  return (
+                    <button
+                      type="button"
+                      key={bmLine.seq}
+                      className={`bookmark-list-item ${i === bookmarkCursor ? 'on' : ''}`}
+                      onClick={() => jumpToBookmark(i)}
+                    >
+                      {tab.timestampMode !== 'off' && (
+                        <span className="bookmark-list-time mono">
+                          {formatTimestamp(tab, bmLine.atMs)}
+                        </span>
+                      )}
+                      <span className="bookmark-list-text">{bmLine.text}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
         <span className="line-count">
@@ -429,6 +476,8 @@ export function MonitorView({ tab }: { tab: TabState }) {
                 const line = filteredLines[item.index]
                 const isCurrentSearchMatch =
                   searchRegex !== null && searchMatchIndices[searchIndex] === item.index
+                const lineColor =
+                  compiledColorRules.length > 0 ? matchColor(line.text, compiledColorRules) : null
                 return (
                   <div
                     key={line.seq}
@@ -460,7 +509,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                       <span className="hex">{bytesToHex(line.bytes)}</span>
                     )}
                     {tab.viewMode !== 'hex' && (
-                      <span className="msg">
+                      <span className="msg" style={lineColor ? { color: lineColor } : undefined}>
                         {renderLine(line.text, searchRegex ? [searchRegex] : includeHighlights)}
                       </span>
                     )}
@@ -514,6 +563,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
           {openPanel === 'filters' && (
             <div className="feature-flyout">
               <FilterBar tab={tab} visibleCount={filteredLines.length} />
+            </div>
+          )}
+          {openPanel === 'colors' && (
+            <div className="feature-flyout">
+              <ColorBar tab={tab} />
             </div>
           )}
           {openPanel === 'triggers' && (
@@ -575,6 +629,18 @@ export function MonitorView({ tab }: { tab: TabState }) {
             <FilterIcon />
             {tab.filters.length > 0 && (
               <span className="feature-rail-badge">{tab.filters.length}</span>
+            )}
+          </button>
+          <button
+            type="button"
+            className={openPanel === 'colors' || tab.colorRules.length > 0 ? 'on' : ''}
+            title={t('monitor.colors')}
+            aria-label={t('monitor.colors')}
+            onClick={() => togglePanel('colors')}
+          >
+            <PaletteIcon />
+            {tab.colorRules.length > 0 && (
+              <span className="feature-rail-badge">{tab.colorRules.length}</span>
             )}
           </button>
           <button

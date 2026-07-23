@@ -392,6 +392,7 @@
     "clear": "Xóa",
     "previousBookmark": "Đánh dấu trước",
     "nextBookmark": "Đánh dấu tiếp theo",
+    "bookmarkList": "Xem tất cả đánh dấu",
     "lineCount": "{{count}} dòng",
     "disconnected": "Đã ngắt kết nối",
     "toggleBookmark": "Bật/tắt đánh dấu",
@@ -401,6 +402,7 @@
     "closeSearch": "Đóng tìm kiếm",
     "jumpToBottom": "về cuối",
     "filters": "Bộ lọc",
+    "colors": "Luật tô màu",
     "triggers": "Trigger",
     "script": "Script",
     "scriptRunning": "Script (đang chạy)",
@@ -442,7 +444,11 @@
     "littleEndian": "Little-endian",
     "bigEndian": "Big-endian",
     "ascii": "ASCII",
-    "binary": "Nhị phân"
+    "binary": "Nhị phân",
+    "modeValues": "Giá trị",
+    "modeStruct": "Struct",
+    "templateLabel": "Mẫu",
+    "structTruncated": "Hết byte trước trường cuối — chỉ giải mã được phần vừa đủ."
   },
   "frameBuilder": {
     "addField": "Thêm trường",
@@ -472,6 +478,12 @@
     "include": "Gồm",
     "exclude": "Loại trừ",
     "lineCount": "{{visible}} / {{total}} dòng"
+  },
+  "colorBar": {
+    "hint": "Tô màu các dòng log khớp mẫu. Luật khớp đầu tiên được áp dụng, và ghi đè màu tự động theo mức log.",
+    "pickColor": "Chọn màu",
+    "addRule": "Thêm luật tô màu",
+    "removeRule": "Xóa luật tô màu"
   },
   "toast": {
     "dismiss": "Đóng",
@@ -1022,10 +1034,14 @@
       "bookmark": "Đánh dấu dòng",
       "send": "Gửi",
       "sound": "Phát âm thanh",
-      "file": "Ghi ra file"
+      "file": "Ghi ra file",
+      "webhook": "Gọi webhook"
     },
     "sendPlaceholder": "text/hex để gửi",
     "chooseFile": "Chọn file",
+    "webhookUrlPlaceholder": "https://… (URL POST)",
+    "webhookBodyPlaceholder": "Nội dung JSON (tùy chọn)",
+    "webhookBodyTitle": "Nội dung JSON tùy chọn. Dùng {{line}} và {{pattern}} làm biến thay thế; để trống sẽ gửi { line, pattern }.",
     "removeTrigger": "Xóa trigger",
     "addTrigger": "Thêm trigger"
   },

@@ -14,6 +14,7 @@ import { mapTabIds, type LayoutNode } from './layoutTree'
 import type { MathChannelDef } from './plotMath'
 import type { ChartType, Extractor, MqttFieldWatch, ThresholdLine } from '../state/plotStore'
 import type {
+  ColorRule,
   ConnectionConfig,
   FilterRule,
   LineEnding,
@@ -30,6 +31,7 @@ export interface ProjectProfileTab {
   tabColor?: string
   tabEmoji?: string
   filters: FilterRule[]
+  colorRules?: ColorRule[]
   triggers: TriggerRule[]
   scriptCode: string
   lineEnding: LineEnding
@@ -84,6 +86,7 @@ export function buildProjectProfile(
       tabColor: tab.tabColor,
       tabEmoji: tab.tabEmoji,
       filters: tab.filters,
+      colorRules: tab.colorRules,
       triggers: tab.triggers,
       scriptCode: tab.scriptCode,
       lineEnding: tab.lineEnding,

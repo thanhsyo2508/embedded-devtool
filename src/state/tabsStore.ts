@@ -91,13 +91,30 @@ export interface FilterRule {
   enabled: boolean
 }
 
-export type TriggerActionType = 'send' | 'sound' | 'file' | 'bookmark'
+/** A regex → colour rule: any log line matching `pattern` is tinted with
+ * `color` in the monitor, on top of (and overriding) the automatic
+ * log-level colouring. First matching enabled rule wins. */
+export interface ColorRule {
+  id: string
+  pattern: string
+  color: string
+  enabled: boolean
+}
+
+export type TriggerActionType = 'send' | 'sound' | 'file' | 'bookmark' | 'webhook'
 
 export interface TriggerAction {
   type: TriggerActionType
   sendText: string
   sendIsHex: boolean
   filePath: string
+  /** For the `webhook` action: the URL to POST to, and an optional JSON body
+   * template. `{{line}}` / `{{pattern}}` in the body are substituted with the
+   * matched line text and the rule's pattern; an empty body sends a default
+   * `{ "line": ..., "pattern": ... }` object. Optional so triggers saved
+   * before this action existed still parse. */
+  webhookUrl?: string
+  webhookBody?: string
 }
 
 export interface TriggerRule {
@@ -285,6 +302,7 @@ export interface TabState {
    * only the displayed view stops moving until resumed. */
   pausedAtSeq: number | null
   filters: FilterRule[]
+  colorRules: ColorRule[]
   bookmarks: number[]
   /** Cumulative counters for the stats panel — unlike `lines`, these never
    * shrink when the buffer is trimmed to `maxLinesPerTab`. */
@@ -357,6 +375,15 @@ interface TabsStore {
   updateFilterPattern: (id: string, filterId: string, pattern: string) => void
   toggleFilterEnabled: (id: string, filterId: string) => void
   setFilters: (id: string, filters: FilterRule[]) => void
+  addColorRule: (id: string) => void
+  removeColorRule: (id: string, ruleId: string) => void
+  updateColorRule: (
+    id: string,
+    ruleId: string,
+    patch: Partial<Pick<ColorRule, 'pattern' | 'color'>>,
+  ) => void
+  toggleColorRuleEnabled: (id: string, ruleId: string) => void
+  setColorRules: (id: string, colorRules: ColorRule[]) => void
   toggleBookmark: (id: string, seq: number) => void
   addBookmark: (id: string, seq: number) => void
   addTrigger: (id: string) => void
@@ -597,6 +624,7 @@ function connectionLabelFor(config: ConnectionConfig): string {
 async function dispatchTriggerAction(
   tabId: string,
   action: TriggerAction,
+  pattern: string,
   line: LogLine,
   get: () => TabsStore,
 ): Promise<void> {
@@ -620,6 +648,26 @@ async function dispatchTriggerAction(
     case 'bookmark':
       get().addBookmark(tabId, line.seq)
       break
+    case 'webhook': {
+      const url = action.webhookUrl ?? ''
+      if (url.length === 0) return
+      const template = action.webhookBody ?? ''
+      // Substitute JSON-escaped values so `{{line}}` inside a body like
+      // {"text":"{{line}}"} stays valid JSON; an empty template sends a
+      // default object with the matched line and rule pattern.
+      const body =
+        template.length > 0
+          ? template
+              .split('{{line}}')
+              .join(JSON.stringify(line.text).slice(1, -1))
+              .split('{{pattern}}')
+              .join(JSON.stringify(pattern).slice(1, -1))
+          : JSON.stringify({ line: line.text, pattern })
+      // Fire-and-forget on the backend (own thread) so a slow/unreachable
+      // endpoint never stalls data handling.
+      await invoke('trigger_webhook', { url, body })
+      break
+    }
   }
 }
 
@@ -627,7 +675,7 @@ async function runTriggers(tab: TabState, lines: LogLine[], get: () => TabsStore
   const matches = matchTriggers(tab.triggers, lines)
   for (const { rule, line } of matches) {
     try {
-      await dispatchTriggerAction(tab.id, rule.action, line, get)
+      await dispatchTriggerAction(tab.id, rule.action, rule.pattern, line, get)
     } catch {
       // best-effort — one bad trigger action shouldn't block the rest
     }
@@ -966,6 +1014,7 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
       isLogging: false,
       pausedAtSeq: null,
       filters: [],
+      colorRules: [],
       bookmarks: [],
       totalBytesReceived: 0,
       totalLinesReceived: 0,
@@ -1421,6 +1470,76 @@ export const useTabsStore = create<TabsStore>((set, get) => ({
               ...tab,
               filters: filters.map((f) => ({
                 ...f,
+                id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              })),
+            }
+          : tab,
+      ),
+    })),
+
+  // Seeded with a readable default colour rather than an empty string so a
+  // fresh rule tints something the moment a pattern is typed.
+  addColorRule: (id) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              colorRules: [
+                ...tab.colorRules,
+                {
+                  id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+                  pattern: '',
+                  color: '#e0a030',
+                  enabled: true,
+                },
+              ],
+            }
+          : tab,
+      ),
+    })),
+
+  removeColorRule: (id, ruleId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id ? { ...tab, colorRules: tab.colorRules.filter((r) => r.id !== ruleId) } : tab,
+      ),
+    })),
+
+  updateColorRule: (id, ruleId, patch) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              colorRules: tab.colorRules.map((r) => (r.id === ruleId ? { ...r, ...patch } : r)),
+            }
+          : tab,
+      ),
+    })),
+
+  toggleColorRuleEnabled: (id, ruleId) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              colorRules: tab.colorRules.map((r) =>
+                r.id === ruleId ? { ...r, enabled: !r.enabled } : r,
+              ),
+            }
+          : tab,
+      ),
+    })),
+
+  setColorRules: (id, colorRules) =>
+    set((state) => ({
+      tabs: state.tabs.map((tab) =>
+        tab.id === id
+          ? {
+              ...tab,
+              colorRules: colorRules.map((r) => ({
+                ...r,
                 id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
               })),
             }

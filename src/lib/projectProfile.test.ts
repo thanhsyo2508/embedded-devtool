@@ -25,6 +25,7 @@ function makeTab(
     isLogging: false,
     pausedAtSeq: null,
     filters: [],
+    colorRules: [],
     bookmarks: [],
     totalBytesReceived: 0,
     totalLinesReceived: 0,

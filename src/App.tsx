@@ -78,6 +78,7 @@ function App() {
   const togglePause = useTabsStore((s) => s.togglePause)
   const openTab = useTabsStore((s) => s.openTab)
   const setFilters = useTabsStore((s) => s.setFilters)
+  const setColorRules = useTabsStore((s) => s.setColorRules)
   const setTriggers = useTabsStore((s) => s.setTriggers)
   const setScriptCode = useTabsStore((s) => s.setScriptCode)
   const setLineEnding = useTabsStore((s) => s.setLineEnding)
@@ -330,6 +331,7 @@ function App() {
         continue
       }
       setFilters(newId, tabConfig.filters)
+      setColorRules(newId, tabConfig.colorRules ?? [])
       setTriggers(newId, tabConfig.triggers)
       setScriptCode(newId, tabConfig.scriptCode)
       setLineEnding(newId, tabConfig.lineEnding)

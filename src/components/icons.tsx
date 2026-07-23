@@ -351,3 +351,14 @@ export function RowsIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   )
 }
+
+export function PaletteIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="M12 3a9 9 0 0 0 0 18 2 2 0 0 0 2-2 2 2 0 0 1 2-2h1a4 4 0 0 0 4-4c0-5-4-8-9-8Z" />
+      <circle cx="7.5" cy="11" r="1" fill="currentColor" stroke="none" />
+      <circle cx="10.5" cy="7.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="7.5" r="1" fill="currentColor" stroke="none" />
+    </Icon>
+  )
+}

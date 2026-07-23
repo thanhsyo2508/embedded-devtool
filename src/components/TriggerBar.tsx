@@ -5,7 +5,7 @@ import { useTriggerPresetsStore } from '../state/triggerPresetsStore'
 import { FolderIcon, PlusIcon, TrashIcon } from './icons'
 import { LibraryRow } from './LibraryRow'
 
-const ACTION_TYPES: TriggerActionType[] = ['bookmark', 'send', 'sound', 'file']
+const ACTION_TYPES: TriggerActionType[] = ['bookmark', 'send', 'sound', 'file', 'webhook']
 
 export function TriggerBar({ tab }: { tab: TabState }) {
   const { t } = useTranslation()
@@ -105,6 +105,30 @@ export function TriggerBar({ tab }: { tab: TabState }) {
               >
                 <FolderIcon />
               </button>
+            </>
+          )}
+
+          {trigger.action.type === 'webhook' && (
+            <>
+              <input
+                type="text"
+                className="trigger-webhook-url"
+                placeholder={t('triggerBar.webhookUrlPlaceholder')}
+                value={trigger.action.webhookUrl ?? ''}
+                onChange={(e) =>
+                  updateTrigger(tab.id, trigger.id, { action: { webhookUrl: e.target.value } })
+                }
+              />
+              <input
+                type="text"
+                className="trigger-webhook-body"
+                placeholder={t('triggerBar.webhookBodyPlaceholder')}
+                title={t('triggerBar.webhookBodyTitle')}
+                value={trigger.action.webhookBody ?? ''}
+                onChange={(e) =>
+                  updateTrigger(tab.id, trigger.id, { action: { webhookBody: e.target.value } })
+                }
+              />
             </>
           )}
 

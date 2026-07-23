@@ -77,6 +77,25 @@ fn append_trigger_log(path: String, line: String) -> Result<(), String> {
     writeln!(file, "{line}").map_err(|e| e.to_string())
 }
 
+/// Backs the trigger "webhook" action: fires a one-shot HTTP POST with the
+/// given JSON body when a pattern matches. Spawns a detached thread so a
+/// slow or unreachable endpoint can never stall the caller (data handling
+/// runs on the frontend side, but the `invoke` still awaits this command's
+/// return, so it must come back immediately). Errors are logged, not
+/// surfaced — a firing trigger has no UI to report a failed POST to, and a
+/// flaky webhook shouldn't spam the user on every matching line.
+#[tauri::command]
+fn trigger_webhook(url: String, body: String) {
+    thread::spawn(move || {
+        let result = ureq::post(&url)
+            .header("Content-Type", "application/json")
+            .send(body);
+        if let Err(e) = result {
+            eprintln!("trigger webhook POST to '{url}' failed: {e}");
+        }
+    });
+}
+
 /// Generic save-dialog companions (Tháng 7, plotter CSV/PNG export — but
 /// deliberately not plot-specific): the frontend picks a path via the
 /// dialog plugin, then hands the contents here. Two commands rather than
@@ -2362,6 +2381,7 @@ pub fn run() {
             close_serial_port,
             write_serial_port,
             append_trigger_log,
+            trigger_webhook,
             write_text_file,
             write_binary_file,
             read_text_file,
