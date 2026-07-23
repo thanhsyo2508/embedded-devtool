@@ -398,6 +398,9 @@
     "bookmarkList": "Show all bookmarks",
     "diffHex": "Diff",
     "diffHexTitle": "Highlight hex bytes that changed from the previous line",
+    "collapseRepeats": "Collapse",
+    "collapseRepeatsTitle": "Fold consecutive identical lines into one with a repeat count",
+    "repeatCount": "repeated {{count}} times",
     "lineCount": "{{count}} lines",
     "disconnected": "Disconnected",
     "toggleBookmark": "Toggle bookmark",
@@ -743,6 +746,9 @@
       "points": "Points"
     },
     "fftTitle": "Frequency-domain view (FFT of the current buffer)",
+    "xyTitle": "Plot one channel against another (Y vs X scatter) instead of vs time",
+    "xyX": "X-axis channel",
+    "xyY": "Y-axis channel",
     "fftWindowTitle": "FFT window function",
     "fftWindow": {
       "none": "Rectangular",

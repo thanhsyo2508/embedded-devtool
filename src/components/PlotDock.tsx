@@ -148,6 +148,18 @@ export function PlotDock() {
     b: null,
   })
 
+  // XY mode: plot one channel against another (Y vs X) instead of vs time.
+  // Local state (a view choice, like measureMode) — the chart is drawn as a
+  // scatter (points, pairs sorted by X) so it's correct for any relationship
+  // despite uPlot assuming a sorted x-axis. Mutually exclusive with FFT.
+  const [xyMode, setXyMode] = useState(false)
+  const [xChannel, setXChannel] = useState('')
+  const [yChannel, setYChannel] = useState('')
+  const xyModeRef = useRef(false)
+  useEffect(() => {
+    xyModeRef.current = xyMode
+  }, [xyMode])
+
   const containerRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot | null>(null)
 
@@ -305,6 +317,23 @@ export function PlotDock() {
   }, [displayData, thresholds])
 
   const buildAlignedData = (): uPlot.AlignedData => {
+    if (xyMode) {
+      // Y-vs-X scatter: pair up the two channels by sample index, drop gaps,
+      // and sort by X so uPlot (which assumes an ascending x-axis) is happy —
+      // point placement doesn't depend on order, so the scatter is correct
+      // for any relationship, monotonic or not.
+      const xs = displayData[xChannel] ?? []
+      const ys = displayData[yChannel] ?? []
+      const n = Math.min(xs.length, ys.length)
+      const pairs: [number, number][] = []
+      for (let i = 0; i < n; i++) {
+        const x = xs[i]
+        const y = ys[i]
+        if (x !== null && x !== undefined && y !== null && y !== undefined) pairs.push([x, y])
+      }
+      pairs.sort((a, b) => a[0] - b[0])
+      return [pairs.map((p) => p[0]), pairs.map((p) => p[1])]
+    }
     if (fftMode) {
       if (!spectra) return [[], ...displayOrder.map(() => [])]
       return [spectra.frequencies, ...displayOrder.map((ch) => spectra.magnitudes[ch] ?? [])]
@@ -320,7 +349,7 @@ export function PlotDock() {
   // build time — fold the overrides into the rebuild key so editing one
   // re-strokes the chart (color edits are infrequent, a rebuild is cheap).
   const colorsKey = displayOrder.map((ch, i) => colorFor(ch, i)).join(',')
-  const channelKey = `${displayOrder.join(',')}|${chartType}|${fftMode}|${colorsKey}`
+  const channelKey = `${displayOrder.join(',')}|${chartType}|${fftMode}|${colorsKey}|xy:${xyMode}:${xChannel}:${yChannel}`
 
   // useLayoutEffect (not useEffect): reads the container's real, laid-out
   // pixel size before paint. Measuring in a plain useEffect risks a 0x0
@@ -341,38 +370,48 @@ export function PlotDock() {
       scales: { x: { time: false } },
       axes: [
         {
-          label: fftMode ? 'Hz' : 'seconds',
+          label: xyMode ? xChannel || 'X' : fftMode ? 'Hz' : 'seconds',
           stroke: axisStroke,
           grid: { stroke: gridStroke, width: 1 },
           ticks: { stroke: gridStroke },
         },
         {
+          label: xyMode ? yChannel || 'Y' : undefined,
           stroke: axisStroke,
           grid: { stroke: gridStroke, width: 1 },
           ticks: { stroke: gridStroke },
         },
       ],
-      series: [
-        {},
-        ...displayOrder.map((ch, i) => {
-          const color = colorFor(ch, i)
-          return {
-            label: ch,
-            stroke: color,
-            width: 1.5,
-            show: !hiddenChannels.includes(ch),
-            // FFT is always drawn as lines — bar/point/area styles are
-            // time-domain presentation choices.
-            ...seriesStyleFor(fftMode ? 'line' : chartType, color),
-          }
-        }),
-      ],
+      series: xyMode
+        ? [
+            {},
+            {
+              label: yChannel || 'Y',
+              stroke: themeColor('--accent', '#c4472b'),
+              ...seriesStyleFor('points', themeColor('--accent', '#c4472b')),
+            },
+          ]
+        : [
+            {},
+            ...displayOrder.map((ch, i) => {
+              const color = colorFor(ch, i)
+              return {
+                label: ch,
+                stroke: color,
+                width: 1.5,
+                show: !hiddenChannels.includes(ch),
+                // FFT is always drawn as lines — bar/point/area styles are
+                // time-domain presentation choices.
+                ...seriesStyleFor(fftMode ? 'line' : chartType, color),
+              }
+            }),
+          ],
       cursor: { drag: { x: true, y: false } },
       legend: { show: true },
       hooks: {
         draw: [
           (u) => {
-            if (fftModeRef.current) return
+            if (fftModeRef.current || xyModeRef.current) return
             for (const t of thresholdsRef.current) {
               if (!t.enabled || !Number.isFinite(t.value)) continue
               const y = u.valToPos(t.value, 'y', true)
@@ -565,7 +604,7 @@ export function PlotDock() {
             </option>
           ))}
         </select>
-        {!fftMode && (
+        {!fftMode && !xyMode && (
           <select value={chartType} onChange={(e) => setChartType(e.target.value as ChartType)}>
             {CHART_TYPE_VALUES.map((ct) => (
               <option key={ct} value={ct}>
@@ -578,7 +617,11 @@ export function PlotDock() {
           type="button"
           className={fftMode ? 'on' : ''}
           title={t('plot.fftTitle')}
-          onClick={() => setFftMode(!fftMode)}
+          onClick={() => {
+            const next = !fftMode
+            setFftMode(next)
+            if (next) setXyMode(false)
+          }}
           disabled={!sourceTabId}
         >
           FFT
@@ -595,6 +638,51 @@ export function PlotDock() {
               </option>
             ))}
           </select>
+        )}
+        <button
+          type="button"
+          className={xyMode ? 'on' : ''}
+          title={t('plot.xyTitle')}
+          onClick={() => {
+            const next = !xyMode
+            setXyMode(next)
+            if (next) {
+              setFftMode(false)
+              if (!displayOrder.includes(xChannel)) setXChannel(displayOrder[0] ?? '')
+              if (!displayOrder.includes(yChannel))
+                setYChannel(displayOrder[1] ?? displayOrder[0] ?? '')
+            }
+          }}
+          disabled={!sourceTabId}
+        >
+          XY
+        </button>
+        {xyMode && (
+          <>
+            <select
+              value={xChannel}
+              title={t('plot.xyX')}
+              onChange={(e) => setXChannel(e.target.value)}
+            >
+              {displayOrder.map((ch) => (
+                <option key={ch} value={ch}>
+                  {ch}
+                </option>
+              ))}
+            </select>
+            <span className="plot-xy-arrow">↓</span>
+            <select
+              value={yChannel}
+              title={t('plot.xyY')}
+              onChange={(e) => setYChannel(e.target.value)}
+            >
+              {displayOrder.map((ch) => (
+                <option key={ch} value={ch}>
+                  {ch}
+                </option>
+              ))}
+            </select>
+          </>
         )}
         <button
           type="button"

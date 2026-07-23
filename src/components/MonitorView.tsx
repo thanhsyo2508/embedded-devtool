@@ -2,7 +2,13 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useTranslation } from 'react-i18next'
 import { openPath } from '@tauri-apps/plugin-opener'
-import { useTabsStore, type TabState, type ViewMode, type TimestampMode } from '../state/tabsStore'
+import {
+  useTabsStore,
+  type LogLine,
+  type TabState,
+  type ViewMode,
+  type TimestampMode,
+} from '../state/tabsStore'
 import { applyCompiledFilters, compileFilters } from '../lib/filterLines'
 import { compileColorRules, matchColor } from '../lib/colorRules'
 import { renderLine } from '../lib/ansiRender'
@@ -132,6 +138,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const [bookmarkCursor, setBookmarkCursor] = useState(0)
   const [showBookmarkList, setShowBookmarkList] = useState(false)
   const [diffHex, setDiffHex] = useState(false)
+  const [collapseRepeats, setCollapseRepeats] = useState(false)
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -160,6 +167,23 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
   const includeHighlights = compiledFilters.includes
 
+  // The list the virtualized view (and search/bookmark navigation) actually
+  // renders: normally one item per filtered line, but with `collapseRepeats`
+  // on, runs of consecutive identical-text lines fold into one item carrying
+  // a `count`. Everything downstream indexes into THIS list, so the search
+  // and bookmark match indices stay aligned with what's on screen. The first
+  // line of a run is the representative (its seq drives bookmarking).
+  const displayItems = useMemo(() => {
+    if (!collapseRepeats) return filteredLines.map((line) => ({ line, count: 1 }))
+    const out: { line: LogLine; count: number }[] = []
+    for (const line of filteredLines) {
+      const last = out[out.length - 1]
+      if (last && last.line.text === line.text) last.count++
+      else out.push({ line, count: 1 })
+    }
+    return out
+  }, [filteredLines, collapseRepeats])
+
   // Compiled once per rule edit (like the filters above), then consulted for
   // each visible log row to tint lines matching a user colour rule.
   const compiledColorRules = useMemo(() => compileColorRules(tab.colorRules), [tab.colorRules])
@@ -176,11 +200,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
   const searchMatchIndices = useMemo(() => {
     if (!searchRegex) return []
     const indices: number[] = []
-    filteredLines.forEach((l, i) => {
-      if (searchRegex.test(l.text)) indices.push(i)
+    displayItems.forEach((d, i) => {
+      if (searchRegex.test(d.line.text)) indices.push(i)
     })
     return indices
-  }, [searchRegex, filteredLines])
+  }, [searchRegex, displayItems])
 
   useEffect(() => {
     setSearchIndex(0)
@@ -190,11 +214,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
     if (tab.bookmarks.length === 0) return []
     const seqSet = new Set(tab.bookmarks)
     const indices: number[] = []
-    filteredLines.forEach((l, i) => {
-      if (seqSet.has(l.seq)) indices.push(i)
+    displayItems.forEach((d, i) => {
+      if (seqSet.has(d.line.seq)) indices.push(i)
     })
     return indices
-  }, [filteredLines, tab.bookmarks])
+  }, [displayItems, tab.bookmarks])
 
   const handleToggleLogging = () => {
     setLogBusy(true)
@@ -298,17 +322,17 @@ export function MonitorView({ tab }: { tab: TabState }) {
     : []
 
   const virtualizer = useVirtualizer({
-    count: filteredLines.length,
+    count: displayItems.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 20,
     overscan: 20,
   })
 
   useEffect(() => {
-    if (autoScroll && !paused && filteredLines.length > 0) {
-      virtualizer.scrollToIndex(filteredLines.length - 1, { align: 'end' })
+    if (autoScroll && !paused && displayItems.length > 0) {
+      virtualizer.scrollToIndex(displayItems.length - 1, { align: 'end' })
     }
-  }, [filteredLines.length, autoScroll, paused, virtualizer])
+  }, [displayItems.length, autoScroll, paused, virtualizer])
 
   const handleScroll = () => {
     const el = scrollRef.current
@@ -383,13 +407,13 @@ export function MonitorView({ tab }: { tab: TabState }) {
 
   useEffect(() => {
     if (pendingJumpSeq === null) return
-    const idx = filteredLines.findIndex((l) => l.seq === pendingJumpSeq)
+    const idx = displayItems.findIndex((d) => d.line.seq === pendingJumpSeq)
     if (idx === -1) return
     const matchIdx = searchMatchIndices.indexOf(idx)
     if (matchIdx !== -1) setSearchIndex(matchIdx)
     virtualizer.scrollToIndex(idx, { align: 'center' })
     setPendingJumpSeq(null)
-  }, [pendingJumpSeq, filteredLines, searchMatchIndices, virtualizer])
+  }, [pendingJumpSeq, displayItems, searchMatchIndices, virtualizer])
 
   return (
     <div className="monitor-view">
@@ -426,6 +450,14 @@ export function MonitorView({ tab }: { tab: TabState }) {
             {t('monitor.diffHex')}
           </button>
         )}
+        <button
+          type="button"
+          className={collapseRepeats ? 'on' : ''}
+          title={t('monitor.collapseRepeatsTitle')}
+          onClick={() => setCollapseRepeats((v) => !v)}
+        >
+          {t('monitor.collapseRepeats')}
+        </button>
         <button type="button" className={paused ? 'on' : ''} onClick={() => togglePause(tab.id)}>
           {paused
             ? pendingCount > 0
@@ -465,7 +497,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
             {showBookmarkList && (
               <div className="bookmark-list">
                 {bookmarkedIndices.map((lineIdx, i) => {
-                  const bmLine = filteredLines[lineIdx]
+                  const bmLine = displayItems[lineIdx].line
                   return (
                     <button
                       type="button"
@@ -508,7 +540,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
           >
             <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
               {virtualizer.getVirtualItems().map((item) => {
-                const line = filteredLines[item.index]
+                const { line, count } = displayItems[item.index]
                 const isCurrentSearchMatch =
                   searchRegex !== null && searchMatchIndices[searchIndex] === item.index
                 const lineColor =
@@ -545,7 +577,7 @@ export function MonitorView({ tab }: { tab: TabState }) {
                         {diffHex ? (
                           <HexDiff
                             bytes={line.bytes}
-                            prev={item.index > 0 ? filteredLines[item.index - 1].bytes : null}
+                            prev={item.index > 0 ? displayItems[item.index - 1].line.bytes : null}
                           />
                         ) : (
                           bytesToHex(line.bytes)
@@ -555,6 +587,11 @@ export function MonitorView({ tab }: { tab: TabState }) {
                     {tab.viewMode !== 'hex' && (
                       <span className="msg" style={lineColor ? { color: lineColor } : undefined}>
                         {renderLine(line.text, searchRegex ? [searchRegex] : includeHighlights)}
+                      </span>
+                    )}
+                    {count > 1 && (
+                      <span className="logline-repeat" title={t('monitor.repeatCount', { count })}>
+                        ×{count}
                       </span>
                     )}
                   </div>

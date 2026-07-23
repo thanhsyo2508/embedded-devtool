@@ -996,6 +996,17 @@ body,
   text-overflow: ellipsis;
 }
 
+.logline-repeat {
+  flex: none;
+  align-self: center;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
 .logline .msg mark {
   background: color-mix(in srgb, var(--accent) 35%, transparent);
   color: inherit;
@@ -2395,6 +2406,11 @@ input[type='checkbox']:disabled {
 
 .plot-mqtt-fields-empty {
   padding: 4px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.plot-xy-arrow {
   color: var(--text-muted);
   font-size: 12px;
 }

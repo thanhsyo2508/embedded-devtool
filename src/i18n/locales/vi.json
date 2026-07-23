@@ -395,6 +395,9 @@
     "bookmarkList": "Xem tất cả đánh dấu",
     "diffHex": "So byte",
     "diffHexTitle": "Tô sáng các byte hex thay đổi so với dòng trước",
+    "collapseRepeats": "Gộp lặp",
+    "collapseRepeatsTitle": "Gộp các dòng giống hệt liên tiếp thành 1 dòng kèm số lần lặp",
+    "repeatCount": "lặp lại {{count}} lần",
     "lineCount": "{{count}} dòng",
     "disconnected": "Đã ngắt kết nối",
     "toggleBookmark": "Bật/tắt đánh dấu",
@@ -738,6 +741,9 @@
       "points": "Điểm"
     },
     "fftTitle": "Xem miền tần số (FFT của bộ đệm hiện tại)",
+    "xyTitle": "Vẽ một kênh theo một kênh khác (scatter Y theo X) thay vì theo thời gian",
+    "xyX": "Kênh trục X",
+    "xyY": "Kênh trục Y",
     "fftWindowTitle": "Hàm cửa sổ FFT",
     "fftWindow": {
       "none": "Rectangular",
